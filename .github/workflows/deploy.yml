@@ -1,0 +1,35 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - master 
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4 # Aktualisiert
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # Aktualisiert
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Project
+        run: npm run build
+
+      - name: Deploy to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "dist/*"
+          target: "/var/www/html/baustellen-app"
+          strip_components: 1
