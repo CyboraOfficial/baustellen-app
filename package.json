@@ -10,6 +10,9 @@
     "win": {
       "target": "nsis"
     },
+    "directories": {
+    "output": "dist"
+    },
     "files": [
       "dist/**/*",
       "electron/**/*"
