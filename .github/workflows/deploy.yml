@@ -3,7 +3,7 @@ name: Deploy to VPS
 on:
   push:
     branches:
-      - master  # Ersetze dies durch 'master', falls dein Branch so heißt
+      - master 
 
 jobs:
   build-and-deploy:
@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Aktualisiert
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4 # Aktualisiert
         with:
           node-version: '20'
 
@@ -32,4 +32,4 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "dist/*"
           target: "/var/www/html/baustellen-app"
-          strip_components: 1 # Schiebt den Inhalt von dist direkt rein, nicht den Ordner selbst
+          strip_components: 1
