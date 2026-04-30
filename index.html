@@ -3,9 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta http-equiv="Content-Security-Policy" content="
     default-src 'self'; 
-    script-src 'self'; 
+    script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
     connect-src 'self' 
                 http://82.165.109.54 
                 https://nominatim.openstreetmap.org 
@@ -14,9 +16,11 @@
     style-src 'self' 'unsafe-inline'; 
     img-src 'self' 
             data: 
+            blob:
             https://*.tile.openstreetmap.org 
             https://raw.githubusercontent.com
             https://unpkg.com/;
+    font-src 'self' data:;
 ">
     <title>Baustellen App</title>
   </head>
