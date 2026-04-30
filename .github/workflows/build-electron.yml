@@ -1,0 +1,42 @@
+name: Build Electron Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Startet, wenn du einen Tag pushst, der mit 'v' beginnt (z.B. v1.0.0)
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [windows-latest] # Hier kannst du macos-latest oder ubuntu-latest hinzufügen
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Electron App
+        run: npm run build # Dein Skript, das electron-builder oder electron-forge nutzt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wichtig für das Erstellen des Releases
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/*.exe
+            dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
