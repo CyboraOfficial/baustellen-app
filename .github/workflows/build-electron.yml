@@ -30,7 +30,7 @@ jobs:
         run: npm install
 
       - name: Build Electron App
-        run: npm run build # Dein Skript, das electron-builder oder electron-forge nutzt
+        run: npm run dist # Dein Skript, das electron-builder oder electron-forge nutzt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wichtig für das Erstellen des Releases
 
