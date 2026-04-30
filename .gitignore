@@ -1,0 +1,12 @@
+# Abhängigkeiten
+node_modules/
+dist/
+
+# PocketBase Daten (Wichtig: Deine Datenbank bleibt lokal!)
+pb_data/
+storage/
+*.db
+
+# Lokale Umgebungsvariablen
+.env
+.env.local
