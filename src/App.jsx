@@ -32,7 +32,7 @@ function MarkerCluster({ projects, openProject }) {
     const markers = L.markerClusterGroup({
       maxClusterRadius: 25,
       disableClusteringAtZoom: 15,
-      spiderfyOnMaxZoom: true,
+      spiderfyOnMaxZoom: false,
       showCoverageOnHover: false,
       animate: true,
       // WICHTIG: Wir schalten den Standard-Zoom aus, um ihn selbst zu steuern
