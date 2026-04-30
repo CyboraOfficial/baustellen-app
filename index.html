@@ -3,7 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:; connect-src 'self' http://127.0.0.1:8090 http://localhost:* ws://localhost:* ws://127.0.0.1:* https://nominatim.openstreetmap.org; img-src 'self' https: http://127.0.0.1:8090 data: blob:;">
+    <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self'; 
+    script-src 'self'; 
+    connect-src 'self' 
+                http://82.165.109.54 
+                https://nominatim.openstreetmap.org 
+                http://localhost:* 
+                ws://localhost:*; 
+    style-src 'self' 'unsafe-inline'; 
+    img-src 'self' 
+            data: 
+            https://*.tile.openstreetmap.org 
+            https://raw.githubusercontent.com
+            https://unpkg.com/;
+">
     <title>Baustellen App</title>
   </head>
   <body>
