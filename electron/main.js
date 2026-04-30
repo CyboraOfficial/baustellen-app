@@ -1,6 +1,6 @@
 console.log("MAIN.JS WIRD GELADEN");
 
-const { app, BrowserWindow, session, ipcMain } = require('electron');
+const { app, BrowserWindow, session, ipcMain, dialog, shell } = require('electron');
 const path = require('path'); // Pfad separat importieren, damit .join() sicher definiert ist
 const fs = require("fs");
 const os = require('os');
@@ -211,6 +211,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+ipcMain.on('open-external-file', (event, url) => {
+  console.log("Öffne externe URL:", url);
+  shell.openExternal(url); 
+});
 
 ipcMain.handle("projects:create", async (_, project) => {
   const result = saveProject(project);

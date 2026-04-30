@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
 import "leaflet.markercluster";
@@ -7,6 +7,8 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { useMap } from "react-leaflet"; 
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 
+L.Map.mergeOptions({ zoomAnimation: true, zoomAnimationThreshold: 10 });
+
 function FlyToPosition({ position }) {
   const map = useMap();
 
@@ -14,7 +16,7 @@ function FlyToPosition({ position }) {
     if (!position) return;
 
     map.flyTo([position.lat, position.lng], 17, {
-      duration: 0.8,
+      duration: 1.0,
     });
   }, [position]);
 
@@ -28,9 +30,23 @@ function MarkerCluster({ projects, openProject }) {
     if (!map) return;
 
     const markers = L.markerClusterGroup({
-      maxClusterRadius: 25, // Verringert den Radius für das Clustering
-      disableClusteringAtZoom: 15, // Optional: Ab Zoom-Stufe 17 wird gar nicht mehr geclustert
-      spiderfyOnMaxZoom: true // Erlaubt das Auffächern, wenn Marker exakt übereinander liegen
+      maxClusterRadius: 25,
+      disableClusteringAtZoom: 15,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      animate: true,
+      // WICHTIG: Wir schalten den Standard-Zoom aus, um ihn selbst zu steuern
+      zoomToBoundsOnClick: false 
+    });
+
+    // Eigener Klick-Handler für den sanften Zoom (1 Sekunde)
+    markers.on('clusterclick', (a) => {
+      const bounds = a.layer.getBounds();
+      map.flyToBounds(bounds, {
+        padding: [20, 20],
+        duration: 1.0, // Hier stellst du die Sekunde ein
+        easeLinearity: 0.25
+      });
     });
 
     projects.forEach((p) => {
@@ -42,9 +58,7 @@ function MarkerCluster({ projects, openProject }) {
       );
 
       marker._id = p.id; 
-
       marker.on("click", () => openProject(p));
-
       markers.addLayer(marker);
     });
 
@@ -58,22 +72,46 @@ function MarkerCluster({ projects, openProject }) {
   return null;
 }
 
-function FitBounds({ projects, enabled }) {
+function FitBounds({ projects, enabled, mode }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!enabled) return;
 
-    const valid = projects.filter(p => p.position);
-    if (valid.length === 0) return;
+    // 1. Projekte filtern und sicherstellen, dass es Nummern sind
+    const validProjects = projects.filter(p => {
+  // Zugriff auf das Unter-Objekt 'position'
+  const lat = p.position?.lat;
+  const lng = p.position?.lng;
+  
+  return lat !== undefined && lat !== null && !isNaN(lat) &&
+         lng !== undefined && lng !== null && !isNaN(lng);
+});
 
-    const bounds = valid.map(p => [
-      p.position.lat,
-      p.position.lng
-    ]);
+    // 2. Die Bedingung prüfen
+    if (!enabled) {
+      console.log("Abbruch: Komponente ist nicht 'enabled'");
+      return;
+    }
 
-    map.fitBounds(bounds, { padding: [50, 50] });
-  }, [projects, enabled, map]);
+    if (validProjects.length === 0) {
+      console.log("Abbruch: Keine gültigen Projekte zum Zoomen gefunden");
+      return;
+    }
+    
+    const coords = validProjects.map(p => [p.position.lat, p.position.lng]);
+    const bounds = L.latLngBounds(coords);
+
+    if (bounds.isValid()) {
+      setTimeout(() => {
+  // map.invalidateSize(); // Nur aktivieren, wenn das Layout (Sidebar) wegspringt
+  map.flyToBounds(bounds, { // 'flyToBounds' ist oft schöner als 'fitBounds'
+    padding: [50, 50],
+    maxZoom: 14,
+    duration: 1.0, // Schön gemütliche 2 Sekunden Fahrt
+  });
+}, 300);
+    }
+  }, [projects, enabled, map, mode]);
 
   return null;
 }
@@ -148,6 +186,7 @@ export default function App() {
   const [mode, setMode] = useState("list");
   const [activeTab, setActiveTab] = useState("Allgemein");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const mapRef = useRef(null);
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
@@ -474,6 +513,60 @@ const openProject = (p) => {
 };
 
 useEffect(() => {
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      // 1. Priorität: Wenn im Suchfeld etwas steht, leere es zuerst
+      if (search !== "") {
+        setSearch("");
+      } 
+      // 2. Priorität: Wenn die Suche leer ist, aber ein Projekt offen, schließe das Projekt
+      else if (selectedProject) {
+        setSelectedProject(null);
+        // Falls du eine 'mode' Variable nutzt, um zwischen Liste und Details zu switchen:
+        if (typeof setMode === "function") setMode("list");
+      }
+      
+      // Optional: Filter zurücksetzen, falls gewünscht
+      // setFilterStatus("Alle");
+      // setFilterType("Alle");
+    }
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  
+  // Aufräumen, wenn die Komponente geschlossen wird
+  return () => {
+    window.removeEventListener("keydown", handleKeyDown);
+  };
+}, [search, selectedProject]); // Diese Variablen muss der Hook "beobachten"
+
+useEffect(() => {
+  const map = mapRef.current;
+  if (!map) return;
+
+  // Logik: Wann soll die Karte ALLE Marker zeigen?
+  // Wenn KEIN Projekt ausgewählt ist UND wir nicht im Erstellen-Modus sind
+  if (!selectedProject && mode !== "create") {
+    
+    const validPoints = filteredProjects
+      .filter(p => p.position?.lat && p.position?.lng)
+      .map(p => [p.position.lat, p.position.lng]);
+
+    if (validPoints.length > 0) {
+      const bounds = L.latLngBounds(validPoints);
+      
+      // Wir erzwingen den Zoom
+      map.invalidateSize();
+      map.flyToBounds(bounds, { 
+        padding: [50, 50], 
+        maxZoom: 15, 
+        duration: 0.5 
+      });
+    }
+  }
+}, [filteredProjects, selectedProject, mode]); // Triggert bei Suche ODER Schließen einer Baustelle
+
+useEffect(() => {
   // 1. Nur im Detail-Modus und wenn ein Projekt geladen ist
   if (mode !== "detail" || !originalProject) return;
 
@@ -759,12 +852,40 @@ const createProject = async () => {
 
           {mode === "list" && (
             <>
-              <input 
-                placeholder="Suchen..." 
-                value={search} 
-                onChange={(e) => setSearch(e.target.value)} 
-                style={{ width: "100%", padding: "8px", marginBottom: "10px", borderRadius: "4px", border: "1px solid #ccc" }}
-              />
+              <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
+  <input
+    type="text"
+    placeholder="Suchen..."
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "8px 35px 8px 10px", // Rechts Platz für das X
+      borderRadius: "4px",
+      border: "1px solid #ffa500", // Passend zu deinem gelben Fokus-Rand
+      boxSizing: "border-box"      // Wichtig, damit das Feld nicht übersteht
+    }}
+  />
+  
+  {search && (
+    <span
+      onClick={() => setSearch("")}
+      style={{
+        position: "absolute",
+        right: "10px",      // 10 Pixel vom rechten Rand des Inputs
+        top: "50%",
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        color: "#999",
+        fontSize: "20px",
+        lineHeight: "1",
+        zIndex: 10          // Sicherstellen, dass es oben liegt
+      }}
+    >
+      ✕
+    </span>
+  )}
+</div>
               <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
                 <div style={{ flex: 1 }}>
                   <label>Status</label>
@@ -1162,23 +1283,29 @@ const createProject = async () => {
       marginBottom: "5px" 
     }}>
       <span 
-        onClick={() => {
-          if (mode !== "create") {
-            // FIX: Hier muss "f" stehen, nicht "fileName"
-            // Da "f" in deiner map-Funktion oben (f, i) definiert wurde.
-            const url = pb.files.getUrL(selectedProject, f);
-            window.open(url);
-          }
-        }} 
-        style={{ 
-          cursor: mode !== "create" ? "pointer" : "default", 
-          color: "#3498db",
-          textDecoration: mode !== "create" ? "underline" : "none",
-          flexGrow: 1
-        }}
-      >
-        📄 {displayName}
-      </span>
+  onClick={() => {
+    if (mode !== "create") {
+      const url = pb.files.getUrl(selectedProject, f);
+
+      // WICHTIG: Hier "window.desktopAPI" nutzen, statt "window.electron"
+      if (window.desktopAPI && window.desktopAPI.send) {
+        console.log("Sende an Hauptprozess via desktopAPI...");
+        window.desktopAPI.send('open-external-file', url);
+      } else {
+        console.log("desktopAPI nicht gefunden, nutze Fallback");
+        window.open(url, '_blank');
+      }
+    }
+  }}
+  style={{ 
+    cursor: mode !== "create" ? "pointer" : "default", 
+    color: "#3498db",
+    textDecoration: mode !== "create" ? "underline" : "none",
+    flexGrow: 1
+  }}
+>
+  📄 {displayName}
+</span>
       
       {/* LÖSCH-KNOPF */}
       <button 
@@ -1228,8 +1355,22 @@ const createProject = async () => {
         </div>
       </div>
       <main className="map-view">
-        <MapContainer center={[51.15, 8.2]} zoom={10} style={{ height: "100%", width: "100%" }}>
+        <MapContainer 
+  center={[51.15, 8.2]} 
+  zoom={10} 
+  ref={mapRef} // Das hier ist der Schlüssel!
+  style={{ height: "100%", width: "100%" }}
+>
   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+  
+  {/* NEU: Aktiviert den Auto-Zoom auf die gefilterte Liste */}
+  <FitBounds 
+  projects={filteredProjects} 
+  // Wir nehmen das !selectedProject testweise mal raus, 
+  // um zu sehen ob es dann zündet:
+  enabled={mode === "list"} 
+  mode={mode} 
+/>
   
   {/* Zeigt alle vorhandenen Baustellen */}
   <MarkerCluster projects={filteredProjects} openProject={openProject} />
@@ -1242,12 +1383,9 @@ const createProject = async () => {
   
   <FlyToPosition position={selectedPosition} />
   
-  {/* ÄNDERUNG HIER: Zeige diesen Marker NUR, wenn wir gerade NEU anlegen 
-      oder wenn wir im Detail Modus sind, aber KEIN MarkerCluster-Eintrag existiert */}
   {selectedPosition && mode === "create" && (
     <Marker 
       position={[selectedPosition.lat, selectedPosition.lng]} 
-      // Tipp: Nutze hier ein rotes Icon, um "Neu" zu signalisieren
     />
   )}
 </MapContainer>

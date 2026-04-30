@@ -16,5 +16,11 @@ contextBridge.exposeInMainWorld("desktopAPI", {
     const listener = () => callback();
     ipcRenderer.on("projects-changed", listener);
     return () => ipcRenderer.removeListener("projects-changed", listener);
+  },
+  send: (channel, data) => {
+    let validChannels = ['open-external-file']; // Hier den Kanal erlauben
+    if (validChannels.includes(channel)) {
+      ipcRenderer.send(channel, data);
+    }
   }
 });
