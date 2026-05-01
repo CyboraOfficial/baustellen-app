@@ -10,48 +10,6 @@ import imageCompression from 'browser-image-compression';
 
 L.Map.mergeOptions({ zoomAnimation: true, zoomAnimationThreshold: 10 });
 
-async function saveToOfflineQueue(projectId, files) {
-    const queue = JSON.parse(localStorage.getItem('offline_uploads') || '[]');
-    for (const file of files) {
-        const reader = new FileReader();
-        const base64Promise = new Promise((resolve) => {
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(file);
-        });
-        const base64Data = await base64Promise;
-        queue.push({
-            projectId,
-            fileName: file.name,
-            fileType: file.type,
-            data: base64Data,
-            timestamp: Date.now()
-        });
-    }
-    localStorage.setItem('offline_uploads', JSON.stringify(queue));
-}
-
-// HILFSFUNKTION 2: Den Speicher leeren (Hochladen)
-async function syncOfflineUploads(pb) { // pb als Parameter übergeben
-    if (!window.navigator.onLine) return;
-    const queue = JSON.parse(localStorage.getItem('offline_uploads') || '[]');
-    if (queue.length === 0) return;
-
-    const remainingQueue = [];
-    for (const item of queue) {
-        try {
-            const res = await fetch(item.data);
-            const blob = await res.blob();
-            const file = new File([blob], item.fileName, { type: item.fileType });
-            const formData = new FormData();
-            formData.append('files+', file);
-            await pb.collection('projects').update(item.projectId, formData);
-        } catch (err) {
-            remainingQueue.push(item);
-        }
-    }
-    localStorage.setItem('offline_uploads', JSON.stringify(remainingQueue));
-}
-
 function FlyToPosition({ position }) {
   const map = useMap();
 
@@ -318,17 +276,6 @@ const createLogEntry = (message) => {
     action: message
   };
 };
-
-useEffect(() => {
-    // Einmal prüfen beim Starten
-    syncOfflineUploads(pb);
-
-    // Event-Listener für Internet-Rückkehr
-    const handleOnline = () => syncOfflineUploads(pb);
-    window.addEventListener('online', handleOnline);
-
-    return () => window.removeEventListener('online', handleOnline);
-}, []);
 
   useEffect(() => {
     if (notesRef.current) {
