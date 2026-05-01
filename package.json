@@ -1,7 +1,7 @@
 {
   "name": "baustellen-app",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "App zur Verwaltung von Baustellen",
   "author": "CyboraOfficial",
   "main": "electron/main.js",
@@ -13,7 +13,8 @@
       {
         "provider": "github",
         "owner": "CyboraOfficial",
-        "repo": "baustellen-app"
+        "repo": "baustellen-app",
+        "releaseType": "release"
       }
     ],
     "win": {
