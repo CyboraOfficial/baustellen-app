@@ -9,6 +9,7 @@
   "build": {
     "appId": "com.baustellen.app",
     "productName": "BaustellenApp",
+    "copyright": "Copyright © 2026 CyboraOfficial",
     "publish": [
       {
         "provider": "github",
@@ -18,9 +19,9 @@
       }
     ],
     "win": {
-      "target": [
-        "nsis"
-      ]
+      "target": "nsis",
+      "icon": "public/icon.ico",
+      "publisherName": "Felix Weber | Elektro Hegener GmbH | CyboraOfficial" 
     },
     "nsis": {
       "oneClick": false,
