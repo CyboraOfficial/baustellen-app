@@ -6,8 +6,51 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { useMap } from "react-leaflet"; 
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
+import imageCompression from 'browser-image-compression';
 
 L.Map.mergeOptions({ zoomAnimation: true, zoomAnimationThreshold: 10 });
+
+async function saveToOfflineQueue(projectId, files) {
+    const queue = JSON.parse(localStorage.getItem('offline_uploads') || '[]');
+    for (const file of files) {
+        const reader = new FileReader();
+        const base64Promise = new Promise((resolve) => {
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(file);
+        });
+        const base64Data = await base64Promise;
+        queue.push({
+            projectId,
+            fileName: file.name,
+            fileType: file.type,
+            data: base64Data,
+            timestamp: Date.now()
+        });
+    }
+    localStorage.setItem('offline_uploads', JSON.stringify(queue));
+}
+
+// HILFSFUNKTION 2: Den Speicher leeren (Hochladen)
+async function syncOfflineUploads(pb) { // pb als Parameter übergeben
+    if (!window.navigator.onLine) return;
+    const queue = JSON.parse(localStorage.getItem('offline_uploads') || '[]');
+    if (queue.length === 0) return;
+
+    const remainingQueue = [];
+    for (const item of queue) {
+        try {
+            const res = await fetch(item.data);
+            const blob = await res.blob();
+            const file = new File([blob], item.fileName, { type: item.fileType });
+            const formData = new FormData();
+            formData.append('files+', file);
+            await pb.collection('projects').update(item.projectId, formData);
+        } catch (err) {
+            remainingQueue.push(item);
+        }
+    }
+    localStorage.setItem('offline_uploads', JSON.stringify(remainingQueue));
+}
 
 function FlyToPosition({ position }) {
   const map = useMap();
@@ -275,6 +318,17 @@ const createLogEntry = (message) => {
     action: message
   };
 };
+
+useEffect(() => {
+    // Einmal prüfen beim Starten
+    syncOfflineUploads(pb);
+
+    // Event-Listener für Internet-Rückkehr
+    const handleOnline = () => syncOfflineUploads(pb);
+    window.addEventListener('online', handleOnline);
+
+    return () => window.removeEventListener('online', handleOnline);
+}, []);
 
   useEffect(() => {
     if (notesRef.current) {
@@ -936,37 +990,63 @@ const createProject = async () => {
   e.currentTarget.style.border = "none";
   e.currentTarget.style.backgroundColor = "transparent";
   
-  const files = Array.from(e.dataTransfer.files);
-  if (files.length > 0) {
-    try {
-      setToast(`⏳ Upload zu "${p.name}" läuft...`);
+  const rawFiles = Array.from(e.dataTransfer.files);
+  if (rawFiles.length === 0) return;
 
-      // 1. FormData vorbereiten (der PocketBase-Weg)
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('files+', file); // 'files' muss der Name des Feldes in PocketBase sein
-      });
+  // Diese Variable hält unsere (komprimierten) Dateien bereit
+  let processedFilesForQueue = []; 
 
-      // 2. Direkt das Projekt 'p' in PocketBase aktualisieren
-      const updatedRecord = await pb.collection('projects').update(p.id, formData);
+  try {
+    setToast(`⏳ Verarbeitung & Upload läuft...`);
 
-      // 3. Den State synchronisieren (WICHTIG!)
-      // Wir tauschen nur dieses eine Projekt im Array aus. 
-      // Das verhindert, dass die Liste oder Marker verschwinden.
-      setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
-
-      // Falls du das Projekt gerade rechts offen hast, auch dort aktualisieren
-      if (selectedProject?.id === p.id) {
-        setOriginalProject(updatedRecord);
-        setForm(updatedRecord);
+    const formData = new FormData();
+    
+    // 1. Alle Dateien verarbeiten (Bilder komprimieren, Rest lassen)
+    await Promise.all(rawFiles.map(async (file) => {
+      if (file.type.startsWith('image/')) {
+        const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+        try {
+          const compressedFile = await imageCompression(file, options);
+          formData.append('files+', compressedFile, file.name);
+          processedFilesForQueue.push(compressedFile); // Komprimiert für Offline-Speicher
+        } catch (compErr) {
+          formData.append('files+', file);
+          processedFilesForQueue.push(file);
+        }
+      } else {
+        formData.append('files+', file);
+        processedFilesForQueue.push(file); // Dokumente unverändert
       }
+    }));
 
-      setToast(`✅ Dateien zu "${p.name}" hinzugefügt!`);
-      setTimeout(() => setToast(null), 2500);
+    // 2. Upload Versuch zu PocketBase
+    const updatedRecord = await pb.collection('projects').update(p.id, formData);
 
-    } catch (err) {
-      console.error("Upload Fehler:", err);
-      setToast("❌ Fehler beim Hochladen zu PocketBase");
+    // 3. State synchronisieren
+    setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
+
+    if (selectedProject?.id === p.id) {
+      setOriginalProject(updatedRecord);
+      setForm(updatedRecord);
+    }
+
+    setToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`);
+    setTimeout(() => setToast(null), 2500);
+
+  } catch (err) {
+    console.error("Upload Fehler:", err);
+    
+    // PRÜFEN: Liegt es am Internet?
+    if (!window.navigator.onLine || err.isAbort || err.message.includes('Network')) {
+      setToast("📡 Kein Netz! Datei wird lokal gesichert...");
+      
+      // WICHTIG: Hier nutzen wir jetzt die 'processedFilesForQueue' 
+      // (damit wir nicht die riesigen Originale in den LocalStorage quetschen)
+      await saveToOfflineQueue(p.id, processedFilesForQueue);
+      
+      setToast("💾 Lokal gesichert. Upload erfolgt bei Verbindung.");
+    } else {
+      setToast("❌ Fehler beim Hochladen");
     }
   }
 }}
@@ -1224,28 +1304,41 @@ const createProject = async () => {
   onDragOver={(e) => e.preventDefault()} 
   onDrop={async (e) => {
   e.preventDefault();
-  const files = Array.from(e.dataTransfer.files);
-  
+  const rawFiles = Array.from(e.dataTransfer.files);
+  if (rawFiles.length === 0) return;
+
+  // 1. Verarbeitung & Kompression (für Bilder)
+  const processedFiles = await Promise.all(rawFiles.map(async (file) => {
+    if (file.type.startsWith('image/')) {
+      try {
+        const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+        return await imageCompression(file, options);
+      } catch (err) {
+        console.error("Kompression fehlgeschlagen, nehme Original:", err);
+        return file;
+      }
+    }
+    return file;
+  }));
+
+  // FALL A: Neues Projekt wird gerade erst erstellt (Lokal speichern)
   if (mode === "create") {
-    setTempFiles(prev => [...prev, ...files]);
-  } else {
+    // Hier brauchen wir noch kein Offline-Sync, da das Projekt noch gar nicht in PB existiert
+    setTempFiles(prev => [...prev, ...processedFiles]);
+  } 
+  
+  // FALL B: Bestehendes Projekt aktualisieren (Online-Versuch + Offline-Rettung)
+  else {
     if (!selectedProject?.id) return;
 
     try {
-      setToast("⏳ Datei wird hinzugefügt...");
+      setToast("⏳ Upload läuft...");
 
       const formData = new FormData();
-      
-      // WICHTIG: Jede Datei einzeln an das Feld 'files' anhängen
-      files.forEach(file => {
+      processedFiles.forEach(file => {
         formData.append('files+', file); 
       });
 
-      // POCKETBASE TRICK: 
-      // Wenn du Dateien ANHÄNGEN willst, darfst du keine alten Dateinamen mitschicken.
-      // PocketBase erkennt durch das Senden von neuen Files in einem Update-Request 
-      // normalerweise, dass diese hinzugefügt werden sollen, AUSSER man konfiguriert es anders.
-      
       const updatedRecord = await pb.collection('projects').update(selectedProject.id, formData);
 
       // States aktualisieren
@@ -1256,9 +1349,19 @@ const createProject = async () => {
 
       setToast("✅ Datei hinzugefügt");
       setTimeout(() => setToast(null), 2500);
+
     } catch (err) {
       console.error("Upload Fehler:", err);
-      setToast("❌ Fehler beim Hochladen");
+      
+      // OFFLINE LOGIK: Wenn Internet weg ist
+      if (!window.navigator.onLine || err.isAbort) {
+        setToast("📡 Kein Netz! Datei wird lokal für später gesichert...");
+        // Wir nutzen die bereits komprimierten processedFiles für die Warteschlange
+        await saveToOfflineQueue(selectedProject.id, processedFiles);
+        setToast("💾 Offline gesichert. Upload erfolgt bei Verbindung.");
+      } else {
+        setToast("❌ Fehler beim Hochladen");
+      }
     }
   }
 }}
