@@ -516,6 +516,17 @@ const openProject = (p) => {
   URL.revokeObjectURL(url);
 };
 
+const [rememberMe, setRememberMe] = useState(false);
+
+// Prüfen, ob beim letzten Mal "Merken" aktiv war
+useEffect(() => {
+  const savedEmail = localStorage.getItem("baustellen_remembered_email");
+  if (savedEmail) {
+    setLoginEmail(savedEmail);
+    setRememberMe(true);
+  }
+}, []);
+
 useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onUpdateAvailable((v) => {
@@ -841,34 +852,66 @@ const createProject = async () => {
       {!user ? (
       /* --- LOGIN BEREICH --- */
       <div className="login-overlay" style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        width: '100%', height: '100vh', backgroundColor: '#2c3e50', color: 'white'
-      }}>
-        <form onSubmit={handleLogin} style={{
-          backgroundColor: 'white', padding: '30px', borderRadius: '8px', 
-          display: 'flex', flexDirection: 'column', width: '300px', gap: '15px'
-        }}>
-          <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>Baustellen Login</h2>
-          <input 
-            type="email" placeholder="E-Mail" value={loginEmail} 
-            onChange={(e) => setLoginEmail(e.target.value)}
-            style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-            required 
-          />
-          <input 
-            type="password" placeholder="Passwort" value={loginPass} 
-            onChange={(e) => setLoginPass(e.target.value)}
-            style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-            required 
-          />
-          <button type="submit" style={{
-            padding: '10px', backgroundColor: '#3498db', color: 'white', 
-            border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
-          }}>
-            Anmelden
-          </button>
-        </form>
-      </div>
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  width: '100%', height: '100vh', backgroundColor: '#2c3e50', color: 'white'
+}}>
+  <form onSubmit={(e) => {
+    e.preventDefault();
+    // Speichern der E-Mail, wenn Checkbox aktiv ist
+    if (rememberMe) {
+      localStorage.setItem("baustellen_remembered_email", loginEmail);
+    } else {
+      localStorage.removeItem("baustellen_remembered_email");
+    }
+    handleLogin(e); // Deine eigentliche Login-Funktion aufrufen
+  }} style={{
+    backgroundColor: 'white', padding: '30px', borderRadius: '8px', 
+    display: 'flex', flexDirection: 'column', width: '300px', gap: '15px'
+  }}>
+    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>Baustellen Login</h2>
+    
+    <input 
+      type="email" placeholder="E-Mail" value={loginEmail} 
+      onChange={(e) => setLoginEmail(e.target.value)}
+      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+      required 
+    />
+    
+    <input 
+      type="password" placeholder="Passwort" value={loginPass} 
+      onChange={(e) => setLoginPass(e.target.value)}
+      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+      required 
+    />
+
+    {/* --- NEU: "Merken" Checkbox --- */}
+    <label style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: '8px', 
+      color: '#2c3e50', 
+      fontSize: '14px', 
+      cursor: 'pointer',
+      userSelect: 'none'
+    }}>
+      <input 
+        type="checkbox" 
+        checked={rememberMe} 
+        onChange={(e) => setRememberMe(e.target.checked)}
+        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+      />
+      E-Mail Adresse merken
+    </label>
+
+    <button type="submit" style={{
+      padding: '10px', backgroundColor: '#3498db', color: 'white', 
+      border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold',
+      marginTop: '5px'
+    }}>
+      Anmelden
+    </button>
+  </form>
+</div>
     ) : (
       /* --- DEINE EIGENTLICHE APP --- */
       <>
