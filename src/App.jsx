@@ -183,6 +183,9 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 }
 
 export default function App() {
+  const [updateStatus, setUpdateStatus] = useState('none'); 
+  const [version, setVersion] = useState('');
+
   const [projects, setProjects] = useState([]);
   const [mode, setMode] = useState("list");
   const [activeTab, setActiveTab] = useState("Allgemein");
@@ -514,6 +517,19 @@ const openProject = (p) => {
 };
 
 useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.onUpdateAvailable((v) => {
+        setVersion(v);
+        setUpdateStatus('available');
+      });
+
+      window.electronAPI.onUpdateDownloaded(() => {
+        setUpdateStatus('ready');
+      });
+    }
+  }, []);
+
+useEffect(() => {
   const handleKeyDown = (event) => {
     if (event.key === "Escape") {
       // 1. Priorität: Wenn im Suchfeld etwas steht, leere es zuerst
@@ -791,6 +807,37 @@ const createProject = async () => {
 
   return (
     <div className="app-layout">
+      {updateStatus !== 'none' && (
+  <div className={`update-banner ${updateStatus === 'downloading' ? 'downloading' : ''}`}>
+    <div className="update-content">
+      <span className="update-text">
+        {updateStatus === 'available' && `🚀 Version ${version} verfügbar!`}
+        {updateStatus === 'downloading' && `⏳ Update wird geladen...`}
+        {updateStatus === 'ready' && `✅ Update bereit zum Installieren!`}
+      </span>
+
+      {updateStatus === 'available' && (
+        <button className="update-button" onClick={() => {
+          setUpdateStatus('downloading');
+          window.electronAPI.startDownload();
+        }}>
+          Herunterladen
+        </button>
+      )}
+
+      {updateStatus === 'ready' && (
+        <button className="update-button" onClick={() => window.electronAPI.installUpdate()}>
+          Jetzt Neustarten
+        </button>
+      )}
+    </div>
+    
+    <button className="update-close" onClick={() => setUpdateStatus('none')}>
+      ✕
+    </button>
+  </div>
+)}
+
       {!user ? (
       /* --- LOGIN BEREICH --- */
       <div className="login-overlay" style={{

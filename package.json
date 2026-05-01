@@ -7,8 +7,24 @@
   "build": {
     "appId": "com.baustellen.app",
     "productName": "BaustellenApp",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "CyboraOfficial",
+        "repo": "baustellen-app"
+      }
+    ],
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico"
     },
     "directories": {
       "output": "dist"
@@ -23,10 +39,12 @@
     "electron": "electron .",
     "start": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "publish": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "browser-image-compression": "^2.0.2",
+    "electron-updater": "^6.8.3",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "pocketbase": "^0.26.8",

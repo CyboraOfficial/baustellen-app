@@ -3,18 +3,14 @@ name: Build Electron Release
 on:
   push:
     tags:
-      - 'v*' # Startet, wenn du einen Tag pushst, der mit 'v' beginnt (z.B. v1.0.0)
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [windows-latest] # Hier kannst du macos-latest oder ubuntu-latest hinzufügen
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Code
@@ -29,17 +25,9 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Electron App
-        run: npm run dist # Dein Skript, das electron-builder oder electron-forge nutzt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wichtig für das Erstellen des Releases
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            dist/*.exe
-            dist/*.zip
+      - name: Build and Publish
+        # Wir lassen electron-builder den Upload machen. 
+        # Er erkennt durch --publish always, dass er das Release erstellen soll.
+        run: npm run dist -- --publish always
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

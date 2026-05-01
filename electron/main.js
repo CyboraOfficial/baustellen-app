@@ -5,11 +5,33 @@ const path = require('path'); // Pfad separat importieren, damit .join() sicher 
 const fs = require("fs");
 const os = require('os');
 const userDataPath = path.join(os.homedir(), 'Desktop', 'Baustellen');
+const { autoUpdater } = require("electron-updater");
 
 let mainWindow;
 let basePath;
 let configPath;
 let currentWatcher;
+
+autoUpdater.autoDownload = false;
+
+// Wenn ein Update gefunden wird, informieren wir das Frontend
+autoUpdater.on('update-available', (info) => {
+  mainWindow.webContents.send('update-available', info.version);
+});
+
+// Wenn der Download fertig ist
+autoUpdater.on('update-downloaded', () => {
+  mainWindow.webContents.send('update-downloaded');
+});
+
+// Befehle vom Frontend empfangen
+ipcMain.on('start-download', () => {
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.on('install-update', () => {
+  autoUpdater.quitAndInstall();
+});
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
