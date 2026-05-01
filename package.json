@@ -11,7 +11,7 @@
       "target": "nsis"
     },
     "directories": {
-    "output": "dist"
+      "output": "dist"
     },
     "files": [
       "dist/**/*",
@@ -26,6 +26,7 @@
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
+    "browser-image-compression": "^2.0.2",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "pocketbase": "^0.26.8",
