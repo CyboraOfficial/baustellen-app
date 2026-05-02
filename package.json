@@ -43,7 +43,9 @@
     "start": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
     "dist": "npm run build && electron-builder",
-    "publish": "npm run build && electron-builder --publish always"
+    "publish": "npm run build && electron-builder --publish always",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"npm run dev\" \"electron .\""
   },
   "dependencies": {
     "browser-image-compression": "^2.0.2",
