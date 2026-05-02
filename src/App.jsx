@@ -183,7 +183,7 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 }
 
 export default function App() {
-  const [updateStatus, setUpdateStatus] = useState('none'); 
+  const [updateStatus, setUpdateStatus] = useState('none'); // 'none', 'available', 'downloading', 'ready'
   const [version, setVersion] = useState('');
 
   const [projects, setProjects] = useState([]);
@@ -254,8 +254,20 @@ const handleLogin = async (e) => {
   e.preventDefault();
   try {
     const authData = await pb.collection('users').authWithPassword(loginEmail, loginPass);
-    setUser(pb.authStore.model); // Setzt den eingeloggten User
-    setToast("Willkommen zurück!");
+    setUser(pb.authStore.model);
+
+    // Anstatt festem Text prüfen wir den Status:
+    if (updateStatus === 'available') {
+      setToast(`🚀 Login erfolgreich! Version ${version} verfügbar.`);
+    } else if (updateStatus === 'ready') {
+      setToast("✅ Login erfolgreich! Update ist bereit.");
+    } else {
+      setToast("✅ Login erfolgreich! App ist aktuell.");
+    }
+
+    // Toast nach 3 Sekunden wieder entfernen
+    setTimeout(() => setToast(null), 3000);
+
   } catch (err) {
     alert("Login fehlgeschlagen: " + err.message);
   }
@@ -528,13 +540,13 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.onUpdateAvailable((v) => {
+    if (window.desktopAPI) {
+      window.desktopAPI.onUpdateAvailable((v) => {
         setVersion(v);
         setUpdateStatus('available');
       });
 
-      window.electronAPI.onUpdateDownloaded(() => {
+      window.desktopAPI.onUpdateDownloaded(() => {
         setUpdateStatus('ready');
       });
     }
@@ -830,14 +842,14 @@ const createProject = async () => {
       {updateStatus === 'available' && (
         <button className="update-button" onClick={() => {
           setUpdateStatus('downloading');
-          window.electronAPI.startDownload();
+          window.desktopAPI.startDownload();
         }}>
           Herunterladen
         </button>
       )}
 
       {updateStatus === 'ready' && (
-        <button className="update-button" onClick={() => window.electronAPI.installUpdate()}>
+        <button className="update-button" onClick={() => window.desktopAPI.installUpdate()}>
           Jetzt Neustarten
         </button>
       )}
@@ -1530,23 +1542,23 @@ const createProject = async () => {
   )}
 </MapContainer>
         {toast && (
-  <div style={{
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    backgroundColor: toast.startsWith('✅') ? '#2ecc71' : '#e74c3c',
-    color: 'white',
-    padding: '12px 24px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-    zIndex: 10000,
-    fontSize: '16px',
-    fontWeight: 'bold',
-    animation: 'slideIn 0.3s ease-out'
-  }}>
-    {toast}
-  </div>
-)}
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          backgroundColor: toast.startsWith('✅') ? '#2ecc71' : '#3498db', // Blau für Info/Update
+          color: 'white',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 10000,
+          fontSize: '16px',
+          fontWeight: 'bold',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          {toast}
+        </div>
+      )}
       </main>
       </>
     )}

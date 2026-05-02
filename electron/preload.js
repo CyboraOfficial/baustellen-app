@@ -12,8 +12,21 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   openFile: (filePath) => ipcRenderer.invoke("open-file", filePath),
   deleteFile: (data) => ipcRenderer.invoke('delete-file', data),
   openProjectFolder: (name) => ipcRenderer.invoke('open-project-folder', name),
-  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (_event, version) => callback(version)),
-  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', () => callback()),
+  onUpdateAvailable: (callback) => {
+    const subscription = (_event, version) => callback(version);
+    ipcRenderer.on('update-available', subscription);
+    return () => ipcRenderer.removeListener('update-available', subscription);
+  },
+  onUpdateDownloaded: (callback) => {
+    const subscription = () => callback();
+    ipcRenderer.on('update-downloaded', subscription);
+    return () => ipcRenderer.removeListener('update-downloaded', subscription);
+  },
+  onUpdateNotAvailable: (callback) => {
+  const subscription = () => callback();
+  ipcRenderer.on('update-not-available', subscription);
+  return () => ipcRenderer.removeListener('update-not-available', subscription);
+},
   startDownload: () => ipcRenderer.send('start-download'),
   installUpdate: () => ipcRenderer.send('install-update'),
   onProjectsChanged: (callback) => {

@@ -33,6 +33,10 @@ ipcMain.on('install-update', () => {
   autoUpdater.quitAndInstall();
 });
 
+autoUpdater.on('update-not-available', () => {
+  mainWindow.webContents.send('update-not-available');
+});
+
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }

@@ -13,8 +13,11 @@
     default-src 'self'; 
     script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
     connect-src 'self' 
-                http://82.165.109.54 
+                https://app.elektro-hegener.de
+                http://127.0.0.1:8090
                 https://nominatim.openstreetmap.org 
+                https://github.com
+                https://objects.githubusercontent.com
                 http://localhost:* 
                 ws://localhost:*; 
     style-src 'self' 'unsafe-inline'; 
@@ -23,7 +26,7 @@
             blob:
             https://*.tile.openstreetmap.org 
             https://raw.githubusercontent.com
-            https://unpkg.com/;
+            https://unpkg.com;
     font-src 'self' data:;
 ">
     <title>Baustellen App</title>
