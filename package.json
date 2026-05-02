@@ -1,7 +1,7 @@
 {
   "name": "baustellen-app",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.6",
   "description": "App zur Verwaltung von Baustellen",
   "author": "CyboraOfficial",
   "main": "electron/main.js",
@@ -20,8 +20,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/icon.ico",
-      "publisherName": "Felix Weber | Elektro Hegener GmbH | CyboraOfficial" 
+      "icon": "public/icon.ico"
     },
     "nsis": {
       "oneClick": false,
