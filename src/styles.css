@@ -437,3 +437,37 @@ hr {
     right: 5px;
   }
 }
+
+/* Macht das Auswahl-Icon runder und moderner */
+.leaflet-control-layers {
+  border-radius: 12px !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+  padding: 5px;
+}
+
+.leaflet-control-layers-toggle {
+  width: 44px !important;
+  height: 44px !important;
+  background-size: 26px !important;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 10px !important;
+  background: #ffffff !important;
+  font-family: 'Inter', sans-serif; /* Falls du Inter nutzt */
+  font-weight: 500;
+}
+
+.leaflet-left .leaflet-control-zoom {
+    position: absolute;
+    left: auto;
+    right: 10px; /* Gleicher Abstand wie dein Button */
+    top: 80px;   /* Direkt unter deinen 60px Button + 20px Luft */
+    margin-left: 0;
+}
+
+/* 2. Den leeren Container links verstecken, damit er nicht stört */
+.leaflet-left {
+    pointer-events: none;
+}

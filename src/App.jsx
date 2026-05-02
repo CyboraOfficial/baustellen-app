@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, ZoomControl } from "react-leaflet";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
@@ -185,6 +185,9 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 export default function App() {
   const [updateStatus, setUpdateStatus] = useState('none'); // 'none', 'available', 'downloading', 'ready'
   const [version, setVersion] = useState('');
+  const osmUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const satUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  const [isSatellite, setIsSatellite] = useState(false);
 
   const [projects, setProjects] = useState([]);
   const [mode, setMode] = useState("list");
@@ -934,90 +937,117 @@ const createProject = async () => {
       {sidebarOpen ? "◀" : "☰"}
     </button>
       <div className={`sidebar ${sidebarOpen ? "open" : "closed"}`}>
-        <div className="sidebar-content">
-          <div className="header-bar">
-            <button onClick={() => {
-                setMode("create");
-                setForm(emptyForm);
-                setSelectedPosition(null);
-                setSelectedProject(null);
-                setActiveTab("Allgemein");
-                setSearchAddress("");
-                setSearchResults([]);
-              }}>
-              + Neue Baustelle
-            </button>
-            <button onClick={handleBack}>← Zurück </button>
-            <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c' }}>
-                Logout
-              </button>
+  <div className="sidebar-content" style={{ 
+    display: 'flex', 
+    flexDirection: 'column', 
+    height: '100%', 
+    overflow: 'hidden' 
+  }}>
+    
+    {/* --- 1. STATISCHER HEADER (Bleibt immer oben) --- */}
+    <div className="sidebar-header-static" style={{ 
+      padding: '5px', 
+      flexShrink: 0, 
+      borderBottom: '1px solid #eee',
+      backgroundColor: '#fff',
+      zIndex: 10
+    }}>
+      <div className="header-bar">
+        <button onClick={() => {
+            setMode("create");
+            setForm(emptyForm);
+            setSelectedPosition(null);
+            setSelectedProject(null);
+            setActiveTab("Allgemein");
+            setSearchAddress("");
+            setSearchResults([]);
+          }}>
+          + Neue Baustelle
+        </button>
+        <button onClick={handleBack}>← Zurück </button>
+        <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c' }}>
+            Logout
+        </button>
+      </div>
+
+      {/* SUCHE UND FILTER: Jetzt HIER im statischen Header */}
+      {mode === "list" && (
+        <div style={{ marginTop: "15px" }}>
+          {/* Suche */}
+          <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
+            <input
+              type="text"
+              placeholder="Suchen..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px 35px 8px 10px",
+                borderRadius: "4px",
+                border: "1px solid #ffa500",
+                boxSizing: "border-box"
+              }}
+            />
+            {search && (
+              <span
+                onClick={() => setSearch("")}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  cursor: "pointer",
+                  color: "#999",
+                  fontSize: "20px",
+                  lineHeight: "1",
+                  zIndex: 10
+                }}
+              >✕</span>
+            )}
           </div>
 
+          {/* Filter-Selects */}
+          <div style={{ display: "flex", gap: "8px" }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Status</label>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: '100%' }}>
+                <option>Alle</option>
+                <option>Offen</option>
+                <option value="OffenAlle">Offen (alle)</option>
+                <option>Klärung</option>
+                <option>Westnetznummer fehlt</option>
+                <option>In Bearbeitung</option>
+                <option>Fertig für Abrechnung</option>
+                <option>Proformarechnung weggeschickt</option>
+                <option>Abgerechnet</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Typ</label>
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ width: '100%' }}>
+                <option>Alle</option>
+                <option>Konzept</option>
+                <option>Anfahrschaden</option>
+                <option>Störung</option>
+                <option>LK-Tausch</option>
+                <option>Sonstiges</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+      <h3>Baustellen</h3>
+    </div>
+          
+<div className="sidebar-scroll-area" style={{ 
+      flexGrow: 1, 
+      overflowY: 'auto', // Nur hier wird gescrollt
+      padding: '5px'
+    }}>
           {mode === "list" && (
             <>
               <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
-  <input
-    type="text"
-    placeholder="Suchen..."
-    value={search}
-    onChange={(e) => setSearch(e.target.value)}
-    style={{
-      width: "100%",
-      padding: "8px 35px 8px 10px", // Rechts Platz für das X
-      borderRadius: "4px",
-      border: "1px solid #ffa500", // Passend zu deinem gelben Fokus-Rand
-      boxSizing: "border-box"      // Wichtig, damit das Feld nicht übersteht
-    }}
-  />
-  
-  {search && (
-    <span
-      onClick={() => setSearch("")}
-      style={{
-        position: "absolute",
-        right: "10px",      // 10 Pixel vom rechten Rand des Inputs
-        top: "50%",
-        transform: "translateY(-50%)",
-        cursor: "pointer",
-        color: "#999",
-        fontSize: "20px",
-        lineHeight: "1",
-        zIndex: 10          // Sicherstellen, dass es oben liegt
-      }}
-    >
-      ✕
-    </span>
-  )}
-</div>
-              <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
-                <div style={{ flex: 1 }}>
-                  <label>Status</label>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                    <option>Alle</option>
-                    <option>Offen</option>
-                    <option value="OffenAlle">Offen (alle)</option>
-                    <option>Klärung</option>
-                    <option>Westnetznummer fehlt</option>
-                    <option>In Bearbeitung</option>
-                    <option>Fertig für Abrechnung</option>
-                    <option>Proformarechnung weggeschickt</option>
-                    <option>Abgerechnet</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label>Typ</label>
-                  <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                    <option>Alle</option>
-                    <option>Konzept</option>
-                    <option>Anfahrschaden</option>
-                    <option>Störung</option>
-                    <option>LK-Tausch</option>
-                    <option>Sonstiges</option>
-                  </select>
-                </div>
-              </div>
-
-              <h3>Baustellen</h3>
+  </div>
 {filteredProjects.map((p) => (
   <div 
     key={p.id} 
@@ -1506,25 +1536,61 @@ const createProject = async () => {
           )}
         </div>
       </div>
+    </div>
       <main className="map-view">
         <MapContainer 
   center={[51.15, 8.2]} 
   zoom={10} 
-  ref={mapRef} // Das hier ist der Schlüssel!
+  ref={mapRef}
   style={{ height: "100%", width: "100%" }}
->
-  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+  >
+  <TileLayer 
+    url={isSatellite ? satUrl : osmUrl} 
+    attribution={isSatellite ? 'Esri Satellite' : 'OpenStreetMap'}
+  />
+
+  {/* Der schicke Button oben rechts */}
+  <div className="leaflet-top leaflet-right" style={{ marginTop: '10px', marginRight: '10px', pointerEvents: 'none' }}>
+    
+    {/* TEIL 1: DER UMSCHALTER */}
+    <div style={{ pointerEvents: 'auto', marginBottom: '8px' }}>
+      <button 
+        onClick={() => setIsSatellite(!isSatellite)}
+        className="group relative transition-all active:scale-95"
+        style={{ 
+          width: '60px', height: '60px', padding: 0, cursor: 'pointer',
+          border: '2px solid white', borderRadius: '10px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)', backgroundColor: 'white',
+          display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+          alignItems: 'center', overflow: 'hidden', position: 'relative'
+        }}
+      >
+        <img 
+          src={isSatellite 
+            ? "https://a.tile.openstreetmap.org/15/17350/11030.png" 
+            : "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11030/17350"
+          } 
+          alt="Layer Toggle"
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        <div style={{
+            width: '100%', background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)',
+            color: 'white', fontSize: '9px', fontWeight: 'bold', padding: '12px 0 4px 0',
+            textAlign: 'center', textTransform: 'uppercase', zIndex: 2, position: 'relative'
+        }}>
+          {isSatellite ? 'Karte' : 'Satellit'}
+        </div>
+      </button>
+    </div>
+  </div>
   
-  {/* NEU: Aktiviert den Auto-Zoom auf die gefilterte Liste */}
+  {/* Ab hier bleibt alles wie es war */}
   <FitBounds 
-  projects={filteredProjects} 
-  // Wir nehmen das !selectedProject testweise mal raus, 
-  // um zu sehen ob es dann zündet:
-  enabled={mode === "list"} 
-  mode={mode} 
-/>
+    projects={filteredProjects} 
+    enabled={mode === "list"} 
+    mode={mode} 
+  />
   
-  {/* Zeigt alle vorhandenen Baustellen */}
   <MarkerCluster projects={filteredProjects} openProject={openProject} />
   
   <MapClickHandler 
