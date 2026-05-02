@@ -972,7 +972,7 @@ const createProject = async () => {
 
       {/* SUCHE UND FILTER: Jetzt HIER im statischen Header */}
       {mode === "list" && (
-        <div style={{ marginTop: "15px" }}>
+        <div style={{ marginTop: "5px" }}>
           {/* Suche */}
           <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
             <input

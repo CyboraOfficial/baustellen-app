@@ -7,6 +7,7 @@ body,
   font-family: Arial, Helvetica, sans-serif;
   background: #f3f4f6;
   color: #1f2937;
+  -webkit-overflow-scrolling: touch;
 }
 
 * {
@@ -470,4 +471,26 @@ hr {
 /* 2. Den leeren Container links verstecken, damit er nicht stört */
 .leaflet-left {
     pointer-events: none;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Exe */
+}
+
+.sidebar-header-static {
+    background-color: #ffffff;
+    position: relative;
+    z-index: 10;
+    padding: 15px;
+    border-bottom: 1px solid #f0f0f0; /* Eine feine Linie ist klarer als Schatten */
+
+    /* Nur Schatten nach UNTEN, nicht um den Text herum */
+    box-shadow: 0 10px 15px -10px rgba(0, 0, 0, 0.15);
 }
