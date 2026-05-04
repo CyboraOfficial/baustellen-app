@@ -493,4 +493,6 @@ hr {
 
     /* Nur Schatten nach UNTEN, nicht um den Text herum */
     box-shadow: 0 10px 15px -10px rgba(0, 0, 0, 0.15);
+
+    margin-bottom: 7.5px;
 }

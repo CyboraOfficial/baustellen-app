@@ -1037,6 +1037,26 @@ const createProject = async () => {
         </div>
       )}
       <h3>Baustellen</h3>
+              {mode === "detail" && (
+                <div style={{ background: STATUS_COLORS[form.status] || "#999", color: "white", padding: "8px 12px", borderRadius: "8px", marginBottom: "10px", fontWeight: "bold", textAlign: "center" }}>
+                  {form.status}
+                </div>
+              )}
+
+              {mode === "detail" && (
+              <div className="tabs">
+                {tabs.map((t) => (
+                  <div key={t} className={`tab ${activeTab === t ? "active" : ""}`} onClick={() => {
+                      if (t === "Vorlage") copyTemplate();
+                      else setActiveTab(t);
+                    }}>
+                    {t}
+                  </div>
+                ))}
+              </div>
+              )}
+              {/* Hier einfügen wenn nicht scrollbar sein soll */}
+
     </div>
           
 <div className="sidebar-scroll-area" style={{ 
@@ -1153,22 +1173,6 @@ const createProject = async () => {
 
           {(mode === "detail" || mode === "create") && (
             <>
-              {mode === "detail" && (
-                <div style={{ background: STATUS_COLORS[form.status] || "#999", color: "white", padding: "8px 12px", borderRadius: "8px", marginBottom: "10px", fontWeight: "bold", textAlign: "center" }}>
-                  {form.status}
-                </div>
-              )}
-
-              <div className="tabs">
-                {tabs.map((t) => (
-                  <div key={t} className={`tab ${activeTab === t ? "active" : ""}`} onClick={() => {
-                      if (t === "Vorlage") copyTemplate();
-                      else setActiveTab(t);
-                    }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
 
               {activeTab === "Allgemein" && (
                 <>
