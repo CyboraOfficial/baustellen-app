@@ -356,76 +356,67 @@ const createLogEntry = (message) => {
   }, [form.notes]);
 
   const copyTemplate = () => {
-    const mastenNachLPH = {};
+  const mastenStats = {};
 
-    (form.masten || []).forEach((m) => {
-      const lph = m.lph || "Unbekannt";
-
-      if (!mastenNachLPH[lph]) {
-        mastenNachLPH[lph] = {
-          stellen: 0,
-          demontieren: 0,
-          tausch: 0,
-        };
+  (form.masten || []).forEach((m) => {
+    // 1. DEMONTAGE-LOGIK (Was kommt weg?)
+    if (m.aktion === "Demontage" || m.aktion === "Tausch") {
+      const artAlt = m.mastTypAlt || "Gerade";
+      const keyAlt = `${m.lphAlt || "Unbekannt"}m Stahl ${artAlt}`;
+      
+      if (!mastenStats[keyAlt]) {
+        mastenStats[keyAlt] = { rein: 0, raus: 0 };
       }
+      mastenStats[keyAlt].raus += 1;
+    }
 
-      const typ = m.typ || "stellen";
-
-      if (mastenNachLPH[lph][typ] !== undefined) {
-        mastenNachLPH[lph][typ] += Number(m.anzahl) || 0;
+    // 2. MONTAGE-LOGIK (Was wird neu gesetzt?)
+    if (m.aktion === "Montage" || m.aktion === "Tausch") {
+      const artNeu = m.mastTypNeu || "Gerade";
+      const keyNeu = `${m.lphNeu || "Unbekannt"}m Stahl ${artNeu}`;
+      
+      if (!mastenStats[keyNeu]) {
+        mastenStats[keyNeu] = { rein: 0, raus: 0 };
       }
-    });
+      mastenStats[keyNeu].rein += 1;
+    }
+  });
 
-    const mastenText = Object.entries(mastenNachLPH)
-      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-      .map(([lph, w]) => {
-        return `${lph}m → ${
-          [
-            w.stellen > 0 && `S:${w.stellen}`,
-            w.demontieren > 0 && `D:${w.demontieren}`,
-            w.tausch > 0 && `T:${w.tausch}`,
-          ]
-          .filter(Boolean)
-          .join(" | ")
-        }`;
-      })
-      .join("\n");
+  // Statistik-Text generieren
+  const mastenText = Object.entries(mastenStats)
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([beschreibung, w]) => {
+      const info = [];
+      if (w.rein > 0) info.push(`Montage: ${w.rein}`);
+      if (w.raus > 0) info.push(`Demontage: ${w.raus}`);
+      
+      return `${beschreibung} → ${info.join(" | ")}`;
+    })
+    .join("\n");
 
-    const leuchtenGruppiert = {};
+  // Leuchten-Statistik (bleibt gleich)
+  const leuchtenGruppiert = {};
+  (form.masten || []).forEach((m) => {
+    if (m.aktion === "Montage" || m.aktion === "Tausch") {
+      (m.leuchten || []).forEach((l) => {
+        if (!l.typ) return;
+        const key = `${l.typ}_${l.lumen}`;
+        if (!leuchtenGruppiert[key]) {
+          leuchtenGruppiert[key] = { typ: l.typ, lumen: l.lumen, anzahl: 0 };
+        }
+        leuchtenGruppiert[key].anzahl += 1;
+      });
+    }
+  });
 
-    (form.leuchten || []).forEach((l) => {
-      const key = `${l.typ}_${l.lumen}_${l.grad}_${l.info || ""}`;
+  const leuchtenText = Object.values(leuchtenGruppiert)
+    .map(l => `${l.typ} → ${l.anzahl} Stk${l.lumen ? ` | ${l.lumen}lm` : ""}`)
+    .join("\n");
 
-      if (!leuchtenGruppiert[key]) {
-        leuchtenGruppiert[key] = {
-          typ: l.typ || "Unbekannt",
-          lumen: l.lumen || 0,
-          grad: l.grad ?? 0,
-          info: l.info || "",
-          anzahl: 0,
-        };
-      }
-
-      leuchtenGruppiert[key].anzahl += Number(l.anzahl) || 0;
-    });
-
-    const leuchtenText = Object.values(leuchtenGruppiert)
-      .map((l) => {
-        let line = `${l.typ} → ${l.anzahl} Stk`;
-
-        if (l.lumen) line += ` | ${l.lumen}lm`;
-        if (l.grad) line += ` | ${l.grad}°`;
-        if (l.info) line += ` | ${l.info}`;
-
-        return line;
-      })
-      .join("\n");
-
-    const text = `Ort: ${form.address || ""}
+  const text = `Ort: ${form.address || ""}
 
 Westnetz Nr.: 
 ${form.westnetz || ""}
-
 Maßnahme: ${form.type || ""}
 Einmesser: Elektro Hegener
 Bauplan: Liegen Bei
@@ -433,23 +424,23 @@ Pläne Strom: Liegen Bei
 Pläne Gas: Liegen Bei
 Pläne Telekom: Liegen bei
 
-Masten:
-${mastenText}
+MASTEN ÜBERSICHT:
+${mastenText || "Keine Einträge"}
 
-Oberfläche: 
-
-Leuchten:
-${leuchtenText}
+LEUCHTEN (NEU):
+${leuchtenText || "Keine neuen Leuchten geplant"}
 
 PGK: ${form.pgk || ""}
 
 Weitere Infos: ${form.notes || ""}
 `;
 
-    navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(text);
+  if (setToast) {
     setToast("Vorlage kopiert!");
     setTimeout(() => { setToast(null); }, 2000);
-  };
+  }
+};
 
   const loadProjects = async () => {
   try {
@@ -1309,6 +1300,10 @@ const createProject = async () => {
 {activeTab === "Masten" && (
   <div className="masten-container">
     {(() => {
+      const totalMasten = form.masten.length;
+      const countMontage = form.masten.filter(m => m.aktion === "Montage").length;
+      const countDemontage = form.masten.filter(m => m.aktion === "Demontage").length;
+      const countTausch = form.masten.filter(m => m.aktion === "Tausch").length;
       const LEUCHTEN_DATA = {
         "Trilux Cuvia 40": 2600,
         "Trilux Cuvia 60": 4200,
@@ -1319,6 +1314,26 @@ const createProject = async () => {
 
       return (
         <>
+        {/* --- NEU: STATISTIK ÜBERSICHT --- */}
+          <div className="stats-container">
+            <div className="stat-card">
+              <span className="stat-value">{totalMasten}</span>
+              <span className="stat-label">Gesamt</span>
+            </div>
+            <div className="stat-card stat-tausch">
+              <span className="stat-value" style={{color: '#3b82f6'}}>{countTausch}</span>
+              <span className="stat-label">Tausch</span>
+            </div>
+            <div className="stat-card stat-montage">
+              <span className="stat-value" style={{color: '#22c55e'}}>{countMontage}</span>
+              <span className="stat-label">Montage</span>
+            </div>
+            <div className="stat-card stat-demontage">
+              <span className="stat-value" style={{color: '#ef4444'}}>{countDemontage}</span>
+              <span className="stat-label">Demontage</span>
+            </div>
+          </div>
+
           {/* --- MASSENANLAGE TOOLBAR --- */}
           <div className="batch-bar">
             <div className="field-group">
@@ -1396,7 +1411,7 @@ const createProject = async () => {
                 }));
                 setForm({ ...form, masten: [...form.masten, ...neue] });
               }}
-            >⚡ Import</button>
+            >+ Hinzufügen</button>
           </div>
 
           {/* --- MASTEN LISTE --- */}
