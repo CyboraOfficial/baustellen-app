@@ -240,7 +240,7 @@ export default function App() {
     "Allgemein",
     "Dateien",
     "Masten",
-    "Leuchten",
+    "Aufmaß",
     "Protokoll",
     "Vorlage"
   ];
@@ -1423,7 +1423,7 @@ const createProject = async () => {
                 <div className="mast-header">
                   <div className="field-group">
                     <span className="field-label">Mast</span>
-                    <div className="mast-num-badge">#{i + 1}</div>
+                    <div className="mast-num-badge">{i + 1}</div>
                   </div>
                   <div className="field-group">
                     <span className="field-label">Aktion</span>
@@ -1515,6 +1515,105 @@ const createProject = async () => {
         </>
       );
     })()}
+  </div>
+)}
+
+{activeTab === "Aufmaß" && (
+  <div className="masten-container">
+    <div style={{ background: '#64748b', color: 'white', padding: '10px', borderRadius: '8px', marginBottom: '2px', fontSize: '14px', fontWeight: 'bold' }}>
+      📊 Aufmaß & Materialerfassung pro Mast
+    </div>
+
+    {form.masten.map((m, i) => (
+      <div key={i} className="mast-card">
+        {/* HEADER zur Identifikation */}
+        <div className="mast-header" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>
+          <div className="field-group">
+            <span className="field-label">Mast</span>
+            <div className="mast-num-badge">{i + 1}</div>
+          </div>
+          <div className="field-group">
+            <span className="field-label">Status prüfen</span>
+            <select className="mast-input-base" value={m.aktion} onChange={(e) => updateMast(i, 'aktion', e.target.value)}>
+              <option value="Tausch">Tausch</option>
+              <option value="Montage">Montage</option>
+              <option value="Demontage">Demontage</option>
+            </select>
+          </div>
+          <div className="field-group" style={{ flex: 1 }}>
+            <span className="field-label">Mast-Typ Korrektur</span>
+            <select className="mast-input-base" value={m.mastTypNeu} onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}>
+              <option value="Gerade">Stahl Gerade</option>
+              <option value="Peitsche">Stahl Peitsche</option>
+            </select>
+          </div>
+        </div>
+
+        {/* AUFMAẞ SEKTION */}
+        <div className="aufmass-section">
+          <span className="section-title" style={{ color: '#475569' }}>Material & Leistung</span>
+          
+          <div className="aufmass-grid">
+            {/* Muffen & Kabel */}
+            <div className="field-group">
+              <span className="field-label">Muffen (Stk)</span>
+              <input type="number" className="mast-input-base" placeholder="0" 
+                value={m.aufmassMuffen || ""} onChange={(e) => updateMast(i, 'aufmassMuffen', e.target.value)} />
+            </div>
+
+            <div className="field-group">
+              <span className="field-label">Kabel (Meter)</span>
+              <input type="number" className="mast-input-base" placeholder="0" 
+                value={m.aufmassKabel || ""} onChange={(e) => updateMast(i, 'aufmassKabel', e.target.value)} />
+            </div>
+
+            {/* Oberfläche */}
+            <div className="field-group">
+              <span className="field-label">Oberfläche</span>
+              <select className="mast-input-base" value={m.oberflaeche || "Pflaster"} 
+                onChange={(e) => updateMast(i, 'oberflaeche', e.target.value)}>
+                <option value="Pflaster">Pflaster</option>
+                <option value="Asphalt">Asphalt</option>
+                <option value="Erde">Erde / Rasen</option>
+                <option value="Unbefestigt">Unbefestigt</option>
+              </select>
+            </div>
+
+            {/* Netzanschluss Checkboxes */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px' }}>
+              <label className="check-group">
+                <input type="checkbox" checked={m.netzAnschlussMontiert || false} 
+                  onChange={(e) => updateMast(i, 'netzAnschlussMontiert', e.target.checked)} />
+                Anschluss mont.
+              </label>
+              <label className="check-group">
+                <input type="checkbox" checked={m.netzAnschlussDemontiert || false} 
+                  onChange={(e) => updateMast(i, 'netzAnschlussDemontiert', e.target.checked)} />
+                Anschluss demont.
+              </label>
+            </div>
+          </div>
+
+          {/* Weitere Eintragungen */}
+          <div className="field-group" style={{ marginTop: '12px' }}>
+            <span className="field-label">Weitere Eintragungen / Besonderheiten</span>
+            <textarea 
+              className="mast-input-base" 
+              style={{ height: '60px', paddingTop: '8px', resize: 'vertical' }}
+              placeholder="z.B. Erdstück bauseits, Fundament nachgearbeitet..."
+              value={m.aufmassNotiz || ""} 
+              onChange={(e) => updateMast(i, 'aufmassNotiz', e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+    ))}
+
+    {form.masten.length === 0 && (
+      <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: '10px' }}>
+        Keine Masten im Tab "Masten" angelegt.
+      </div>
+    )}
   </div>
 )}
 

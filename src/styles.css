@@ -616,3 +616,32 @@ hr {
 .stat-montage { border-bottom: 4px solid #22c55e; }
 .stat-demontage { border-bottom: 4px solid #ef4444; }
 .stat-tausch { border-bottom: 4px solid #3b82f6; }
+
+.aufmass-section {
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 10px;
+  border-left: 4px solid #64748b;
+}
+
+.aufmass-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.check-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.check-group input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
