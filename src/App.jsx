@@ -218,7 +218,7 @@ export default function App() {
     "Trilux 9701",
     "Trilux 9821"
   ];
-  const OFFENE_STATUS = ["Offen", "Klärung", "In Bearbeitung"];
+  const OFFENE_STATUS = ["Offen", "Klärung", "In Bearbeitung", "Westnetznummer fehlt", "Fertig für Abrechnung", "Klärung"];
 
   const emptyForm = {
     name: "",
