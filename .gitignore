@@ -5,8 +5,20 @@ dist/
 # PocketBase Daten (Wichtig: Deine Datenbank bleibt lokal!)
 pb_data/
 storage/
+pb_migrations/
 *.db
 
 # Lokale Umgebungsvariablen
 .env
 .env.local
+CHANGELOG.md
+LICENSE.md
+pb_migrations/1777303047_created_projects.js
+pb_migrations/1777303143_updated_projects.js
+pb_migrations/1777303580_updated_projects.js
+pb_migrations/1777305649_updated_projects.js
+pb_migrations/1777305815_updated_projects.js
+pb_migrations/1777309466_updated_projects.js
+pb_migrations/1777316767_updated_projects.js
+pb_migrations/1777316961_updated_projects.js
+pocketbase.exe
