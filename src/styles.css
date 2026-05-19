@@ -87,8 +87,8 @@ hr {
 
 .sidebar-toggle {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 15px;
+  left: 15px;
   z-index: 2100; /* Noch über der Sidebar */
   width: 45px;
   height: 45px;
