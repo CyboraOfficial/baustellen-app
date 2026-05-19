@@ -13,16 +13,108 @@ let configPath;
 let currentWatcher;
 let isAppQuitting = false;
 
-autoUpdater.autoDownload = false;
+// In deiner electron/main.js
 
-// Wenn ein Update gefunden wird, informieren wir das Frontend
-autoUpdater.on('update-available', (info) => {
-  mainWindow.webContents.send('update-available', info.version);
+// IN DEINER electron/main.js
+
+// 1. Sofort automatisch im Hintergrund herunterladen
+autoUpdater.autoDownload = true;
+autoUpdater.forceDevUpdateConfig = true; 
+
+autoUpdater.on('checking-for-update', () => {
+  console.log("Updater: Suche läuft...");
 });
 
-// Wenn der Download fertig ist
-autoUpdater.on('update-downloaded', () => {
-  mainWindow.webContents.send('update-downloaded');
+autoUpdater.on('update-available', (info) => {
+  console.log(`Updater: Version ${info.version} gefunden. Download startet sofort im Hintergrund...`);
+  // React kriegt Bescheid und kann z.B. "Update wird geladen..." im Banner zeigen
+  if (mainWindow) mainWindow.webContents.send('download-progress', { percent: 0 });
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  console.log(`Hintergrund-Download: ${progressObj.percent.toFixed(2)}%`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('download-progress', progressObj);
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log("Updater: Download fertig. Warte auf Klick des Nutzers...");
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Schaltet das Banner auf GRÜN
+    mainWindow.webContents.send('update-downloaded');
+  }
+});
+
+ipcMain.on('install-update', () => {
+  console.log("Hauptprozess: Signal 'install-update' empfangen.");
+
+  // Prüfen, ob wir im Entwicklungsmodus sind
+  const isDev = !app.isPackaged; 
+
+  if (isDev) {
+    console.log("Entwicklungsmodus erkannt: Führe Standard-Neustart aus...");
+    // Im Dev-Modus ohne Argumente, damit die App auf jeden Fall schließt und das Setup startet
+    autoUpdater.quitAndInstall(); 
+  } else {
+    console.log("Produktionsmodus (EXE): Führe Silent-Installation aus...");
+    // In der fertigen Exe läuft es komplett unsichtbar im Hintergrund
+    autoUpdater.quitAndInstall(true, true); 
+  }
+});
+
+autoUpdater.on('update-not-available', () => {
+  if (mainWindow) mainWindow.webContents.send('update-not-available');
+});
+
+autoUpdater.on('error', (err) => {
+  if (mainWindow) mainWindow.webContents.send('update-not-available');
+});
+
+// IPC-Empfänger für den Start-Check von React
+ipcMain.on('check-updates', () => {
+  console.log("Hauptprozess: Starte checkForUpdatesAndNotify()...");
+  autoUpdater.checkForUpdatesAndNotify().catch(err => {
+    console.error("Fehler im Promise von checkForUpdates:", err);
+  });
+});
+
+// In deiner electron/main.js
+
+// IN DEINER electron/main.js
+
+ipcMain.on('start-download', () => {
+  console.log("Hauptprozess: Klick empfangen. Initialisiere Update-Download...");
+
+  // Sicherheitshalber die Suche noch einmal intern triggern, 
+  // damit der Updater die dev-app-update.yml frisch im Speicher hat
+  autoUpdater.checkForUpdates().then(() => {
+    console.log("Hauptprozess: Repository-Verbindung steht. Starte Download...");
+    autoUpdater.downloadUpdate();
+  }).catch(err => {
+    console.error("Fehler beim Vorbereiten des Downloads:", err);
+    // Falls es knallt, React zurücksetzen, damit es nicht ewig lädt
+    if (mainWindow) mainWindow.webContents.send('update-not-available');
+  });
+});
+
+// In deiner electron/main.js beim download-progress Event:
+autoUpdater.on('download-progress', (progressObj) => {
+  console.log(`Download-Fortschritt: ${progressObj.percent.toFixed(2)}%`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Schickt das gesamte Objekt an React weiter
+    mainWindow.webContents.send('download-progress', progressObj);
+  }
+});
+
+// 3. WICHTIGSTES EVENT: Wenn der Download fertig ist!
+autoUpdater.on('update-downloaded', (info) => {
+  console.log("Updater: Download beendet! Version:", info.version);
+  
+  // Wir sagen React, dass die Datei bereitliegt -> Banner wird GRÜN
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-downloaded');
+  }
 });
 
 // Befehle vom Frontend empfangen
@@ -223,6 +315,13 @@ function createWindow() {
       nodeIntegration: false,
       webSecurity: false,
     }
+  });
+
+    // In deiner electron/main.js innerhalb oder direkt nach der Fenster-Erstellung:
+  mainWindow.once('ready-to-show', () => {
+    // Holt sich die Version direkt aus der package.json
+    const appVersion = app.getVersion(); 
+    mainWindow.webContents.send('app-version', appVersion);
   });
 
   const isDev = !app.isPackaged;

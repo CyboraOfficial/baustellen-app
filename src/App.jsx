@@ -183,8 +183,11 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 }
 
 export default function App() {
-  const [updateStatus, setUpdateStatus] = useState('available'); // 'none', 'available', 'downloading', 'ready'
+    // Prüfen, ob wir in der Electron-Exe sind
+  const isDesktop = typeof window !== 'undefined' && !!window.electron;
+  const [updateStatus, setUpdateStatus] = useState(isDesktop ? 'checking' : 'hidden');
   const [version, setVersion] = useState('');
+  const [downloadPercent, setDownloadPercent] = useState(0);
   const osmUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const satUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
   const [isSatellite, setIsSatellite] = useState(false);
@@ -540,42 +543,62 @@ useEffect(() => {
   }
 }, []);
 
-const checkForUpdates = async () => {
-  try {
-    // Hier holst du die Version von GitHub (z.B. über ein Fetch auf die GitHub API)
-    const response = await fetch('https://api.github.com/repos/CyboraOfficial/baustellen-app/releases/latest');
-    const data = await response.json();
-    const latestVersion = data.tag_name; // oder wie auch immer deine Version auf GitHub heißt
-
-    if (latestVersion !== version) {
-      setUpdateStatus('available');
-      // Wenn der Nutzer bereits eingeloggt ist, zeigen wir den Toast direkt
-      if (pb.authStore.isValid) {
-        setToast(`🚀 Version ${latestVersion} verfügbar! Update wird geladen...`);
-        setTimeout(() => setToast(null), 4000);
-      }
-    } else {
-      setUpdateStatus('up-to-date');
-    }
-  } catch (err) {
-    console.error("Update-Prüfung fehlgeschlagen:", err);
+const checkForUpdates = () => {
+  // Prüfen, ob wir in der Exe sind
+  if (window.electron || window.api) {
+    console.log("Triggere Update-Check in der Exe...");
+    
+    // Wir sagen dem Hauptprozess, er soll prüfen
+    if (window.electron) window.electron.checkUpdates();
+    else if (window.api) window.api.checkUpdates();
   }
 };
 
+// IN DEINER src/App.jsx (Hier ist setUpdateStatus goldrichtig!)
 useEffect(() => {
-  // Prüfen, ob wir in der Electron-Exe sind (je nachdem wie dein preload-Skript heißt, z.B. window.electron oder window.api)
-  /*const isDesktop = typeof window !== 'undefined' && (window.electron || window.api);
+  const isDesktop = typeof window !== 'undefined' && !!window.desktopAPI;
 
   if (isDesktop) {
-    checkForUpdates();
-  } else {
-    setUpdateStatus('up-to-date'); // Im Browser standardmäßig als aktuell markieren
-  }
+    setUpdateStatus('checking');
 
-  if (pb.authStore.isValid) {
-    setUser(pb.authStore.model);
+    window.desktopAPI.onAppVersion((detectedVersion) => {
+      setVersion(detectedVersion);
+    });
+
+    const unsubscribeAvailable = window.desktopAPI.onUpdateAvailable(() => {
+      setUpdateStatus('available'); 
+    });
+
+    const unsubscribeProgress = window.desktopAPI.onDownloadProgress?.((percent) => {
+      setUpdateStatus('downloading'); 
+      setDownloadPercent(percent);
+    }) || null;
+
+    const unsubscribeDownloaded = window.desktopAPI.onUpdateDownloaded(() => {
+      setUpdateStatus('ready'); 
+    });
+
+    // HIER DIE ANPASSUNG: Wenn aktuell, nach 3 Sekunden ausblenden
+    const unsubscribeNotAvailable = window.desktopAPI.onUpdateNotAvailable(() => {
+      setUpdateStatus('up-to-date');
+
+      // Timer starten, der das Banner nach 3 Sekunden verschwinden lässt
+      setTimeout(() => {
+        setUpdateStatus('hidden');
+      }, 3000); 
+    });
+
+    window.desktopAPI.send('check-updates'); 
+
+    return () => {
+      if (unsubscribeAvailable) unsubscribeAvailable();
+      if (unsubscribeProgress) unsubscribeProgress();
+      if (unsubscribeDownloaded) unsubscribeDownloaded();
+      if (unsubscribeNotAvailable) unsubscribeNotAvailable();
+    };
+  } else {
+    setUpdateStatus('hidden');
   }
-    */
 }, []);
 
 useEffect(() => {
@@ -856,46 +879,46 @@ const createProject = async () => {
 
   return (
   <div className="app-layout">
-    {/* Das Banner taucht NUR bei echten Update-Aktionen auf */}
-    {['available', 'downloading', 'ready'].includes(updateStatus) && (
-      <div className={`update-banner ${updateStatus === 'downloading' ? 'downloading' : ''}`}>
-        <div className="update-content">
-          <span className="update-text">
-            {updateStatus === 'available' && `🚀 Version ${version} verfügbar!`}
-            {updateStatus === 'downloading' && `⏳ Update wird geladen...`}
-            {updateStatus === 'ready' && `✅ Update bereit zum Installieren!`}
-          </span>
-
-          {updateStatus === 'available' && (
-            <button 
-    className="update-btn"
-    onClick={() => {
-
-      if (window.electron) {
-        window.electron.startDownload();
-      } else if (window.api) {
-        window.api.startDownload();
-      }
+    
+    {/* Das Banner ist JETZT IMMER SICHTBAR (außer bei 'hidden') */}
+    {updateStatus !== 'hidden' && (
+  <div className="update-banner-container">
+    {/* Die CSS-Klasse ändert sich dynamisch, z. B. zu "update-banner downloading" */}
+    <div className={`update-banner ${updateStatus}`}>
       
-    }}
-  >
-    🚀 Update herunterladen
-  </button>
-          )}
+      <div className="update-content">
+        <span>
+          {updateStatus === 'checking' && `🔍 App-Version: v${version || '1.0.2'} (Prüfe auf Updates...)`}
+          {updateStatus === 'up-to-date' && `✨ App-Version: v${version} (Aktuell)`}
+          {updateStatus === 'downloading' && `⏳ Neues Update wird im Hintergrund geladen... (${Math.round(downloadPercent)}%)`}
+          {updateStatus === 'ready' && `🎉 Update erfolgreich geladen! Bereit zum Installieren.`}
+        </span>
 
-          {updateStatus === 'ready' && (
-            <button className="update-button" onClick={() => window.desktopAPI.installUpdate()}>
-              Jetzt Neustarten
-            </button>
-          )}
-        </div>
-        
-        {/* Schließen setzt den Status auf 'none', damit es verschwindet */}
-        <button className="update-close" onClick={() => setUpdateStatus('none')}>
-          ✕
-        </button>
+        {updateStatus === 'ready' && (
+          <button 
+            className="update-btn"
+            onClick={() => {
+              if (window.desktopAPI && window.desktopAPI.send) {
+                window.desktopAPI.send('install-update');
+              }
+            }}
+          >
+            Jetzt installieren & App neu starten
+          </button>
+        )}
       </div>
-    )}
+      
+      {/* Das Schließen-Kreuz */}
+      <button 
+        className="update-close" 
+        onClick={() => setUpdateStatus('hidden')}
+      >
+        ✕
+      </button>
+
+    </div>
+  </div>
+)}
 
       {!user ? (
       /* --- LOGIN BEREICH --- */
