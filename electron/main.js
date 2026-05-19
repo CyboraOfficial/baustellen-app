@@ -11,6 +11,7 @@ let mainWindow;
 let basePath;
 let configPath;
 let currentWatcher;
+let isAppQuitting = false;
 
 autoUpdater.autoDownload = false;
 
@@ -29,8 +30,23 @@ ipcMain.on('start-download', () => {
   autoUpdater.downloadUpdate();
 });
 
+// In deiner electron/main.js
+// In deiner electron/main.js (ca. Zeile 35)
+// In deiner electron/main.js
 ipcMain.on('install-update', () => {
-  autoUpdater.quitAndInstall();
+  console.log("Update-Installation wird ausgeführt...");
+  
+  // 1. Alle Standard-Schließ-Listener von Electron entfernen, damit nichts blockiert
+  app.removeAllListeners("window-all-closed");
+  
+  // 2. Den Updater anweisen, die App zu schließen und das Setup zu starten
+  autoUpdater.quitAndInstall(false, true); 
+  
+  // 3. Nach einer minimalen Verzögerung die App hart beenden, 
+  // falls Electron beim "sauberen" Schließen hängen bleibt
+  setTimeout(() => {
+    app.exit(0);
+  }, 500);
 });
 
 autoUpdater.on('update-not-available', () => {
@@ -197,6 +213,7 @@ function createWindow() {
     details.requestHeaders['User-Agent'] = 'MeineBaustellenApp/1.0';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
+
   mainWindow = new BrowserWindow({
     width: 1500,
     height: 950,
@@ -210,15 +227,29 @@ function createWindow() {
 
   const isDev = !app.isPackaged;
 
-if (isDev) {
-  mainWindow.loadURL("http://localhost:5173");
-  mainWindow.webContents.openDevTools();
-} else {
-  mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  if (isDev) {
+    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  }
+
+  // --- AB HIER: UPDATER-LOGIK FÜR DAS FENSTER ---
+  mainWindow.on('close', (e) => {
+    // Wenn die App NICHT aktiv beendet wird (isAppQuitting ist false),
+    // kannst du hier das Schließen verhindern. Wenn du das gar nicht tust,
+    // kannst du diesen Block auch leer lassen.
+    if (!isAppQuitting) {
+      // Falls du das Fenster z.B. nur verstecken willst:
+      // e.preventDefault();
+      // mainWindow.hide();
+    }
+  });
 }
 
-
-}
+app.on('before-quit', () => {
+  isAppQuitting = true;
+});
 
 app.whenReady().then(async () => {
   configPath = path.join(app.getPath("userData"), "settings.json");

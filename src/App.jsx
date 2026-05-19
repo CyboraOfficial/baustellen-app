@@ -183,7 +183,7 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 }
 
 export default function App() {
-  const [updateStatus, setUpdateStatus] = useState('none'); // 'none', 'available', 'downloading', 'ready'
+  const [updateStatus, setUpdateStatus] = useState('available'); // 'none', 'available', 'downloading', 'ready'
   const [version, setVersion] = useState('');
   const osmUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const satUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
@@ -259,19 +259,17 @@ const handleLogin = async (e) => {
     const authData = await pb.collection('users').authWithPassword(loginEmail, loginPass);
     setUser(pb.authStore.model);
 
-    // Anstatt festem Text prüfen wir den Status:
-    if (updateStatus === 'available') {
-      setToast(`🚀 Login erfolgreich! Version ${version} verfügbar.`);
-    } else if (updateStatus === 'ready') {
-      setToast("✅ Login erfolgreich! Update ist bereit.");
-    } else {
-      setToast("✅ Login erfolgreich! App ist aktuell.");
+    // Login-Erfolg direkt anzeigen
+    setToast("✅ Login erfolgreich!");
+    setTimeout(() => setToast(null), 2000);
+
+    // Nach dem Login noch mal kurz die Updates triggern, um den Banner-Status zu aktualisieren
+    if (window.electron || window.api) {
+      checkForUpdates();
     }
 
-    // Toast nach 3 Sekunden wieder entfernen
-    setTimeout(() => setToast(null), 3000);
-
   } catch (err) {
+    // Hier kannst du jetzt auch deinen neuen alertToast nutzen, falls du das möchtest!
     alert("Login fehlgeschlagen: " + err.message);
   }
 };
@@ -542,18 +540,43 @@ useEffect(() => {
   }
 }, []);
 
-useEffect(() => {
-    if (window.desktopAPI) {
-      window.desktopAPI.onUpdateAvailable((v) => {
-        setVersion(v);
-        setUpdateStatus('available');
-      });
+const checkForUpdates = async () => {
+  try {
+    // Hier holst du die Version von GitHub (z.B. über ein Fetch auf die GitHub API)
+    const response = await fetch('https://api.github.com/repos/CyboraOfficial/baustellen-app/releases/latest');
+    const data = await response.json();
+    const latestVersion = data.tag_name; // oder wie auch immer deine Version auf GitHub heißt
 
-      window.desktopAPI.onUpdateDownloaded(() => {
-        setUpdateStatus('ready');
-      });
+    if (latestVersion !== version) {
+      setUpdateStatus('available');
+      // Wenn der Nutzer bereits eingeloggt ist, zeigen wir den Toast direkt
+      if (pb.authStore.isValid) {
+        setToast(`🚀 Version ${latestVersion} verfügbar! Update wird geladen...`);
+        setTimeout(() => setToast(null), 4000);
+      }
+    } else {
+      setUpdateStatus('up-to-date');
     }
-  }, []);
+  } catch (err) {
+    console.error("Update-Prüfung fehlgeschlagen:", err);
+  }
+};
+
+useEffect(() => {
+  // Prüfen, ob wir in der Electron-Exe sind (je nachdem wie dein preload-Skript heißt, z.B. window.electron oder window.api)
+  /*const isDesktop = typeof window !== 'undefined' && (window.electron || window.api);
+
+  if (isDesktop) {
+    checkForUpdates();
+  } else {
+    setUpdateStatus('up-to-date'); // Im Browser standardmäßig als aktuell markieren
+  }
+
+  if (pb.authStore.isValid) {
+    setUser(pb.authStore.model);
+  }
+    */
+}, []);
 
 useEffect(() => {
   const handleKeyDown = (event) => {
@@ -832,37 +855,47 @@ const createProject = async () => {
   const lumenSumme = (form.leuchten || []).reduce((a, l) => a + (Number(l.lumen) || 0) * (Number(l.anzahl) || 1), 0);
 
   return (
-    <div className="app-layout">
-      {updateStatus !== 'none' && (
-  <div className={`update-banner ${updateStatus === 'downloading' ? 'downloading' : ''}`}>
-    <div className="update-content">
-      <span className="update-text">
-        {updateStatus === 'available' && `🚀 Version ${version} verfügbar!`}
-        {updateStatus === 'downloading' && `⏳ Update wird geladen...`}
-        {updateStatus === 'ready' && `✅ Update bereit zum Installieren!`}
-      </span>
+  <div className="app-layout">
+    {/* Das Banner taucht NUR bei echten Update-Aktionen auf */}
+    {['available', 'downloading', 'ready'].includes(updateStatus) && (
+      <div className={`update-banner ${updateStatus === 'downloading' ? 'downloading' : ''}`}>
+        <div className="update-content">
+          <span className="update-text">
+            {updateStatus === 'available' && `🚀 Version ${version} verfügbar!`}
+            {updateStatus === 'downloading' && `⏳ Update wird geladen...`}
+            {updateStatus === 'ready' && `✅ Update bereit zum Installieren!`}
+          </span>
 
-      {updateStatus === 'available' && (
-        <button className="update-button" onClick={() => {
-          setUpdateStatus('downloading');
-          window.desktopAPI.startDownload();
-        }}>
-          Herunterladen
-        </button>
-      )}
+          {updateStatus === 'available' && (
+            <button 
+    className="update-btn"
+    onClick={() => {
 
-      {updateStatus === 'ready' && (
-        <button className="update-button" onClick={() => window.desktopAPI.installUpdate()}>
-          Jetzt Neustarten
+      if (window.electron) {
+        window.electron.startDownload();
+      } else if (window.api) {
+        window.api.startDownload();
+      }
+      
+    }}
+  >
+    🚀 Update herunterladen
+  </button>
+          )}
+
+          {updateStatus === 'ready' && (
+            <button className="update-button" onClick={() => window.desktopAPI.installUpdate()}>
+              Jetzt Neustarten
+            </button>
+          )}
+        </div>
+        
+        {/* Schließen setzt den Status auf 'none', damit es verschwindet */}
+        <button className="update-close" onClick={() => setUpdateStatus('none')}>
+          ✕
         </button>
-      )}
-    </div>
-    
-    <button className="update-close" onClick={() => setUpdateStatus('none')}>
-      ✕
-    </button>
-  </div>
-)}
+      </div>
+    )}
 
       {!user ? (
       /* --- LOGIN BEREICH --- */
