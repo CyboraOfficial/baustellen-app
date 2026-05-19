@@ -210,6 +210,7 @@ export default function App() {
 
   const [originalProject, setOriginalProject] = useState(null);
   const [toast, setToast] = useState(null);
+  const [alertToast, setAlertToast] = useState({ show: false, message: "" });
   const [tempFiles, setTempFiles] = useState([]);
 
   const AUTOSAVE_DELAY = 3000; 
@@ -1428,8 +1429,14 @@ const createProject = async () => {
         selectedLeuchte = document.getElementById('batch-neu-custom').value.trim();
       }
 
+      // --- PFLICHTFELD VALIDIERUNG (Jetzt mit rotem Toast) ---
       if (!selectedLeuchte) {
-        alert("Bitte wählen Sie eine Leuchte aus oder tragen Sie eine eigene Bezeichnung ein!");
+        setAlertToast({ show: true, message: "Bitte wählen Sie eine Leuchte aus oder tragen Sie eine eigene Bezeichnung ein!" });
+        
+        setTimeout(() => {
+          setAlertToast({ show: false, message: "" });
+        }, 3000);
+        
         return; 
       }
 
@@ -2037,6 +2044,29 @@ const createProject = async () => {
           animation: 'slideIn 0.3s ease-out'
         }}>
           {toast}
+        </div>
+      )}
+      {/* DER ROT-TOAST POPUP */}
+      {alertToast.show && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          background: '#ef4444',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+          fontWeight: '600',
+          fontSize: '14px',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          <span>⚠️</span>
+          <span>{alertToast.message}</span>
         </div>
       )}
       </main>
