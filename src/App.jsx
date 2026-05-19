@@ -1306,10 +1306,9 @@ const createProject = async () => {
       const countTausch = form.masten.filter(m => m.aktion === "Tausch").length;
       const LEUCHTEN_DATA = {
         "Trilux Cuvia 40": 2600,
-        "Trilux Cuvia 60": 4200,
-        "Trilux 9821": 3100,
-        "Trilux 9701": 1800,
-        "Schuch 48": 2400
+        "Trilux Cuvia 60": 2600,
+        "Trilux 9821": 2600,
+        "Trilux 9701": 4600
       };
 
       return (
@@ -1369,54 +1368,102 @@ const createProject = async () => {
               </div>
             </div>
 
-            {/* NEU-FELDER (PLANUNG) */}
-            <div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1}}>
-              <div className="field-group">
-                <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
-                <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
-                  <option value="Gerade">Gerade</option>
-                  <option value="Gebogen">Gebogen</option>
-                </select>
-              </div>
-              <div className="field-group" style={{flex: 1}}>
-                <span className="field-label" style={{color: '#3b82f6'}}>Leuchte</span>
-                <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
-                  const lm = LEUCHTEN_DATA[e.target.value];
-                  if(lm) document.getElementById('batch-lumen-neu').value = lm;
-                }}>
-                  <option value="">Wählen...</option>
-                  {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="field-group">
-                <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
-                <input id="batch-lph-neu" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
-              </div>
-              <div className="field-group">
-                <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
-                <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
-              </div>
-            </div>
+            {/* --- BATCH EINGABE BEREICH --- */}
+<div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1, flexWrap: 'wrap'}}>
+  <div className="field-group">
+    <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
+    <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
+      <option value="Gerade">Gerade</option>
+      <option value="Gebogen">Gebogen</option>
+    </select>
+  </div>
 
-            <button style={{background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', height: '32px', padding: '0 15px', fontWeight: 'bold', cursor: 'pointer'}}
-              onClick={() => {
-                const count = parseInt(document.getElementById('batch-count').value);
-                const neue = Array.from({ length: count }, () => ({
-                  aktion: document.getElementById('batch-aktion').value,
-                  mastTypAlt: document.getElementById('batch-masttyp-alt').value,
-                  lphAlt: document.getElementById('batch-lph-alt').value,
-                  mastTypNeu: document.getElementById('batch-masttyp-neu').value, // Jetzt korrekt aus dem Import
-                  lphNeu: document.getElementById('batch-lph-neu').value,
-                  leuchten: [{ typ: document.getElementById('batch-neu').value, lumen: document.getElementById('batch-lumen-neu').value }]
-                }));
-                setForm({ ...form, masten: [...form.masten, ...neue] });
-              }}
-            >+ Hinzufügen</button>
+  {/* LEUCHTEN AUSWAHL MIT INTEGRIERTEM FREITEXT */}
+  <div className="field-group" style={{flex: 1, minWidth: '200px'}}>
+    <span className="field-label" style={{color: '#3b82f6'}}>Leuchte *</span>
+    
+    <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
+      const val = e.target.value;
+      const lm = LEUCHTEN_DATA[val];
+      
+      if (val === "CUSTOM") {
+        document.getElementById('batch-neu-custom').style.display = 'block';
+        document.getElementById('batch-lumen-neu').value = ""; 
+      } else {
+        document.getElementById('batch-neu-custom').style.display = 'none';
+        if(lm) document.getElementById('batch-lumen-neu').value = lm;
+      }
+    }}>
+      <option value="">Wählen...</option>
+      {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
+      <option value="CUSTOM" style={{fontWeight: 'bold', color: '#3b82f6'}}>— Sonstiges (Freitext) —</option>
+    </select>
+
+    <input 
+      type="text" 
+      id="batch-neu-custom" 
+      placeholder="Eigene Leuchte eingeben..." 
+      className="mast-input-base" 
+      style={{width: '100%', marginTop: '5px', display: 'none'}} 
+    />
+  </div>
+
+  <div className="field-group">
+    <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
+    <input id="batch-lph-neu" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+  </div>
+  <div className="field-group">
+    <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
+    <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
+  </div>
+
+  <button 
+    style={{background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', height: '32px', padding: '0 15px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end'}}
+    onClick={() => {
+      const count = parseInt(document.getElementById('batch-count')?.value || "1");
+      const dropDownValue = document.getElementById('batch-neu').value;
+      
+      let selectedLeuchte = dropDownValue;
+      if (dropDownValue === "CUSTOM") {
+        selectedLeuchte = document.getElementById('batch-neu-custom').value.trim();
+      }
+
+      if (!selectedLeuchte) {
+        alert("Bitte wählen Sie eine Leuchte aus oder tragen Sie eine eigene Bezeichnung ein!");
+        return; 
+      }
+
+      const neue = Array.from({ length: count }, () => ({
+        aktion: document.getElementById('batch-aktion').value,
+        mastTypAlt: document.getElementById('batch-masttyp-alt').value,
+        lphAlt: document.getElementById('batch-lph-alt').value,
+        mastTypNeu: document.getElementById('batch-masttyp-neu').value, 
+        lphNeu: document.getElementById('batch-lph-neu').value,
+        leuchten: [{ 
+          typ: selectedLeuchte, 
+          lumen: document.getElementById('batch-lumen-neu').value 
+        }]
+      }));
+      
+      setForm({ ...form, masten: [...form.masten, ...neue] });
+
+      // Felder zurücksetzen
+      document.getElementById('batch-neu').value = "";
+      document.getElementById('batch-neu-custom').value = "";
+      document.getElementById('batch-neu-custom').style.display = 'none';
+    }}
+  >
+    + Hinzufügen
+  </button>
+</div>
           </div>
 
           {/* --- MASTEN LISTE --- */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {form.masten.map((m, i) => (
+            {form.masten.map((m, i) => {
+              const currentTyp = m.leuchten && m.leuchten[0] ? m.leuchten[0].typ : "";
+              const isCustomLeuchte = currentTyp && !LEUCHTEN_DATA[currentTyp] && currentTyp !== "";
+              return (
               <div key={i} className="mast-card">
                 
                 {/* HEADER */}
@@ -1477,40 +1524,81 @@ const createProject = async () => {
                     <span style={{fontSize: '10px', fontWeight: '800', color: '#2b6cb0', display: 'block', marginBottom: '8px'}}>NEUE INSTALLATION (NEU)</span>
                     <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
                        <div className="field-group" style={{width: '120px'}}>
-                        <span className="field-label">Neuer Masttyp</span>
-                        <select className="mast-input-base" value={m.mastTypNeu} onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}>
-                          <option value="Gerade">Gerade</option>
-                          <option value="Gebogen">Gebogen</option>
-                        </select>
-                      </div>
+                <span className="field-label">Neuer Masttyp</span>
+                <select 
+                  className="mast-input-base" 
+                  value={m.mastTypNeu} 
+                  onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}
+                >
+                  <option value="Gerade">Gerade</option>
+                  <option value="Gebogen">Gebogen</option>
+                </select>
+              </div>
                       <div className="field-group" style={{flex: 1, minWidth: '150px'}}>
-                        <span className="field-label">Leuchte</span>
-                        <select className="mast-input-base" style={{width: '100%'}} value={m.leuchten[0].typ} onChange={(e) => {
-                            const val = e.target.value;
-                            const nl = [...m.leuchten];
-                            nl[0].typ = val;
-                            if (LEUCHTEN_DATA[val]) nl[0].lumen = LEUCHTEN_DATA[val];
-                            updateMast(i, 'leuchten', nl);
-                        }}>
-                          <option value="">Wählen...</option>
-                          {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
+                <span className="field-label">Leuchte</span>
+                <select 
+                  className="mast-input-base" 
+                  style={{width: '100%'}} 
+                  value={isCustomLeuchte ? "CUSTOM" : currentTyp} 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
+                    if (val === "CUSTOM") {
+                      nl[0].typ = ""; 
+                    } else {
+                      nl[0].typ = val;
+                      if (LEUCHTEN_DATA[val]) nl[0].lumen = LEUCHTEN_DATA[val];
+                    }
+                    updateMast(i, 'leuchten', nl);
+                  }}
+                >
+                  <option value="">Wählen...</option>
+                  {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="CUSTOM">— Sonstiges (Freitext) —</option>
+                </select>
+
+                {(isCustomLeuchte || currentTyp === "") && (
+                  <input 
+                    type="text"
+                    className="mast-input-base"
+                    style={{width: '100%', marginTop: '5px'}}
+                    placeholder="Eigene Leuchte bearbeiten..."
+                    value={currentTyp}
+                    onChange={(e) => {
+                      const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
+                      nl[0].typ = e.target.value;
+                      updateMast(i, 'leuchten', nl);
+                    }}
+                  />
+                )}
+              </div>
                       <div className="field-group">
-                        <span className="field-label">LPH Neu</span>
-                        <input className="mast-input-base" style={{width: '60px'}} value={m.lphNeu} onChange={(e) => updateMast(i, 'lphNeu', e.target.value)} />
-                      </div>
+                <span className="field-label">LPH Neu</span>
+                <input 
+                  className="mast-input-base" 
+                  style={{width: '60px'}} 
+                  value={m.lphNeu} 
+                  onChange={(e) => updateMast(i, 'lphNeu', e.target.value)} 
+                />
+              </div>
                       <div className="field-group">
-                        <span className="field-label">Lumen</span>
-                        <input className="mast-input-base" style={{ width: '80px' }} value={m.leuchten[0].lumen} onChange={(e) => {
-                            const nl = [...m.leuchten]; nl[0].lumen = e.target.value; updateMast(i, 'leuchten', nl);
-                        }} />
-                      </div>
+                <span className="field-label">Lumen</span>
+                <input 
+                  className="mast-input-base" 
+                  style={{ width: '80px' }} 
+                  value={m.leuchten && m.leuchten[0] ? m.leuchten[0].lumen : ""} 
+                  onChange={(e) => {
+                    const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }]; 
+                    nl[0].lumen = e.target.value; 
+                    updateMast(i, 'leuchten', nl);
+                  }} 
+                />
+              </div>
                     </div>
                   </div>
                 )}
               </div>
-            ))}
+            )})}
           </div>
         </>
       );
