@@ -242,7 +242,7 @@ export default function App() {
     "Allgemein",
     "Dateien",
     "Masten",
-    "Platzhalter",
+    "Aufmaß",
     "Protokoll",
     "Vorlage"
   ];
