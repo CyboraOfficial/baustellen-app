@@ -194,6 +194,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("Allgemein");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const mapRef = useRef(null);
+  const [batchAktion, setBatchAktion] = useState('Tausch');
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
@@ -241,7 +242,7 @@ export default function App() {
     "Allgemein",
     "Dateien",
     "Masten",
-    "Aufmaß",
+    "Platzhalter",
     "Protokoll",
     "Vorlage"
   ];
@@ -1335,135 +1336,158 @@ const createProject = async () => {
           </div>
 
           {/* --- MASSENANLAGE TOOLBAR --- */}
-          <div className="batch-bar">
-            <div className="field-group">
-              <span className="field-label" style={{color: '#cbd5e1'}}>Anzahl</span>
-              <input type="number" id="batch-count" defaultValue="1" className="mast-input-base" style={{width: '45px'}} />
-            </div>
-
-            <div className="field-group">
-              <span className="field-label" style={{color: '#cbd5e1'}}>Aktion</span>
-              <select id="batch-aktion" className="mast-input-base" style={{width: '110px'}} onChange={(e) => {
-                const val = e.target.value;
-                document.getElementById('batch-alt-fields').style.display = (val === "Tausch" || val === "Demontage") ? "flex" : "none";
-                document.getElementById('batch-neu-fields').style.display = (val === "Tausch" || val === "Montage") ? "flex" : "none";
-              }}>
-                <option value="Tausch">Tausch</option>
-                <option value="Montage">Montage</option>
-                <option value="Demontage">Demontage</option>
-              </select>
-            </div>
-
-            {/* ALT-FELDER (BESTAND) */}
-            <div id="batch-alt-fields" style={{display: 'flex', gap: '10px'}}>
-              <div className="field-group">
-                <span className="field-label" style={{color: '#fc8181'}}>Mast Art Alt</span>
-                <select id="batch-masttyp-alt" className="mast-input-base" style={{width: '100px'}}>
-                  <option value="Gerade">Gerade</option>
-                  <option value="Gebogen">Gebogen</option>
-                </select>
-              </div>
-              <div className="field-group">
-                <span className="field-label" style={{color: '#fc8181'}}>LPH Alt</span>
-                <input id="batch-lph-alt" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
-              </div>
-            </div>
-
-            {/* --- BATCH EINGABE BEREICH --- */}
-<div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1, flexWrap: 'wrap'}}>
+          <div className="batch-bar" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap', background: '#1e293b', padding: '15px', borderRadius: '8px' }}>
+  
   <div className="field-group">
-    <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
-    <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
-      <option value="Gerade">Gerade</option>
-      <option value="Gebogen">Gebogen</option>
-    </select>
+    <span className="field-label" style={{color: '#cbd5e1'}}>Anzahl</span>
+    <input type="number" id="batch-count" defaultValue="1" className="mast-input-base" style={{width: '45px'}} />
   </div>
 
-  {/* LEUCHTEN AUSWAHL MIT INTEGRIERTEM FREITEXT */}
-  <div className="field-group" style={{flex: 1, minWidth: '200px'}}>
-    <span className="field-label" style={{color: '#3b82f6'}}>Leuchte *</span>
-    
-    <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
-      const val = e.target.value;
-      const lm = LEUCHTEN_DATA[val];
-      
-      if (val === "CUSTOM") {
-        document.getElementById('batch-neu-custom').style.display = 'block';
-        document.getElementById('batch-lumen-neu').value = ""; 
-      } else {
-        document.getElementById('batch-neu-custom').style.display = 'none';
-        if(lm) document.getElementById('batch-lumen-neu').value = lm;
-      }
-    }}>
-      <option value="">Wählen...</option>
-      {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
-      <option value="CUSTOM" style={{fontWeight: 'bold', color: '#3b82f6'}}>— Sonstiges (Freitext) —</option>
-    </select>
-
-    <input 
-      type="text" 
-      id="batch-neu-custom" 
-      placeholder="Eigene Leuchte eingeben..." 
+  <div className="field-group">
+    <span className="field-label" style={{color: '#cbd5e1'}}>Aktion</span>
+    <select 
+      id="batch-aktion" 
       className="mast-input-base" 
-      style={{width: '100%', marginTop: '5px', display: 'none'}} 
-    />
+      style={{width: '110px'}} 
+      value={batchAktion} 
+      onChange={(e) => setBatchAktion(e.target.value)} // Setzt den React-State
+    >
+      <option value="Tausch">Tausch</option>
+      <option value="Montage">Montage</option>
+      <option value="Demontage">Demontage</option>
+    </select>
   </div>
 
-  <div className="field-group">
-    <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
-    <input id="batch-lph-neu" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
-  </div>
-  <div className="field-group">
-    <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
-    <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
-  </div>
+  {/* ALT-FELDER (Wird nur bei Tausch oder Demontage angezeigt) */}
+  {(batchAktion === "Tausch" || batchAktion === "Demontage") && (
+    <div id="batch-alt-fields" style={{display: 'flex', gap: '10px'}}>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#fc8181'}}>Mast Art Alt</span>
+        <select id="batch-masttyp-alt" className="mast-input-base" style={{width: '100px'}}>
+          <option value="Gerade">Gerade</option>
+          <option value="Gebogen">Gebogen</option>
+        </select>
+      </div>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#fc8181'}}>LPH Alt</span>
+        <input id="batch-lph-alt" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+      </div>
+    </div>
+  )}
 
+  {/* NEU-FELDER (Wird nur bei Tausch oder Montage angezeigt) */}
+  {(batchAktion === "Tausch" || batchAktion === "Montage") && (
+    <div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1, minWidth: '200px', flexWrap: 'wrap'}}>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
+        <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
+          <option value="Gerade">Gerade</option>
+          <option value="Gebogen">Gebogen</option>
+        </select>
+      </div>
+
+      <div className="field-group" style={{flex: 1, minWidth: '180px'}}>
+        <span className="field-label" style={{color: '#3b82f6'}}>Leuchte *</span>
+        <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
+          const val = e.target.value;
+          const lm = LEUCHTEN_DATA[val];
+          if (val === "CUSTOM") {
+            document.getElementById('batch-neu-custom').style.display = 'block';
+            document.getElementById('batch-lumen-neu').value = ""; 
+          } else {
+            document.getElementById('batch-neu-custom').style.display = 'none';
+            if(lm) document.getElementById('batch-lumen-neu').value = lm;
+          }
+        }}>
+          <option value="">Wählen...</option>
+          {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
+          <option value="CUSTOM" style={{fontWeight: 'bold', color: '#3b82f6'}}>— Sonstiges (Freitext) —</option>
+        </select>
+
+        <input 
+          type="text" 
+          id="batch-neu-custom" 
+          placeholder="Eigene Leuchte eingeben..." 
+          className="mast-input-base" 
+          style={{width: '100%', marginTop: '5px', display: 'none'}} 
+        />
+      </div>
+
+      <div className="field-group">
+        <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
+        <input id="batch-lph-neu" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+      </div>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
+        <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
+      </div>
+    </div>
+  )}
+
+  {/* DER BUTTON STEHT NUN BOMBENFEST RECHTS NEBEN DEN AKTIVEN FELDERN */}
   <button 
-    style={{background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', height: '32px', padding: '0 15px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end'}}
+    style={{
+      background: '#22c55e', 
+      color: 'white', 
+      border: 'none', 
+      borderRadius: '6px', 
+      height: '32px', 
+      padding: '0 15px', 
+      fontWeight: 'bold', 
+      cursor: 'pointer', 
+      alignSelf: 'flex-end',
+      marginLeft: 'auto' // Schiebt den Button immer ganz nach rechts außen!
+    }}
     onClick={() => {
       const count = parseInt(document.getElementById('batch-count')?.value || "1");
-      const dropDownValue = document.getElementById('batch-neu').value;
       
-      let selectedLeuchte = dropDownValue;
-      if (dropDownValue === "CUSTOM") {
-        selectedLeuchte = document.getElementById('batch-neu-custom').value.trim();
+      let selectedLeuchte = "";
+      let lumenValue = "";
+      let mastTypNeuValue = "";
+      let lphNeuValue = "";
+
+      if (batchAktion !== "Demontage") {
+        const dropDownValue = document.getElementById('batch-neu').value;
+        selectedLeuchte = dropDownValue;
+        if (dropDownValue === "CUSTOM") {
+          selectedLeuchte = document.getElementById('batch-neu-custom').value.trim();
+        }
+
+        if (!selectedLeuchte) {
+          setAlertToast({ show: true, message: "Bitte wählen Sie eine Leuchte aus oder tragen Sie eine eigene Bezeichnung ein!" });
+          setTimeout(() => setAlertToast({ show: false, message: "" }), 3000);
+          return; 
+        }
+
+        lumenValue = document.getElementById('batch-lumen-neu').value;
+        mastTypNeuValue = document.getElementById('batch-masttyp-neu').value;
+        lphNeuValue = document.getElementById('batch-lph-neu').value;
       }
 
-      // --- PFLICHTFELD VALIDIERUNG (Jetzt mit rotem Toast) ---
-      if (!selectedLeuchte) {
-        setAlertToast({ show: true, message: "Bitte wählen Sie eine Leuchte aus oder tragen Sie eine eigene Bezeichnung ein!" });
-        
-        setTimeout(() => {
-          setAlertToast({ show: false, message: "" });
-        }, 3000);
-        
-        return; 
-      }
+      const mastTypAltValue = (batchAktion === "Tausch" || batchAktion === "Demontage") ? document.getElementById('batch-masttyp-alt').value : "";
+      const lphAltValue = (batchAktion === "Tausch" || batchAktion === "Demontage") ? document.getElementById('batch-lph-alt').value : "";
 
       const neue = Array.from({ length: count }, () => ({
-        aktion: document.getElementById('batch-aktion').value,
-        mastTypAlt: document.getElementById('batch-masttyp-alt').value,
-        lphAlt: document.getElementById('batch-lph-alt').value,
-        mastTypNeu: document.getElementById('batch-masttyp-neu').value, 
-        lphNeu: document.getElementById('batch-lph-neu').value,
-        leuchten: [{ 
-          typ: selectedLeuchte, 
-          lumen: document.getElementById('batch-lumen-neu').value 
-        }]
+        aktion: batchAktion,
+        mastTypAlt: mastTypAltValue,
+        lphAlt: lphAltValue,
+        mastTypNeu: mastTypNeuValue, 
+        lphNeu: lphNeuValue,
+        leuchten: batchAktion !== "Demontage" ? [{ typ: selectedLeuchte, lumen: lumenValue }] : []
       }));
       
       setForm({ ...form, masten: [...form.masten, ...neue] });
 
-      // Felder zurücksetzen
-      document.getElementById('batch-neu').value = "";
-      document.getElementById('batch-neu-custom').value = "";
-      document.getElementById('batch-neu-custom').style.display = 'none';
+      if (batchAktion !== "Demontage") {
+        document.getElementById('batch-neu').value = "";
+        document.getElementById('batch-neu-custom').value = "";
+        document.getElementById('batch-neu-custom').style.display = 'none';
+      }
     }}
   >
     + Hinzufügen
   </button>
 </div>
-          </div>
 
           {/* --- MASTEN LISTE --- */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
