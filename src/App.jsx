@@ -197,6 +197,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("Allgemein");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const mapRef = useRef(null);
+  const [batchAktion, setBatchAktion] = useState('Tausch');
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
@@ -213,6 +214,7 @@ export default function App() {
 
   const [originalProject, setOriginalProject] = useState(null);
   const [toast, setToast] = useState(null);
+  const [alertToast, setAlertToast] = useState({ show: false, message: "" });
   const [tempFiles, setTempFiles] = useState([]);
 
   const AUTOSAVE_DELAY = 3000; 
@@ -243,17 +245,69 @@ export default function App() {
     "Allgemein",
     "Dateien",
     "Masten",
-    "Leuchten",
+    "Platzhalter",
     "Protokoll",
     "Vorlage"
   ];
 
   const notesRef = React.useRef(null);
 
-  // Oben bei den anderen States
 const [user, setUser] = useState(pb.authStore.model);
 const [loginEmail, setLoginEmail] = useState("");
 const [loginPass, setLoginPass] = useState("");
+
+const updateMast = (index, field, value) => {
+  const newMasten = [...form.masten];
+  newMasten[index][field] = value;
+  setForm({ ...form, masten: newMasten });
+};
+
+const addLeuchte = (mastIndex) => {
+  const newMasten = [...form.masten];
+  // Falls das Array noch nicht existiert, erstellen
+  if (!newMasten[mastIndex].leuchten) {
+    newMasten[mastIndex].leuchten = [];
+  }
+  newMasten[mastIndex].leuchten.push({ typ: "", lumen: 0, grad: 0, anzahl: 1 });
+  setForm({ ...form, masten: newMasten });
+};
+
+const updateLeuchte = (mastIndex, leuchtenIndex, field, value) => {
+  const newMasten = [...form.masten];
+  newMasten[mastIndex].leuchten[leuchtenIndex][field] = value;
+  
+  // Automatisches Lumen-Update (deine Logik)
+  if (field === 'typ') {
+    if (value === "Trilux Cuvia") newMasten[mastIndex].leuchten[leuchtenIndex].lumen = 2600;
+    if (value === "Trilux 9701") newMasten[mastIndex].leuchten[leuchtenIndex].lumen = 4600;
+    if (value === "Trilux 9821") newMasten[mastIndex].leuchten[leuchtenIndex].lumen = 2600;
+  }
+  
+  setForm({ ...form, masten: newMasten });
+};
+
+const removeLeuchte = (mastIndex, leuchtenIndex) => {
+  const newMasten = [...form.masten];
+  newMasten[mastIndex].leuchten.splice(leuchtenIndex, 1);
+  setForm({ ...form, masten: newMasten });
+};
+
+const batchAddMasten = (anzahl, standardLPH, standardTyp, leuchtenTyp) => {
+  const neueMasten = [];
+  for (let i = 0; i < anzahl; i++) {
+    neueMasten.push({
+      id: "", 
+      lph: standardLPH, 
+      typ: standardTyp, 
+      form: "gerade", 
+      // Direkt mit Standard-Leuchte vorbefüllen
+      leuchten: leuchtenTyp ? [{ typ: leuchtenTyp, lumen: 2600, anzahl: 1 }] : [], 
+      fotos: [], 
+      plaene: [] 
+    });
+  }
+  setForm({ ...form, masten: [...form.masten, ...neueMasten] });
+};
 
 // Eine Funktion zum Einloggen
 const handleLogin = async (e) => {
@@ -305,76 +359,67 @@ const createLogEntry = (message) => {
   }, [form.notes]);
 
   const copyTemplate = () => {
-    const mastenNachLPH = {};
+  const mastenStats = {};
 
-    (form.masten || []).forEach((m) => {
-      const lph = m.lph || "Unbekannt";
-
-      if (!mastenNachLPH[lph]) {
-        mastenNachLPH[lph] = {
-          stellen: 0,
-          demontieren: 0,
-          tausch: 0,
-        };
+  (form.masten || []).forEach((m) => {
+    // 1. DEMONTAGE-LOGIK (Was kommt weg?)
+    if (m.aktion === "Demontage" || m.aktion === "Tausch") {
+      const artAlt = m.mastTypAlt || "Gerade";
+      const keyAlt = `${m.lphAlt || "Unbekannt"}m Stahl ${artAlt}`;
+      
+      if (!mastenStats[keyAlt]) {
+        mastenStats[keyAlt] = { rein: 0, raus: 0 };
       }
+      mastenStats[keyAlt].raus += 1;
+    }
 
-      const typ = m.typ || "stellen";
-
-      if (mastenNachLPH[lph][typ] !== undefined) {
-        mastenNachLPH[lph][typ] += Number(m.anzahl) || 0;
+    // 2. MONTAGE-LOGIK (Was wird neu gesetzt?)
+    if (m.aktion === "Montage" || m.aktion === "Tausch") {
+      const artNeu = m.mastTypNeu || "Gerade";
+      const keyNeu = `${m.lphNeu || "Unbekannt"}m Stahl ${artNeu}`;
+      
+      if (!mastenStats[keyNeu]) {
+        mastenStats[keyNeu] = { rein: 0, raus: 0 };
       }
-    });
+      mastenStats[keyNeu].rein += 1;
+    }
+  });
 
-    const mastenText = Object.entries(mastenNachLPH)
-      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-      .map(([lph, w]) => {
-        return `${lph}m → ${
-          [
-            w.stellen > 0 && `S:${w.stellen}`,
-            w.demontieren > 0 && `D:${w.demontieren}`,
-            w.tausch > 0 && `T:${w.tausch}`,
-          ]
-          .filter(Boolean)
-          .join(" | ")
-        }`;
-      })
-      .join("\n");
+  // Statistik-Text generieren
+  const mastenText = Object.entries(mastenStats)
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([beschreibung, w]) => {
+      const info = [];
+      if (w.rein > 0) info.push(`Montage: ${w.rein}`);
+      if (w.raus > 0) info.push(`Demontage: ${w.raus}`);
+      
+      return `${beschreibung} → ${info.join(" | ")}`;
+    })
+    .join("\n");
 
-    const leuchtenGruppiert = {};
+  // Leuchten-Statistik (bleibt gleich)
+  const leuchtenGruppiert = {};
+  (form.masten || []).forEach((m) => {
+    if (m.aktion === "Montage" || m.aktion === "Tausch") {
+      (m.leuchten || []).forEach((l) => {
+        if (!l.typ) return;
+        const key = `${l.typ}_${l.lumen}`;
+        if (!leuchtenGruppiert[key]) {
+          leuchtenGruppiert[key] = { typ: l.typ, lumen: l.lumen, anzahl: 0 };
+        }
+        leuchtenGruppiert[key].anzahl += 1;
+      });
+    }
+  });
 
-    (form.leuchten || []).forEach((l) => {
-      const key = `${l.typ}_${l.lumen}_${l.grad}_${l.info || ""}`;
+  const leuchtenText = Object.values(leuchtenGruppiert)
+    .map(l => `${l.typ} → ${l.anzahl} Stk${l.lumen ? ` | ${l.lumen}lm` : ""}`)
+    .join("\n");
 
-      if (!leuchtenGruppiert[key]) {
-        leuchtenGruppiert[key] = {
-          typ: l.typ || "Unbekannt",
-          lumen: l.lumen || 0,
-          grad: l.grad ?? 0,
-          info: l.info || "",
-          anzahl: 0,
-        };
-      }
-
-      leuchtenGruppiert[key].anzahl += Number(l.anzahl) || 0;
-    });
-
-    const leuchtenText = Object.values(leuchtenGruppiert)
-      .map((l) => {
-        let line = `${l.typ} → ${l.anzahl} Stk`;
-
-        if (l.lumen) line += ` | ${l.lumen}lm`;
-        if (l.grad) line += ` | ${l.grad}°`;
-        if (l.info) line += ` | ${l.info}`;
-
-        return line;
-      })
-      .join("\n");
-
-    const text = `Ort: ${form.address || ""}
+  const text = `Ort: ${form.address || ""}
 
 Westnetz Nr.: 
 ${form.westnetz || ""}
-
 Maßnahme: ${form.type || ""}
 Einmesser: Elektro Hegener
 Bauplan: Liegen Bei
@@ -382,23 +427,23 @@ Pläne Strom: Liegen Bei
 Pläne Gas: Liegen Bei
 Pläne Telekom: Liegen bei
 
-Masten:
-${mastenText}
+MASTEN ÜBERSICHT:
+${mastenText || "Keine Einträge"}
 
-Oberfläche: 
-
-Leuchten:
-${leuchtenText}
+LEUCHTEN (NEU):
+${leuchtenText || "Keine neuen Leuchten geplant"}
 
 PGK: ${form.pgk || ""}
 
 Weitere Infos: ${form.notes || ""}
 `;
 
-    navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(text);
+  if (setToast) {
     setToast("Vorlage kopiert!");
     setTimeout(() => { setToast(null); }, 2000);
-  };
+  }
+};
 
   const loadProjects = async () => {
   try {
@@ -1311,45 +1356,441 @@ const createProject = async () => {
               )}
 
 {activeTab === "Masten" && (
-                <>
-                  <div style={{ marginBottom: 10, fontWeight: "bold" }}>Gesamt: {mastenSumme} | S: {mastenTypen.stellen} | D: {mastenTypen.demontieren} | T: {mastenTypen.tausch}</div>
-                  {form.masten.map((m, i) => (
-                    <div key={i} style={{ borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "8px" }}>
-                      <label>LPH</label><input value={m.lph} onChange={(e) => { const u = [...form.masten]; u[i].lph = e.target.value; setForm({ ...form, masten: u }); }} />
-                      <label>Anzahl</label><input type="number" value={m.anzahl} onChange={(e) => { const u = [...form.masten]; u[i].anzahl = Number(e.target.value); setForm({ ...form, masten: u }); }} />
-                      <label>Typ</label>
-                      <select value={m.typ} onChange={(e) => { const u = [...form.masten]; u[i].typ = e.target.value; setForm({ ...form, masten: u }); }}>
-                        <option>stellen</option><option>demontieren</option><option>tausch</option>
-                      </select>
-                    </div>
-                  ))}
-                  <button onClick={() => setForm({ ...form, masten: [...form.masten, { lph: "", anzahl: 1, typ: "stellen" }] })}>+ Mast hinzufügen</button>
-                </>
-              )}
+  <div className="masten-container">
+    {(() => {
+      const totalMasten = form.masten.length;
+      const countMontage = form.masten.filter(m => m.aktion === "Montage").length;
+      const countDemontage = form.masten.filter(m => m.aktion === "Demontage").length;
+      const countTausch = form.masten.filter(m => m.aktion === "Tausch").length;
+      const LEUCHTEN_DATA = {
+        "Trilux Cuvia 40": 2600,
+        "Trilux Cuvia 60": 2600,
+        "Trilux 9821": 2600,
+        "Trilux 9701": 4600
+      };
 
-{activeTab === "Leuchten" && (
-                <>
-                  <div style={{ marginBottom: 10, fontWeight: "bold" }}>Gesamt: {leuchtenSumme} | Lumen: {lumenSumme}</div>
-                  {form.leuchten.map((l, i) => (
-                    <div key={i} style={{ borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "8px" }}>
-                      <label>Typ</label>
-                      <input list="leuchten-liste" value={l.typ} onChange={(e) => {
-                          const u = [...form.leuchten]; u[i].typ = e.target.value;
-                          if (e.target.value === "Trilux Cuvia") u[i].lumen = 2600;
-                          if (e.target.value === "Trilux 9701") u[i].lumen = 4600;
-                          if (e.target.value === "Trilux 9821") u[i].lumen = 2600;
-                          setForm({ ...form, leuchten: u });
-                        }} />
-                      <datalist id="leuchten-liste">{leuchtenOptionen.map((opt, idx) => <option key={idx} value={opt} />)}</datalist>
-                      <label>Lumen</label><input type="number" value={l.lumen} onChange={(e) => { const u = [...form.leuchten]; u[i].lumen = Number(e.target.value); setForm({ ...form, leuchten: u }); }} />
-                      <label>Grad</label><input type="number" value={l.grad} onChange={(e) => { const u = [...form.leuchten]; u[i].grad = Number(e.target.value); setForm({ ...form, leuchten: u }); }} />
-                      <label>Anzahl</label><input type="number" value={l.anzahl} onChange={(e) => { const u = [...form.leuchten]; u[i].anzahl = Number(e.target.value); setForm({ ...form, leuchten: u }); }} />
-                      <label>Info</label><input value={l.info || ""} onChange={(e) => { const u = [...form.leuchten]; u[i].info = e.target.value; setForm({ ...form, leuchten: u }); }} />
+      return (
+        <>
+        {/* --- NEU: STATISTIK ÜBERSICHT --- */}
+          <div className="stats-container">
+            <div className="stat-card">
+              <span className="stat-value">{totalMasten}</span>
+              <span className="stat-label">Gesamt</span>
+            </div>
+            <div className="stat-card stat-tausch">
+              <span className="stat-value" style={{color: '#3b82f6'}}>{countTausch}</span>
+              <span className="stat-label">Tausch</span>
+            </div>
+            <div className="stat-card stat-montage">
+              <span className="stat-value" style={{color: '#22c55e'}}>{countMontage}</span>
+              <span className="stat-label">Montage</span>
+            </div>
+            <div className="stat-card stat-demontage">
+              <span className="stat-value" style={{color: '#ef4444'}}>{countDemontage}</span>
+              <span className="stat-label">Demontage</span>
+            </div>
+          </div>
+
+          {/* --- MASSENANLAGE TOOLBAR --- */}
+          <div className="batch-bar" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap', background: '#1e293b', padding: '15px', borderRadius: '8px' }}>
+  
+  <div className="field-group">
+    <span className="field-label" style={{color: '#cbd5e1'}}>Anzahl</span>
+    <input type="number" id="batch-count" defaultValue="1" className="mast-input-base" style={{width: '45px'}} />
+  </div>
+
+  <div className="field-group">
+    <span className="field-label" style={{color: '#cbd5e1'}}>Aktion</span>
+    <select 
+      id="batch-aktion" 
+      className="mast-input-base" 
+      style={{width: '110px'}} 
+      value={batchAktion} 
+      onChange={(e) => setBatchAktion(e.target.value)} // Setzt den React-State
+    >
+      <option value="Tausch">Tausch</option>
+      <option value="Montage">Montage</option>
+      <option value="Demontage">Demontage</option>
+    </select>
+  </div>
+
+  {/* ALT-FELDER (Wird nur bei Tausch oder Demontage angezeigt) */}
+  {(batchAktion === "Tausch" || batchAktion === "Demontage") && (
+    <div id="batch-alt-fields" style={{display: 'flex', gap: '10px'}}>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#fc8181'}}>Mast Art Alt</span>
+        <select id="batch-masttyp-alt" className="mast-input-base" style={{width: '100px'}}>
+          <option value="Gerade">Gerade</option>
+          <option value="Gebogen">Gebogen</option>
+        </select>
+      </div>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#fc8181'}}>LPH Alt</span>
+        <input id="batch-lph-alt" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+      </div>
+    </div>
+  )}
+
+  {/* NEU-FELDER (Wird nur bei Tausch oder Montage angezeigt) */}
+  {(batchAktion === "Tausch" || batchAktion === "Montage") && (
+    <div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1, minWidth: '200px', flexWrap: 'wrap'}}>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
+        <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
+          <option value="Gerade">Gerade</option>
+          <option value="Gebogen">Gebogen</option>
+        </select>
+      </div>
+
+      <div className="field-group" style={{flex: 1, minWidth: '180px'}}>
+        <span className="field-label" style={{color: '#3b82f6'}}>Leuchte *</span>
+        <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
+          const val = e.target.value;
+          const lm = LEUCHTEN_DATA[val];
+          if (val === "CUSTOM") {
+            document.getElementById('batch-neu-custom').style.display = 'block';
+            document.getElementById('batch-lumen-neu').value = ""; 
+          } else {
+            document.getElementById('batch-neu-custom').style.display = 'none';
+            if(lm) document.getElementById('batch-lumen-neu').value = lm;
+          }
+        }}>
+          <option value="">Wählen...</option>
+          {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
+          <option value="CUSTOM" style={{fontWeight: 'bold', color: '#3b82f6'}}>— Sonstiges (Freitext) —</option>
+        </select>
+
+        <input 
+          type="text" 
+          id="batch-neu-custom" 
+          placeholder="Eigene Leuchte eingeben..." 
+          className="mast-input-base" 
+          style={{width: '100%', marginTop: '5px', display: 'none'}} 
+        />
+      </div>
+
+      <div className="field-group">
+        <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
+        <input id="batch-lph-neu" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+      </div>
+      <div className="field-group">
+        <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
+        <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
+      </div>
+    </div>
+  )}
+
+  {/* DER BUTTON STEHT NUN BOMBENFEST RECHTS NEBEN DEN AKTIVEN FELDERN */}
+  <button 
+    style={{
+      background: '#22c55e', 
+      color: 'white', 
+      border: 'none', 
+      borderRadius: '6px', 
+      height: '32px', 
+      padding: '0 15px', 
+      fontWeight: 'bold', 
+      cursor: 'pointer', 
+      alignSelf: 'flex-end',
+      marginLeft: 'auto' // Schiebt den Button immer ganz nach rechts außen!
+    }}
+    onClick={() => {
+      const count = parseInt(document.getElementById('batch-count')?.value || "1");
+      
+      let selectedLeuchte = "";
+      let lumenValue = "";
+      let mastTypNeuValue = "";
+      let lphNeuValue = "";
+
+      if (batchAktion !== "Demontage") {
+        const dropDownValue = document.getElementById('batch-neu').value;
+        selectedLeuchte = dropDownValue;
+        if (dropDownValue === "CUSTOM") {
+          selectedLeuchte = document.getElementById('batch-neu-custom').value.trim();
+        }
+
+        if (!selectedLeuchte) {
+          setAlertToast({ show: true, message: "Bitte wählen Sie eine Leuchte aus oder tragen Sie eine eigene Bezeichnung ein!" });
+          setTimeout(() => setAlertToast({ show: false, message: "" }), 3000);
+          return; 
+        }
+
+        lumenValue = document.getElementById('batch-lumen-neu').value;
+        mastTypNeuValue = document.getElementById('batch-masttyp-neu').value;
+        lphNeuValue = document.getElementById('batch-lph-neu').value;
+      }
+
+      const mastTypAltValue = (batchAktion === "Tausch" || batchAktion === "Demontage") ? document.getElementById('batch-masttyp-alt').value : "";
+      const lphAltValue = (batchAktion === "Tausch" || batchAktion === "Demontage") ? document.getElementById('batch-lph-alt').value : "";
+
+      const neue = Array.from({ length: count }, () => ({
+        aktion: batchAktion,
+        mastTypAlt: mastTypAltValue,
+        lphAlt: lphAltValue,
+        mastTypNeu: mastTypNeuValue, 
+        lphNeu: lphNeuValue,
+        leuchten: batchAktion !== "Demontage" ? [{ typ: selectedLeuchte, lumen: lumenValue }] : []
+      }));
+      
+      setForm({ ...form, masten: [...form.masten, ...neue] });
+
+      if (batchAktion !== "Demontage") {
+        document.getElementById('batch-neu').value = "";
+        document.getElementById('batch-neu-custom').value = "";
+        document.getElementById('batch-neu-custom').style.display = 'none';
+      }
+    }}
+  >
+    + Hinzufügen
+  </button>
+</div>
+
+          {/* --- MASTEN LISTE --- */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {form.masten.map((m, i) => {
+              const currentTyp = m.leuchten && m.leuchten[0] ? m.leuchten[0].typ : "";
+              const isCustomLeuchte = currentTyp && !LEUCHTEN_DATA[currentTyp] && currentTyp !== "";
+              return (
+              <div key={i} className="mast-card">
+                
+                {/* HEADER */}
+                <div className="mast-header">
+                  <div className="field-group">
+                    <span className="field-label">Mast</span>
+                    <div className="mast-num-badge">{i + 1}</div>
+                  </div>
+                  <div className="field-group">
+                    <span className="field-label">Aktion</span>
+                    <select className="mast-input-base" style={{ width: '110px' }} value={m.aktion} onChange={(e) => updateMast(i, 'aktion', e.target.value)}>
+                      <option value="Tausch">Tausch</option>
+                      <option value="Montage">Montage</option>
+                      <option value="Demontage">Demontage</option>
+                    </select>
+                  </div>
+                  <div className="header-actions" style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+                    <button>
+                      📷
+                    </button>
+  
+                    <button style={{ 
+                      background: '#ef4444',
+                    }} 
+                    onClick={() => {
+                      const n = [...form.masten]; 
+                      n.splice(i, 1); 
+                      setForm({ ...form, masten: n });
+                    }}>
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+
+                {/* BESTAND (ALT) */}
+                {(m.aktion === "Tausch" || m.aktion === "Demontage") && (
+                  <div className="alt-section">
+                    <span style={{fontSize: '10px', fontWeight: '800', color: '#c53030', display: 'block', marginBottom: '8px'}}>BESTAND AM MAST (ALT)</span>
+                    <div style={{display: 'flex', gap: '15px'}}>
+                      <div className="field-group" style={{flex: 1}}>
+                        <span className="field-label">Alter Masttyp</span>
+                        <select className="mast-input-base" style={{width: '100%'}} value={m.mastTypAlt} onChange={(e) => updateMast(i, 'mastTypAlt', e.target.value)}>
+                          <option value="Gerade">Gerade</option>
+                          <option value="Gebogen">Gebogen</option>
+                        </select>
+                      </div>
+                      <div className="field-group">
+                        <span className="field-label">LPH Alt</span>
+                        <input className="mast-input-base" style={{width: '70px'}} value={m.lphAlt} onChange={(e) => updateMast(i, 'lphAlt', e.target.value)} />
+                      </div>
                     </div>
-                  ))}
-                  <button onClick={() => setForm({ ...form, leuchten: [...form.leuchten, { typ: "", lumen: 0, grad: 0, anzahl: 1, info: "" }] })}>+ Leuchte hinzufügen</button>
-                </>
-              )}
+                  </div>
+                )}
+
+                {/* PLANUNG (NEU) */}
+                {(m.aktion === "Tausch" || m.aktion === "Montage") && (
+                  <div className="neu-section">
+                    <span style={{fontSize: '10px', fontWeight: '800', color: '#2b6cb0', display: 'block', marginBottom: '8px'}}>NEUE INSTALLATION (NEU)</span>
+                    <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+                       <div className="field-group" style={{width: '120px'}}>
+                <span className="field-label">Neuer Masttyp</span>
+                <select 
+                  className="mast-input-base" 
+                  value={m.mastTypNeu} 
+                  onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}
+                >
+                  <option value="Gerade">Gerade</option>
+                  <option value="Gebogen">Gebogen</option>
+                </select>
+              </div>
+                      <div className="field-group" style={{flex: 1, minWidth: '150px'}}>
+                <span className="field-label">Leuchte</span>
+                <select 
+                  className="mast-input-base" 
+                  style={{width: '100%'}} 
+                  value={isCustomLeuchte ? "CUSTOM" : currentTyp} 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
+                    if (val === "CUSTOM") {
+                      nl[0].typ = ""; 
+                    } else {
+                      nl[0].typ = val;
+                      if (LEUCHTEN_DATA[val]) nl[0].lumen = LEUCHTEN_DATA[val];
+                    }
+                    updateMast(i, 'leuchten', nl);
+                  }}
+                >
+                  <option value="">Wählen...</option>
+                  {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="CUSTOM">— Sonstiges (Freitext) —</option>
+                </select>
+
+                {(isCustomLeuchte || currentTyp === "") && (
+                  <input 
+                    type="text"
+                    className="mast-input-base"
+                    style={{width: '100%', marginTop: '5px'}}
+                    placeholder="Eigene Leuchte bearbeiten..."
+                    value={currentTyp}
+                    onChange={(e) => {
+                      const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
+                      nl[0].typ = e.target.value;
+                      updateMast(i, 'leuchten', nl);
+                    }}
+                  />
+                )}
+              </div>
+                      <div className="field-group">
+                <span className="field-label">LPH Neu</span>
+                <input 
+                  className="mast-input-base" 
+                  style={{width: '60px'}} 
+                  value={m.lphNeu} 
+                  onChange={(e) => updateMast(i, 'lphNeu', e.target.value)} 
+                />
+              </div>
+                      <div className="field-group">
+                <span className="field-label">Lumen</span>
+                <input 
+                  className="mast-input-base" 
+                  style={{ width: '80px' }} 
+                  value={m.leuchten && m.leuchten[0] ? m.leuchten[0].lumen : ""} 
+                  onChange={(e) => {
+                    const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }]; 
+                    nl[0].lumen = e.target.value; 
+                    updateMast(i, 'leuchten', nl);
+                  }} 
+                />
+              </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )})}
+          </div>
+        </>
+      );
+    })()}
+  </div>
+)}
+
+{activeTab === "Aufmaß" && (
+  <div className="masten-container">
+    <div style={{ background: '#64748b', color: 'white', padding: '10px', borderRadius: '8px', marginBottom: '2px', fontSize: '14px', fontWeight: 'bold' }}>
+      📊 Aufmaß & Materialerfassung pro Mast
+    </div>
+
+    {form.masten.map((m, i) => (
+      <div key={i} className="mast-card">
+        {/* HEADER zur Identifikation */}
+        <div className="mast-header" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>
+          <div className="field-group">
+            <span className="field-label">Mast</span>
+            <div className="mast-num-badge">{i + 1}</div>
+          </div>
+          <div className="field-group">
+            <span className="field-label">Status prüfen</span>
+            <select className="mast-input-base" value={m.aktion} onChange={(e) => updateMast(i, 'aktion', e.target.value)}>
+              <option value="Tausch">Tausch</option>
+              <option value="Montage">Montage</option>
+              <option value="Demontage">Demontage</option>
+            </select>
+          </div>
+          <div className="field-group" style={{ flex: 1 }}>
+            <span className="field-label">Mast-Typ Korrektur</span>
+            <select className="mast-input-base" value={m.mastTypNeu} onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}>
+              <option value="Gerade">Stahl Gerade</option>
+              <option value="Peitsche">Stahl Peitsche</option>
+            </select>
+          </div>
+        </div>
+
+        {/* AUFMAẞ SEKTION */}
+        <div className="aufmass-section">
+          <span className="section-title" style={{ color: '#475569' }}>Material & Leistung</span>
+          
+          <div className="aufmass-grid">
+            {/* Muffen & Kabel */}
+            <div className="field-group">
+              <span className="field-label">Muffen (Stk)</span>
+              <input type="number" className="mast-input-base" placeholder="0" 
+                value={m.aufmassMuffen || ""} onChange={(e) => updateMast(i, 'aufmassMuffen', e.target.value)} />
+            </div>
+
+            <div className="field-group">
+              <span className="field-label">Kabel (Meter)</span>
+              <input type="number" className="mast-input-base" placeholder="0" 
+                value={m.aufmassKabel || ""} onChange={(e) => updateMast(i, 'aufmassKabel', e.target.value)} />
+            </div>
+
+            {/* Oberfläche */}
+            <div className="field-group">
+              <span className="field-label">Oberfläche</span>
+              <select className="mast-input-base" value={m.oberflaeche || "Pflaster"} 
+                onChange={(e) => updateMast(i, 'oberflaeche', e.target.value)}>
+                <option value="Pflaster">Pflaster</option>
+                <option value="Asphalt">Asphalt</option>
+                <option value="Erde">Erde / Rasen</option>
+                <option value="Unbefestigt">Unbefestigt</option>
+              </select>
+            </div>
+
+            {/* Netzanschluss Checkboxes */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px' }}>
+              <label className="check-group">
+                <input type="checkbox" checked={m.netzAnschlussMontiert || false} 
+                  onChange={(e) => updateMast(i, 'netzAnschlussMontiert', e.target.checked)} />
+                Anschluss mont.
+              </label>
+              <label className="check-group">
+                <input type="checkbox" checked={m.netzAnschlussDemontiert || false} 
+                  onChange={(e) => updateMast(i, 'netzAnschlussDemontiert', e.target.checked)} />
+                Anschluss demont.
+              </label>
+            </div>
+          </div>
+
+          {/* Weitere Eintragungen */}
+          <div className="field-group" style={{ marginTop: '12px' }}>
+            <span className="field-label">Weitere Eintragungen / Besonderheiten</span>
+            <textarea 
+              className="mast-input-base" 
+              style={{ height: '60px', paddingTop: '8px', resize: 'vertical' }}
+              placeholder="z.B. Erdstück bauseits, Fundament nachgearbeitet..."
+              value={m.aufmassNotiz || ""} 
+              onChange={(e) => updateMast(i, 'aufmassNotiz', e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+    ))}
+
+    {form.masten.length === 0 && (
+      <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: '10px' }}>
+        Keine Masten im Tab "Masten" angelegt.
+      </div>
+    )}
+  </div>
+)}
 
 {activeTab === "Protokoll" && (
   <div style={{ maxHeight: "400px", overflowY: "auto", padding: "10px" }}>
@@ -1683,6 +2124,29 @@ const createProject = async () => {
           animation: 'slideIn 0.3s ease-out'
         }}>
           {toast}
+        </div>
+      )}
+      {/* DER ROT-TOAST POPUP */}
+      {alertToast.show && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          background: '#ef4444',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+          fontWeight: '600',
+          fontSize: '14px',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          <span>⚠️</span>
+          <span>{alertToast.message}</span>
         </div>
       )}
       </main>

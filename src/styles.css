@@ -87,8 +87,8 @@ hr {
 
 .sidebar-toggle {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 15px;
+  left: 15px;
   z-index: 2100; /* Noch über der Sidebar */
   width: 45px;
   height: 45px;
@@ -581,4 +581,153 @@ hr {
 .update-close:hover {
   color: white; /* Wird beim Drüberfahren hell weiß */
   transform: scale(1.15);
+}
+.masten-container { display: flex; flex-direction: column; gap: 15px; }
+
+.batch-bar {
+  background-color: #2c3e50;
+  padding: 15px;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-end;
+}
+
+.mast-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.mast-header { 
+  display: flex; 
+  align-items: flex-end; 
+  gap: 10px; 
+  margin-bottom: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.alt-section { 
+  background: #fff5f5; 
+  border-radius: 6px; 
+  padding: 7px; 
+  margin-bottom: 10px; 
+  border-left: 4px solid #fc8181; 
+}
+
+.neu-section { 
+  background: #f0f9ff; 
+  border-radius: 6px; 
+  padding: 7px; 
+  margin-bottom: 5px;
+  border-left: 4px solid #3b82f6; 
+}
+
+.section-title {
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.field-group { display: flex; flex-direction: column; gap: 4px; }
+.field-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
+
+.mast-input-base {
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  background: white;
+}
+
+.mast-num-badge {
+  background: #33475b;
+  color: white;
+  height: 37px;
+  width: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: bold;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px; /* Hier den Wert erhöhen */
+  margin-left: auto;
+  align-items: center;
+}
+
+.stats-container {
+  display: flex;
+  gap: 10px;
+}
+
+.stat-card {
+  flex: 1;
+  padding: 7px;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Farbakzente für die verschiedenen Status */
+.stat-montage { border-bottom: 4px solid #22c55e; }
+.stat-demontage { border-bottom: 4px solid #ef4444; }
+.stat-tausch { border-bottom: 4px solid #3b82f6; }
+
+.aufmass-section {
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 10px;
+  border-left: 4px solid #64748b;
+}
+
+.aufmass-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.check-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.check-group input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
