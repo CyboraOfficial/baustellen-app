@@ -60,6 +60,10 @@ ipcMain.on('install-update', () => {
     console.log("Produktionsmodus (EXE): Führe Silent-Installation aus...");
     // In der fertigen Exe läuft es komplett unsichtbar im Hintergrund
     autoUpdater.quitAndInstall(true, true); 
+
+    setTimeout(() => {
+      app.exit(0); // Beendet die App sauber, lässt dem Installer aber Zeit zu zünden
+    }, 500);
   }
 });
 
