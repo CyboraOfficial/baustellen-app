@@ -236,7 +236,8 @@ export default function App() {
     masten: [],
     leuchten: [],
     log: [],
-    ab: "AB",
+    ab_hsw: "AB",
+    ab_mueller: "AB"
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -528,7 +529,8 @@ const openProject = (p) => {
     masten: parsedMasten,
     leuchten: parsedLeuchten,
     log: parseSafe(p.log, []),
-    ab: p.ab || "",
+    ab_hsw: p.ab_hsw || "",
+    ab_mueller: p.ab_mueller || "",
   });
 
   setMode("detail");
@@ -1258,7 +1260,8 @@ const createProject = async () => {
     </div>
     <div>{p.status}</div>
     <div style={{ fontSize: 12 }}>{p.type}</div>
-    {p.ab && <div style={{ fontSize: 12 }}>AB: {p.ab}</div>}
+    {p.ab_hsw && <div style={{ fontSize: 12 }}>AB HSW: {p.ab_hsw}</div>}
+    {p.ab_mueller && <div style={{ fontSize: 12 }}>AB Müller: {p.ab_mueller}</div>}
     {p.westnetz && (
       <div style={{ fontSize: 12 }}>
         <strong>WN:</strong>
@@ -1310,8 +1313,10 @@ const createProject = async () => {
                   <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
                   <label>Westnetznummer</label>
                   <textarea value={form.westnetz || ""} onChange={(e) => setForm({ ...form, westnetz: e.target.value })} rows={2} style={{ resize: "vertical", minHeight: "60px" }} />
-                  <label>AB-Nummer</label>
-                  <input value={form.ab || ""} onChange={(e) => setForm({ ...form, ab: e.target.value })} />
+                  <label>AB-Nummer HSW</label>
+                  <input value={form.ab_hsw || ""} onChange={(e) => setForm({ ...form, ab_hsw: e.target.value })} />
+                  <label>AB-Nummer Müller</label>
+                  <input value={form.ab_mueller || ""} onChange={(e) => setForm({ ...form, ab_mueller: e.target.value })} />
                   <label>Typ</label>
                   <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                     <option>Konzept</option><option>Anfahrschaden</option><option>Störung</option><option>LK-Tausch</option><option>Sonstiges</option>

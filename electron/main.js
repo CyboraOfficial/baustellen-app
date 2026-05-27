@@ -257,7 +257,8 @@ function readProjects() {
   leuchten: data.leuchten || [],
   notes: data.notes || "",   // 🔥 HIER
   log: data.log || [],
-  ab: data.ab || "",
+  ab_hsw: data.ab_hsw || "",
+  ab_mueller: data.ab_mueller || "",
   files
     };
   });
@@ -280,7 +281,8 @@ function saveProject(project) {
     leuchten: project.leuchten || [],
     notes: project.notes || "",
     log: project.log || [],
-    ab: project.ab || "",
+    ab_hsw: project.ab_hsw || "",
+    ab_mueller: project.ab_mueller || "",
   };
 
   writeJsonSafe(path.join(folderPath, "data.json"), payload);
