@@ -735,7 +735,8 @@ const saveAction = async () => {
     { id: 'status', label: 'Status' },
     { id: 'pgk', label: 'PGK' },
     { id: 'notes', label: 'Notizen' },
-    { id: 'ab', label: 'AB' }
+    { id: 'ab_hsw', label: 'AB HSW' },
+    { id: 'ab_mueller', label: 'AB Müller' }
   ];
 
   fields.forEach(f => {
