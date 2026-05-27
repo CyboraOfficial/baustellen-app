@@ -6,6 +6,10 @@
   "author": "CyboraOfficial",
   "main": "electron/main.js",
   "homepage": ".",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CyboraOfficial/baustellen-app.git"
+  },
   "build": {
     "appId": "com.baustellen.app",
     "productName": "BaustellenApp",
@@ -20,14 +24,16 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/icon.ico"
+      "icon": "public/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico"
+      "uninstallerIcon": "public/icon.ico",
+      "runAfterFinish": true
     },
     "directories": {
       "output": "dist"

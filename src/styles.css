@@ -496,6 +496,92 @@ hr {
 
     margin-bottom: 7.5px;
 }
+
+/* Der äußere Rahmen für den Abstand zum Bildschirmrand */
+.update-banner-container {
+  padding: 12px 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Das Hauptbanner mit Abrundung und Schatten */
+.update-banner {
+  color: white;
+  padding: 14px 24px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: sans-serif;
+  transition: background-color 0.4s ease;
+  margin-top: 15px;
+  margin-left: 15px;
+  margin-right: 15px;
+}
+
+/* Inhalts-Box für Text und den grünen Button */
+.update-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* --- DYNAMISCHE HINTERGRUNDFARBEN --- */
+.update-banner.checking,
+.update-banner.up-to-date {
+  background-color: #374151; /* Schickes Anthrazit */
+}
+
+.update-banner.downloading {
+  background-color: #eab308; /* Modernes Warn-Gelb */
+}
+
+.update-banner.ready {
+  background-color: #22c55e; /* Angenehmes Grün */
+}
+
+/* --- BUTTONS --- */
+
+/* Der Installations-Button (erscheint nur bei 'ready') */
+.update-btn {
+  background-color: white;
+  color: #22c55e;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px; /* Button passend abgerundet */
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.update-btn:hover {
+  background-color: #f9fafb;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.update-btn:active {
+  transform: scale(0.96); /* Drückt sich beim Klick leicht ein */
+}
+
+/* Das Schließen-Kreuz ganz rechts */
+.update-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7); /* Leicht transparent */
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  transition: all 0.2s ease;
+}
+
+.update-close:hover {
+  color: white; /* Wird beim Drüberfahren hell weiß */
+  transform: scale(1.15);
+}
 .masten-container { display: flex; flex-direction: column; gap: 15px; }
 
 .batch-bar {

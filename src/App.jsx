@@ -183,8 +183,11 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 }
 
 export default function App() {
-  const [updateStatus, setUpdateStatus] = useState('none'); // 'none', 'available', 'downloading', 'ready'
+    // Prüfen, ob wir in der Electron-Exe sind
+  const isDesktop = typeof window !== 'undefined' && !!window.electron;
+  const [updateStatus, setUpdateStatus] = useState(isDesktop ? 'checking' : 'hidden');
   const [version, setVersion] = useState('');
+  const [downloadPercent, setDownloadPercent] = useState(0);
   const osmUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const satUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
   const [isSatellite, setIsSatellite] = useState(false);
@@ -233,7 +236,8 @@ export default function App() {
     masten: [],
     leuchten: [],
     log: [],
-    ab: "AB",
+    ab_hsw: "AB",
+    ab_mueller: "AB"
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -313,19 +317,17 @@ const handleLogin = async (e) => {
     const authData = await pb.collection('users').authWithPassword(loginEmail, loginPass);
     setUser(pb.authStore.model);
 
-    // Anstatt festem Text prüfen wir den Status:
-    if (updateStatus === 'available') {
-      setToast(`🚀 Login erfolgreich! Version ${version} verfügbar.`);
-    } else if (updateStatus === 'ready') {
-      setToast("✅ Login erfolgreich! Update ist bereit.");
-    } else {
-      setToast("✅ Login erfolgreich! App ist aktuell.");
+    // Login-Erfolg direkt anzeigen
+    setToast("✅ Login erfolgreich!");
+    setTimeout(() => setToast(null), 2000);
+
+    // Nach dem Login noch mal kurz die Updates triggern, um den Banner-Status zu aktualisieren
+    if (window.electron || window.api) {
+      checkForUpdates();
     }
 
-    // Toast nach 3 Sekunden wieder entfernen
-    setTimeout(() => setToast(null), 3000);
-
   } catch (err) {
+    // Hier kannst du jetzt auch deinen neuen alertToast nutzen, falls du das möchtest!
     alert("Login fehlgeschlagen: " + err.message);
   }
 };
@@ -527,7 +529,8 @@ const openProject = (p) => {
     masten: parsedMasten,
     leuchten: parsedLeuchten,
     log: parseSafe(p.log, []),
-    ab: p.ab || "",
+    ab_hsw: p.ab_hsw || "",
+    ab_mueller: p.ab_mueller || "",
   });
 
   setMode("detail");
@@ -587,18 +590,63 @@ useEffect(() => {
   }
 }, []);
 
-useEffect(() => {
-    if (window.desktopAPI) {
-      window.desktopAPI.onUpdateAvailable((v) => {
-        setVersion(v);
-        setUpdateStatus('available');
-      });
+const checkForUpdates = () => {
+  // Prüfen, ob wir in der Exe sind
+  if (window.electron || window.api) {
+    console.log("Triggere Update-Check in der Exe...");
+    
+    // Wir sagen dem Hauptprozess, er soll prüfen
+    if (window.electron) window.electron.checkUpdates();
+    else if (window.api) window.api.checkUpdates();
+  }
+};
 
-      window.desktopAPI.onUpdateDownloaded(() => {
-        setUpdateStatus('ready');
-      });
-    }
-  }, []);
+// IN DEINER src/App.jsx (Hier ist setUpdateStatus goldrichtig!)
+useEffect(() => {
+  const isDesktop = typeof window !== 'undefined' && !!window.desktopAPI;
+
+  if (isDesktop) {
+    setUpdateStatus('checking');
+
+    window.desktopAPI.onAppVersion((detectedVersion) => {
+      setVersion(detectedVersion);
+    });
+
+    const unsubscribeAvailable = window.desktopAPI.onUpdateAvailable(() => {
+      setUpdateStatus('available'); 
+    });
+
+    const unsubscribeProgress = window.desktopAPI.onDownloadProgress?.((percent) => {
+      setUpdateStatus('downloading'); 
+      setDownloadPercent(percent);
+    }) || null;
+
+    const unsubscribeDownloaded = window.desktopAPI.onUpdateDownloaded(() => {
+      setUpdateStatus('ready'); 
+    });
+
+    // HIER DIE ANPASSUNG: Wenn aktuell, nach 3 Sekunden ausblenden
+    const unsubscribeNotAvailable = window.desktopAPI.onUpdateNotAvailable(() => {
+      setUpdateStatus('up-to-date');
+
+      // Timer starten, der das Banner nach 3 Sekunden verschwinden lässt
+      setTimeout(() => {
+        setUpdateStatus('hidden');
+      }, 3000); 
+    });
+
+    window.desktopAPI.send('check-updates'); 
+
+    return () => {
+      if (unsubscribeAvailable) unsubscribeAvailable();
+      if (unsubscribeProgress) unsubscribeProgress();
+      if (unsubscribeDownloaded) unsubscribeDownloaded();
+      if (unsubscribeNotAvailable) unsubscribeNotAvailable();
+    };
+  } else {
+    setUpdateStatus('hidden');
+  }
+}, []);
 
 useEffect(() => {
   const handleKeyDown = (event) => {
@@ -687,7 +735,8 @@ const saveAction = async () => {
     { id: 'status', label: 'Status' },
     { id: 'pgk', label: 'PGK' },
     { id: 'notes', label: 'Notizen' },
-    { id: 'ab', label: 'AB' }
+    { id: 'ab_hsw', label: 'AB HSW' },
+    { id: 'ab_mueller', label: 'AB Müller' }
   ];
 
   fields.forEach(f => {
@@ -877,35 +926,45 @@ const createProject = async () => {
   const lumenSumme = (form.leuchten || []).reduce((a, l) => a + (Number(l.lumen) || 0) * (Number(l.anzahl) || 1), 0);
 
   return (
-    <div className="app-layout">
-      {updateStatus !== 'none' && (
-  <div className={`update-banner ${updateStatus === 'downloading' ? 'downloading' : ''}`}>
-    <div className="update-content">
-      <span className="update-text">
-        {updateStatus === 'available' && `🚀 Version ${version} verfügbar!`}
-        {updateStatus === 'downloading' && `⏳ Update wird geladen...`}
-        {updateStatus === 'ready' && `✅ Update bereit zum Installieren!`}
-      </span>
-
-      {updateStatus === 'available' && (
-        <button className="update-button" onClick={() => {
-          setUpdateStatus('downloading');
-          window.desktopAPI.startDownload();
-        }}>
-          Herunterladen
-        </button>
-      )}
-
-      {updateStatus === 'ready' && (
-        <button className="update-button" onClick={() => window.desktopAPI.installUpdate()}>
-          Jetzt Neustarten
-        </button>
-      )}
-    </div>
+  <div className="app-layout">
     
-    <button className="update-close" onClick={() => setUpdateStatus('none')}>
-      ✕
-    </button>
+    {/* Das Banner ist JETZT IMMER SICHTBAR (außer bei 'hidden') */}
+    {updateStatus !== 'hidden' && (
+  <div className="update-banner-container">
+    {/* Die CSS-Klasse ändert sich dynamisch, z. B. zu "update-banner downloading" */}
+    <div className={`update-banner ${updateStatus}`}>
+      
+      <div className="update-content">
+        <span>
+          {updateStatus === 'checking' && `🔍 App-Version: v${version || '1.0.2'} (Prüfe auf Updates...)`}
+          {updateStatus === 'up-to-date' && `✨ App-Version: v${version} (Aktuell)`}
+          {updateStatus === 'downloading' && `⏳ Neues Update wird im Hintergrund geladen... (${Math.round(downloadPercent)}%)`}
+          {updateStatus === 'ready' && `🎉 Update erfolgreich geladen! Bereit zum Installieren.`}
+        </span>
+
+        {updateStatus === 'ready' && (
+          <button 
+            className="update-btn"
+            onClick={() => {
+              if (window.desktopAPI && window.desktopAPI.send) {
+                window.desktopAPI.send('install-update');
+              }
+            }}
+          >
+            Jetzt installieren & App neu starten
+          </button>
+        )}
+      </div>
+      
+      {/* Das Schließen-Kreuz */}
+      <button 
+        className="update-close" 
+        onClick={() => setUpdateStatus('hidden')}
+      >
+        ✕
+      </button>
+
+    </div>
   </div>
 )}
 
@@ -1202,7 +1261,8 @@ const createProject = async () => {
     </div>
     <div>{p.status}</div>
     <div style={{ fontSize: 12 }}>{p.type}</div>
-    {p.ab && <div style={{ fontSize: 12 }}>AB: {p.ab}</div>}
+    {p.ab_hsw && <div style={{ fontSize: 12 }}>AB HSW: {p.ab_hsw}</div>}
+    {p.ab_mueller && <div style={{ fontSize: 12 }}>AB Müller: {p.ab_mueller}</div>}
     {p.westnetz && (
       <div style={{ fontSize: 12 }}>
         <strong>WN:</strong>
@@ -1254,8 +1314,10 @@ const createProject = async () => {
                   <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
                   <label>Westnetznummer</label>
                   <textarea value={form.westnetz || ""} onChange={(e) => setForm({ ...form, westnetz: e.target.value })} rows={2} style={{ resize: "vertical", minHeight: "60px" }} />
-                  <label>AB-Nummer</label>
-                  <input value={form.ab || ""} onChange={(e) => setForm({ ...form, ab: e.target.value })} />
+                  <label>AB-Nummer HSW</label>
+                  <input value={form.ab_hsw || ""} onChange={(e) => setForm({ ...form, ab_hsw: e.target.value })} />
+                  <label>AB-Nummer Müller</label>
+                  <input value={form.ab_mueller || ""} onChange={(e) => setForm({ ...form, ab_mueller: e.target.value })} />
                   <label>Typ</label>
                   <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                     <option>Konzept</option><option>Anfahrschaden</option><option>Störung</option><option>LK-Tausch</option><option>Sonstiges</option>
