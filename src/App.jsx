@@ -879,7 +879,9 @@ const createProject = async () => {
     formData.append('status', form.status || "Offen");
     formData.append('type', form.type || "Konzept");
     formData.append('westnetz', form.westnetz || "");
-    formData.append('ab', form.ab || "");
+    formData.append('ab_hsw', form.ab_hsw || "");
+    formData.append('ab_mueller', form.ab_mueller || "");
+    formData.append('pgk', form.pgk || "");
     formData.append('notes', form.notes || "");
 
     // JSON-Felder hinzufügen
