@@ -29,7 +29,7 @@
     },
     "nsis": {
       "oneClick": true,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "installerIcon": "public/icon.ico",
       "uninstallerIcon": "public/icon.ico",
