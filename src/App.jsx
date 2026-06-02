@@ -711,7 +711,6 @@ useEffect(() => {
 
   if (hasChanges) {
     const timer = setTimeout(() => {
-      setToast("Speichere Änderungen...");
       saveAction();
     }, 3000); // 3 Sekunden warten nach der letzten Eingabe
 
