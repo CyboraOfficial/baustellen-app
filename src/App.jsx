@@ -234,7 +234,7 @@ export default function App() {
     pgk: "",
     notes: "",
     masten: [],
-    leuchten: [],
+    aufmass: [],
     log: [],
     ab_hsw: "AB",
     ab_mueller: "AB"
@@ -421,6 +421,7 @@ const createLogEntry = (message) => {
 
 Westnetz Nr.: 
 ${form.westnetz || ""}
+
 Maßnahme: ${form.type || ""}
 Einmesser: Elektro Hegener
 Bauplan: Liegen Bei
@@ -428,10 +429,10 @@ Pläne Strom: Liegen Bei
 Pläne Gas: Liegen Bei
 Pläne Telekom: Liegen bei
 
-MASTEN ÜBERSICHT:
+Masten Übersicht:
 ${mastenText || "Keine Einträge"}
 
-LEUCHTEN (NEU):
+Leuchten Übersicht:
 ${leuchtenText || "Keine neuen Leuchten geplant"}
 
 PGK: ${form.pgk || ""}
@@ -527,7 +528,7 @@ const openProject = (p) => {
     pgk: p.pgk || "",
     notes: p.notes || "",
     masten: parsedMasten,
-    leuchten: parsedLeuchten,
+    aufmass: p.aufmass || "",
     log: parseSafe(p.log, []),
     ab_hsw: p.ab_hsw || "",
     ab_mueller: p.ab_mueller || "",
@@ -733,6 +734,7 @@ const saveAction = async () => {
     { id: 'westnetz', label: 'Westnetz' },
     { id: 'type', label: 'Typ' },
     { id: 'status', label: 'Status' },
+    { id: 'aufmass', label: 'Aufmass' },
     { id: 'pgk', label: 'PGK' },
     { id: 'notes', label: 'Notizen' },
     { id: 'ab_hsw', label: 'AB HSW' },
@@ -879,14 +881,15 @@ const createProject = async () => {
     formData.append('status', form.status || "Offen");
     formData.append('type', form.type || "Konzept");
     formData.append('westnetz', form.westnetz || "");
-    formData.append('ab', form.ab || "");
+    formData.append('ab_hsw', form.ab_hsw || "");
+    formData.append('ab_mueller', form.ab_mueller || "");
     formData.append('notes', form.notes || "");
 
     // JSON-Felder hinzufügen
     formData.append('position', JSON.stringify(selectedPosition));
     formData.append('masten', JSON.stringify(form.masten || []));
-    formData.append('leuchten', JSON.stringify(form.leuchten || []));
     formData.append('log', JSON.stringify(form.log || []));
+    formData.append('aufmass', JSON.stringify(form.aufmass || []));
 
     // Dateien hinzufügen
     if (tempFiles.length > 0) {
@@ -1700,91 +1703,313 @@ const createProject = async () => {
 )}
 
 {activeTab === "Aufmaß" && (
-  <div className="masten-container">
-    <div style={{ background: '#64748b', color: 'white', padding: '10px', borderRadius: '8px', marginBottom: '2px', fontSize: '14px', fontWeight: 'bold' }}>
-      📊 Aufmaß & Materialerfassung pro Mast
+  <div className="masten-container" style={{ color: '#f1f5f9' }}>
+    
+    {/* =========================================================
+        1. ALLGEMEIN SEKTION (Gilt global für das gesamte Aufmaß)
+        ========================================================= */}
+    <div style={{ background: '#334155', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+      <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '10px', color: '#38bdf8' }}>📊 Allgemein (Gesamte Baustelle)</div>
+      
+      <div className="field-group" style={{ marginBottom: '12px' }}>
+        <span className="field-label">Transport von Leuchtenmast in Std</span>
+        <input 
+          type="number" 
+          className="mast-input-base" 
+          style={{ width: '100px' }}
+          value={form.allgemeinTransport || ""} 
+          onChange={(e) => setForm({ ...form, allgemeinTransport: e.target.value })} 
+        />
+      </div>
+
+      {/* Ausklappbare Materialübersicht (Zusammenrechnung) */}
+      <details style={{ background: '#1e293b', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}>
+        <summary style={{ fontWeight: 'bold', color: '#94a3b8' }}>📦 Material ausklappbar (Automatische Summe)</summary>
+        <div style={{ padding: '10px 0 0 15px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          
+          <div>
+            🔹 Kabel automatisch zusammengerechnet: <strong style={{color: '#22c55e'}}>
+              {Array.isArray(form.aufmass) 
+                ? form.aufmass.reduce((sum, m) => sum + (Number(m.aufmassKabel) || 0) + (Number(m.grabenKabelverlegen) || 0), 0) 
+                : 0} m
+            </strong>
+          </div>
+          
+          <div>
+            🔹 Muffen montiert automatisch zusammengerechnet: <strong style={{color: '#22c55e'}}>
+              {Array.isArray(form.aufmass) 
+                ? form.aufmass.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) 
+                : 0} Stk
+            </strong>
+          </div>
+
+        </div>
+      </details>
+
+      <div className="field-group" style={{ marginTop: '12px' }}>
+        <span className="field-label">Extra Infos: Weitere Infos für nicht aufgeführte Arbeiten</span>
+        <textarea 
+          className="mast-input-base" 
+          style={{ height: '40px', resize: 'vertical' }}
+          value={form.allgemeinExtraInfos || ""} 
+          onChange={(e) => setForm({ ...form, allgemeinExtraInfos: e.target.value })} 
+        />
+      </div>
     </div>
 
-    {form.masten.map((m, i) => (
-      <div key={i} className="mast-card">
+
+    {/* =========================================================
+        2. DYNAMISCHE MASTEN-KARTEN
+        ========================================================= */}
+    <div style={{ background: '#64748b', color: 'white', padding: '10px', borderRadius: '8px', marginBottom: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+      🏗️ Aufmaß & Materialerfassung pro Mast
+    </div>
+
+    {form.aufmass && form.aufmass.map((m, i) => (
+      <div key={i} className="mast-card" style={{ background: '#1e293b', padding: '20px', borderRadius: '8px', marginBottom: '15px', borderLeft: '5px solid #38bdf8' }}>
+        
         {/* HEADER zur Identifikation */}
-        <div className="mast-header" style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>
+        <div className="mast-header" style={{ borderBottom: '2px solid #334155', paddingBottom: '12px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
           <div className="field-group">
             <span className="field-label">Mast</span>
-            <div className="mast-num-badge">{i + 1}</div>
+            <div className="mast-num-badge" style={{ background: '#38bdf8', color: '#0f172a', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px' }}>{i + 1}</div>
           </div>
           <div className="field-group">
             <span className="field-label">Status prüfen</span>
-            <select className="mast-input-base" value={m.aktion} onChange={(e) => updateMast(i, 'aktion', e.target.value)}>
-              <option value="Tausch">Tausch</option>
-              <option value="Montage">Montage</option>
-              <option value="Demontage">Demontage</option>
-            </select>
-          </div>
-          <div className="field-group" style={{ flex: 1 }}>
-            <span className="field-label">Mast-Typ Korrektur</span>
-            <select className="mast-input-base" value={m.mastTypNeu} onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}>
-              <option value="Gerade">Stahl Gerade</option>
-              <option value="Peitsche">Stahl Peitsche</option>
+            <select className="mast-input-base" value={m.aktion} onChange={(e) => updateAufmass(i, 'aktion', e.target.value)}>
+              <option value="Montage">Mast montieren</option>
+              <option value="Demontage">Mast demontieren</option>
+              <option value="Tausch">Mast Tauschen</option>
             </select>
           </div>
         </div>
 
-        {/* AUFMAẞ SEKTION */}
-        <div className="aufmass-section">
-          <span className="section-title" style={{ color: '#475569' }}>Material & Leistung</span>
+        <div className="aufmass-section" style={{ marginTop: '15px' }}>
           
-          <div className="aufmass-grid">
-            {/* Muffen & Kabel */}
-            <div className="field-group">
-              <span className="field-label">Muffen (Stk)</span>
-              <input type="number" className="mast-input-base" placeholder="0" 
-                value={m.aufmassMuffen || ""} onChange={(e) => updateMast(i, 'aufmassMuffen', e.target.value)} />
+          {/* ==================== FRAGENKATALOG: MONTAGE ==================== */}
+          {m.aktion === "Montage" && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              <div className="field-group">
+                <span className="field-label">Typ</span>
+                <select className="mast-input-base" value={m.montageTyp || "Fundament"} onChange={(e) => updateAufmass(i, 'montageTyp', e.target.value)}>
+                  <option value="Fundament">Fundament</option>
+                  <option value="PVC-Rohr">PVC-Rohr</option>
+                  <option value="Flanschplatte">Flanschplatte</option>
+                </select>
+              </div>
+
+              <div className="field-group" style={{ background: '#0f172a', padding: '10px', borderRadius: '6px' }}>
+                <span className="field-label" style={{ color: '#38bdf8' }}>Netzanschluss erstellen bis 1m Grabenlänge (Anzahl)</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.netzanschlussBis1m || ""} 
+                  onChange={(e) => updateAufmass(i, 'netzanschlussBis1m', e.target.value)} style={{ width: '80px' }} />
+                
+                {/* Klappt aus wenn über 0 */}
+                {Number(m.netzanschlussBis1m) > 0 && (
+                  <div style={{ margin: '10px 0 0 20px', paddingLeft: '10px', borderLeft: '2px solid #38bdf8' }} className="field-group">
+                    <span className="field-label">↳ Anzahl Muffen montieren</span>
+                    <input type="number" className="mast-input-base" placeholder="0" value={m.muffenMontierenBis1m || ""} 
+                      onChange={(e) => updateAufmass(i, 'muffenMontierenBis1m', e.target.value)} style={{ width: '80px' }} />
+                  </div>
+                )}
+              </div>
+
+              <div className="field-group" style={{ background: '#0f172a', padding: '10px', borderRadius: '6px' }}>
+                <span className="field-label" style={{ color: '#38bdf8' }}>Netzanschluss erstellen über 1m Grabenlänge (Anzahl)</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.netzanschlussUeber1m || ""} 
+                  onChange={(e) => updateAufmass(i, 'netzanschlussUeber1m', e.target.value)} style={{ width: '80px' }} />
+                
+                {/* Klappt aus wenn über 0 */}
+                {Number(m.netzanschlussUeber1m) > 0 && (
+                  <div style={{ margin: '10px 0 0 20px', paddingLeft: '10px', borderLeft: '2px solid #38bdf8', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="field-group">
+                      <span className="field-label">↳ Anzahl Muffen montieren</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.muffenMontierenUeber1m || ""} 
+                        onChange={(e) => updateAufmass(i, 'muffenMontierenUeber1m', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                    <div className="field-group">
+                      <span className="field-label">↳ Graben 30/60 in m</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.grabenTiefeBreite || ""} 
+                        onChange={(e) => updateAufmass(i, 'grabenTiefeBreite', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                    <div className="field-group">
+                      <span className="field-label">↳ Oberfläsche Graben</span>
+                      <select className="mast-input-base" value={m.oberflaecheGraben || "Platten"} onChange={(e) => updateAufmass(i, 'oberflaecheGraben', e.target.value)}>
+                        <option value="Platten">Platten / Pflaster</option>
+                        <option value="Asphalt">Asphalt / Bitum</option>
+                      </select>
+                    </div>
+                    <div className="field-group">
+                      <span className="field-label">↳ Kabelverlegen: Kabelverlegen in m</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.grabenKabelverlegen || ""} 
+                        onChange={(e) => updateAufmass(i, 'grabenKabelverlegen', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="field-group">
+                <span className="field-label">Oberfläche</span>
+                <select className="mast-input-base" value={m.oberflaeche || "Platten"} onChange={(e) => updateAufmass(i, 'oberflaeche', e.target.value)}>
+                  <option value="Platten">Platten / Pflaster</option>
+                  <option value="Asphalt">Asphalt / Bitum</option>
+                </select>
+                <div style={{ marginTop: '6px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input type="number" placeholder="X m" className="mast-input-base" style={{ width: '70px' }} value={m.oberflaecheX || ""} onChange={(e) => updateAufmass(i, 'oberflaecheX', e.target.value)} />
+                  <span>x</span>
+                  <input type="number" placeholder="Y m" className="mast-input-base" style={{ width: '70px' }} value={m.oberflaecheY || ""} onChange={(e) => updateAufmass(i, 'oberflaecheY', e.target.value)} />
+                </div>
+              </div>
+
+              <div className="field-group">
+                <span className="field-label">Kabel: Kabel in m</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.aufmassKabel || ""} 
+                  onChange={(e) => updateAufmass(i, 'aufmassKabel', e.target.value)} style={{ width: '100px' }} />
+              </div>
+            </div>
+          )}
+
+          {/* ==================== FRAGENKATALOG: DEMONTAGE ==================== */}
+          {m.aktion === "Demontage" && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="field-group">
+                <span className="field-label">Typ</span>
+                <select className="mast-input-base" value={m.demontageTyp || "Fundament"} onChange={(e) => updateAufmass(i, 'demontageTyp', e.target.value)}>
+                  <option value="Fundament">Fundament</option>
+                  <option value="PVC-Rohr">PVC-Rohr</option>
+                  <option value="Flanschplatte">Flanschplatte</option>
+                </select>
+              </div>
+
+              <div className="field-group" style={{ background: '#0f172a', padding: '10px', borderRadius: '6px' }}>
+                <span className="field-label" style={{ color: '#f43f5e' }}>Netzanschluss demontieren</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.netzanschlussDemoAnzahl || ""} 
+                  onChange={(e) => updateAufmass(i, 'netzanschlussDemoAnzahl', e.target.value)} style={{ width: '80px' }} />
+                
+                {/* Klappt aus wenn über 0 */}
+                {Number(m.netzanschlussDemoAnzahl) > 0 && (
+                  <div style={{ margin: '10px 0 0 20px', paddingLeft: '10px', borderLeft: '2px solid #f43f5e', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="field-group">
+                      <span className="field-label">↳ Anzahl Muffen montieren</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.muffenMontierenDemo || ""} 
+                        onChange={(e) => updateAufmass(i, 'muffenMontierenDemo', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                    <div className="field-group">
+                      <span className="field-label">↳ Anzahl Muffen demontieren</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.muffenDemoDemo || ""} 
+                        onChange={(e) => updateAufmass(i, 'muffenDemoDemo', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="field-group">
+                <span className="field-label">Kabel: Kabel in m</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.aufmassKabel || ""} 
+                  onChange={(e) => updateAufmass(i, 'aufmassKabel', e.target.value)} style={{ width: '100px' }} />
+              </div>
+            </div>
+          )}
+
+          {/* ==================== FRAGENKATALOG: TAUSCH ==================== */}
+          {m.aktion === "Tausch" && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="field-group">
+                <span className="field-label">Dropdown Demontage</span>
+                <select className="mast-input-base" value={m.tauschDemoTyp || "Fundament"} onChange={(e) => updateAufmass(i, 'tauschDemoTyp', e.target.value)}>
+                  <option value="Fundament">Fundament</option>
+                  <option value="PVC-Rohr">PVC-Rohr</option>
+                  <option value="Flanschplatte">Flanschplatte</option>
+                </select>
+              </div>
+
+              <div className="field-group">
+                <span className="field-label">Dropdown Montage</span>
+                <select className="mast-input-base" value={m.tauschMontageTyp || "Fundament"} onChange={(e) => updateAufmass(i, 'tauschMontageTyp', e.target.value)}>
+                  <option value="Fundament">Fundament</option>
+                  <option value="PVC-Rohr">PVC-Rohr</option>
+                  <option value="Flanschplatte">Flanschplatte</option>
+                </select>
+              </div>
+
+              <div className="field-group" style={{ background: '#0f172a', padding: '10px', borderRadius: '6px' }}>
+                <span className="field-label" style={{ color: '#a855f7' }}>Kabel an und abklemmen</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.kabelAnAbklemmenAnzahl || ""} 
+                  onChange={(e) => updateAufmass(i, 'kabelAnAbklemmenAnzahl', e.target.value)} style={{ width: '80px' }} />
+                
+                {/* Klappt aus wenn über 0 */}
+                {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
+                  <div style={{ margin: '10px 0 0 20px', paddingLeft: '10px', borderLeft: '2px solid #a855f7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="field-group">
+                      <span className="field-label">↳ Anzahl Muffen montieren</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.muffenMontierenTausch || ""} 
+                        onChange={(e) => updateAufmass(i, 'muffenMontierenTausch', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                    <div className="field-group">
+                      <span className="field-label">↳ Anzahl Muffen demontieren</span>
+                      <input type="number" className="mast-input-base" placeholder="0" value={m.muffenDemoTausch || ""} 
+                        onChange={(e) => updateAufmass(i, 'muffenDemoTausch', e.target.value)} style={{ width: '80px' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="field-group">
+                <span className="field-label">Oberfläche</span>
+                <select className="mast-input-base" value={m.oberflaeche || "Platten"} onChange={(e) => updateAufmass(i, 'oberflaeche', e.target.value)}>
+                  <option value="Platten">Platten / Pflaster</option>
+                  <option value="Asphalt">Asphalt / Bitum</option>
+                </select>
+                <div style={{ marginTop: '6px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input type="number" placeholder="X m" className="mast-input-base" style={{ width: '70px' }} value={m.oberflaecheX || ""} onChange={(e) => updateAufmass(i, 'oberflaecheX', e.target.value)} />
+                  <span>x</span>
+                  <input type="number" placeholder="Y m" className="mast-input-base" style={{ width: '70px' }} value={m.oberflaecheY || ""} onChange={(e) => updateAufmass(i, 'oberflaecheY', e.target.value)} />
+                </div>
+              </div>
+
+              <div className="field-group">
+                <span className="field-label">Kabel: Kabel in m</span>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.aufmassKabel || ""} 
+                  onChange={(e) => updateAufmass(i, 'aufmassKabel', e.target.value)} style={{ width: '100px' }} />
+              </div>
+            </div>
+          )}
+
+          {/* ==================== GENERISCHE UNTERZEILEN (Für alle Aktionen gleich) ==================== */}
+          <div style={{ marginTop: '15px', borderTop: '1px dashed #334155', paddingTop: '15px' }}>
+            
+            <div className="field-group" style={{ background: '#0f172a', padding: '10px', borderRadius: '6px', marginBottom: '12px' }}>
+              <span className="field-label">Handarbeit: Handarbeit in Std.</span>
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <input type="number" className="mast-input-base" placeholder="0" value={m.handarbeitStd || ""} 
+                  onChange={(e) => updateAufmass(i, 'handarbeitStd', e.target.value)} style={{ width: '90px' }} />
+                
+                {/* Möglichkeit Bilder zu hinterlegen (Simuliert als Datei-Input) */}
+                <label style={{ background: '#475569', color: 'white', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                  📸 Bilder hinterlegen
+                  <input type="file" multiple accept="image/*" style={{ display: 'none' }} 
+                    onChange={(e) => {
+                      // Wandelt die hochgeladenen Bilder in Pfade/File-Objekte um und speichert sie
+                      const files = Array.from(e.target.files).map(f => f.name);
+                      updateAufmass(i, 'handarbeitBilder', [...(m.handarbeitBilder || []), ...files]);
+                    }} 
+                  />
+                </label>
+                {m.handarbeitBilder && <span style={{ fontSize: '11px', color: '#94a3b8' }}>({m.handarbeitBilder.length} Bilder)</span>}
+              </div>
             </div>
 
             <div className="field-group">
-              <span className="field-label">Kabel (Meter)</span>
-              <input type="number" className="mast-input-base" placeholder="0" 
-                value={m.aufmassKabel || ""} onChange={(e) => updateMast(i, 'aufmassKabel', e.target.value)} />
+              <span className="field-label">Extra Infos: Weitere Infos für nicht aufgeführte Arbeiten</span>
+              <textarea 
+                className="mast-input-base" 
+                style={{ height: '50px', paddingTop: '6px', resize: 'vertical' }}
+                placeholder="Besonderheiten eintragen..."
+                value={m.aufmassNotiz || ""} 
+                onChange={(e) => updateAufmass(i, 'aufmassNotiz', e.target.value)}
+              />
             </div>
 
-            {/* Oberfläche */}
-            <div className="field-group">
-              <span className="field-label">Oberfläche</span>
-              <select className="mast-input-base" value={m.oberflaeche || "Pflaster"} 
-                onChange={(e) => updateMast(i, 'oberflaeche', e.target.value)}>
-                <option value="Pflaster">Pflaster</option>
-                <option value="Asphalt">Asphalt</option>
-                <option value="Erde">Erde / Rasen</option>
-                <option value="Unbefestigt">Unbefestigt</option>
-              </select>
-            </div>
-
-            {/* Netzanschluss Checkboxes */}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px' }}>
-              <label className="check-group">
-                <input type="checkbox" checked={m.netzAnschlussMontiert || false} 
-                  onChange={(e) => updateMast(i, 'netzAnschlussMontiert', e.target.checked)} />
-                Anschluss mont.
-              </label>
-              <label className="check-group">
-                <input type="checkbox" checked={m.netzAnschlussDemontiert || false} 
-                  onChange={(e) => updateMast(i, 'netzAnschlussDemontiert', e.target.checked)} />
-                Anschluss demont.
-              </label>
-            </div>
-          </div>
-
-          {/* Weitere Eintragungen */}
-          <div className="field-group" style={{ marginTop: '12px' }}>
-            <span className="field-label">Weitere Eintragungen / Besonderheiten</span>
-            <textarea 
-              className="mast-input-base" 
-              style={{ height: '60px', paddingTop: '8px', resize: 'vertical' }}
-              placeholder="z.B. Erdstück bauseits, Fundament nachgearbeitet..."
-              value={m.aufmassNotiz || ""} 
-              onChange={(e) => updateMast(i, 'aufmassNotiz', e.target.value)}
-            />
           </div>
         </div>
       </div>
@@ -1792,7 +2017,7 @@ const createProject = async () => {
 
     {form.masten.length === 0 && (
       <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: '10px' }}>
-        Keine Masten im Tab "Masten" angelegt.
+        Keine Masten im Tab "Masten" angelegt. Bitte zuerst Masten erfassen!
       </div>
     )}
   </div>
