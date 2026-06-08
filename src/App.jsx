@@ -585,11 +585,10 @@ const openProject = (p) => {
     }
   }
 
-  // 🔥 STRUKTUR-ABGLEICH: Wir mappen die Masten und stellen sicher,
-  // dass JEDES Feld exakt so existiert wie im React-State beim Tab-Wechsel!
   const aufbereiteteAufmassMasten = aufmassMasten.map(m => ({
     ...m,
     aktion: m.aktion || "Montage",
+    lichtpunkthoehe: m.lichtpunkthoehe || "", // 👈 NEU: Lichtpunkthöhe initialisieren
     aufmassKabel: m.aufmassKabel || "",
     aufmassMuffen: m.aufmassMuffen || "",
     handarbeitStd: m.handarbeitStd || "",
@@ -598,7 +597,7 @@ const openProject = (p) => {
     demontageTyp: m.demontageTyp || "Fundament",
     tauschDemoTyp: m.tauschDemoTyp || "Fundament",
     tauschMontageTyp: m.tauschMontageTyp || "Fundament",
-    oberflaeche: m.oberflaeche || "Platten",
+    oberflaeche: m.oberflaeche || "Gras/Acker", // 👈 NEU: "Gras/Acker" als Standard (Oberfläche 0)
     oberflaecheX: m.oberflaecheX || "",
     oberflaecheY: m.oberflaecheY || ""
   }));
@@ -888,7 +887,7 @@ useEffect(() => {
     const keysToCompare = [
       'aufmassKabel', 'aufmassMuffen', 'handarbeitStd', 'aufmassNotiz',
       'montageTyp', 'demontageTyp', 'tauschDemoTyp', 'tauschMontageTyp',
-      'oberflaeche', 'oberflaecheX', 'oberflaecheY', 'aktion'
+      'oberflaeche', 'oberflaecheX', 'oberflaecheY', 'aktion', 'lichtpunkthoehe'
     ];
 
     for (let i = 0; i < stateMasts.length; i++) {
@@ -2087,6 +2086,7 @@ const createProject = async () => {
                       <div className="field-group">
                         <span className="field-label">↳ Oberfläsche Graben</span>
                         <select className="mast-input-base" value={m.oberflaecheGraben || "Platten"} onChange={(e) => updateAufmass(i, 'oberflaecheGraben', e.target.value)}>
+                          <option value="Grass">Grass / Acker</option>
                           <option value="Platten">Platten / Pflaster</option>
                           <option value="Asphalt">Asphalt / Bitum</option>
                         </select>
@@ -2103,6 +2103,7 @@ const createProject = async () => {
                 <div className="field-group">
                   <span className="field-label">Oberfläche</span>
                   <select className="mast-input-base" value={m.oberflaeche || "Platten"} onChange={(e) => updateAufmass(i, 'oberflaeche', e.target.value)}>
+                    <option value="Grass">Grass / Acker</option>
                     <option value="Platten">Platten / Pflaster</option>
                     <option value="Asphalt">Asphalt / Bitum</option>
                   </select>
@@ -2207,6 +2208,7 @@ const createProject = async () => {
                 <div className="field-group">
                   <span className="field-label">Oberfläche</span>
                   <select className="mast-input-base" value={m.oberflaeche || "Platten"} onChange={(e) => updateAufmass(i, 'oberflaeche', e.target.value)}>
+                    <option value="Grass">Grass / Acker</option>
                     <option value="Platten">Platten / Pflaster</option>
                     <option value="Asphalt">Asphalt / Bitum</option>
                   </select>
