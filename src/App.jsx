@@ -1107,7 +1107,11 @@ const saveAction = async () => {
       setToast("Gespeichert!");
       setTimeout(() => setToast(null), 1500);
     }
+    
     setMode("list");
+    // WICHTIG: Hier muss das Projekt auf null gesetzt werden, 
+    // damit deine Layout-Logik weiß, dass wir nicht mehr im Projekt-Detail sind.
+    setSelectedProject(null); 
   };
 
 const deleteProject = async (id) => {
@@ -1217,6 +1221,9 @@ const createProject = async () => {
 
   const leuchtenSumme = (form.leuchten || []).reduce((a, l) => a + (Number(l.anzahl) || 0), 0);
   const lumenSumme = (form.leuchten || []).reduce((a, l) => a + (Number(l.lumen) || 0) * (Number(l.anzahl) || 1), 0);
+
+  // Prüfe: Ist der Tab korrekt UND sind wir in der Detailansicht (Projekt offen)?
+  const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung") && !!selectedProject;
 
   return (
   <div className="app-layout">
@@ -1331,12 +1338,9 @@ const createProject = async () => {
         className={`sidebar-toggle ${sidebarOpen ? "shifted" : ""}`} 
         onClick={() => setSidebarOpen(!sidebarOpen)}
         style={{
-          /* Prüfe auf Aufmaß ODER Abrechnung */
-          left: sidebarOpen && (activeTab === "Aufmaß" || activeTab === "Abrechnung") 
-                ? "min(85vw, 1225px)" 
-                : undefined,
+          left: sidebarOpen && isWideLayout ? "min(85vw, 1225px)" : undefined,
           transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          zIndex: (activeTab === "Aufmaß" || activeTab === "Abrechnung") ? 51 : undefined
+          zIndex: isWideLayout ? 51 : undefined
         }}
       >
         {sidebarOpen ? "◀" : "☰"}
@@ -1346,14 +1350,9 @@ const createProject = async () => {
     <div 
       className={`sidebar ${sidebarOpen ? "open" : "closed"}`}
       style={{
-        /* Prüfe auf Aufmaß ODER Abrechnung */
-        width: (activeTab === "Aufmaß" || activeTab === "Abrechnung") && sidebarOpen 
-              ? "85vw" 
-              : undefined,
-        maxWidth: (activeTab === "Aufmaß" || activeTab === "Abrechnung") && sidebarOpen 
-              ? "1200px" 
-              : undefined,
-        zIndex: (activeTab === "Aufmaß" || activeTab === "Abrechnung") ? 50 : undefined,
+        width: isWideLayout && sidebarOpen ? "85vw" : undefined,
+        maxWidth: isWideLayout && sidebarOpen ? "1200px" : undefined,
+        zIndex: isWideLayout ? 50 : undefined,
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease",
       }}
     >
@@ -2086,7 +2085,7 @@ const createProject = async () => {
       <details className="aufmass-summen-details">
         <summary className="aufmass-summen-summary">📦 Summen</summary>
         <div className="aufmass-summen-content">
-          <div>Kabel: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(String(m.aufmassKabel || '').replace(',', '.')) || 0) + (Number(String(m.grabenKabelverlegen || '').replace(',', '.')) || 0), 0) : 0} m</strong></div>
+          <div>Kabel: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(String(m.aufmassKabel || '').replace(',', '.')) || 0), 0) : 0} m</strong></div>
           <div>Muffen: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) : 0} Stk</strong></div>
         </div>
       </details>
@@ -2463,146 +2462,157 @@ const createProject = async () => {
 
     {/* 2. ABRECHNUNGSPOSITIONEN (Hier sind jetzt die Kabel als eigene Pos) */}
     {(() => {
-  const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
+      const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
 
-  // Struktur für die Daten
-  const buildData = () => ({
-    surfaces: {},
-    linear: {},
-    kabel: { title: "Kabel An-/Abklemmen (Stk)", total: 0, items: [] },
-    muffen: { title: "Muffen montieren (Stk)", total: 0, items: [] },
-    muffenDemo: { title: "Muffen demontieren (Stk)", total: 0, items: [] },
-    netz1: { title: "Netzanschluss bis 1m", total: 0, items: [] },
-    netz2: { title: "Netzanschluss über 1m", total: 0, items: [] },
-    netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
-    graben: { title: "Graben (m)", total: 0, items: [] },
-    kabelverlegen: { title: "Kabelverlegen (m)", total: 0, items: [] },
-    montagegrube: { title: "Montagegrube (Stk)", total: 0, items: [] },
-    handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] } // Neu
-  });
-
-  const dataHsw = buildData();
-  const dataMueller = buildData();
-
-  if (form.aufmass?.masten) {
-    form.aufmass.masten.forEach((m, i) => {
-      const mastId = i + 1;
-
-      // --- 1. HSW POSITIONEN ---
-      
-      // Masten Oberfläche
-      const flaecheMast = num(m.oberflaecheX) * num(m.oberflaecheY);
-      if (flaecheMast > 0) {
-        const name = m.oberflaeche || "Sonstige";
-        if (!dataHsw.surfaces[name]) dataHsw.surfaces[name] = { title: `${name} (m²)`, total: 0, items: [] };
-        dataHsw.surfaces[name].total += flaecheMast;
-        dataHsw.surfaces[name].items.push({ id: mastId, val: flaecheMast });
-      }
-
-      // Rasenkante, Bordstein, Rinnenfluss
-      const sondersachen = [
-        { key: 'sondersacheRasenkante', title: 'Rasenkantenstein (Stk)' },
-        { key: 'sondersacheBordstein', title: 'Bordstein (Stk)' },
-        { key: 'sondersacheRinnenfluss', title: 'Rinnenflussbahn (m²)' }
-      ];
-      sondersachen.forEach(s => {
-        const val = num(m[s.key]);
-        if (val > 0) {
-          if (!dataHsw.linear[s.key]) dataHsw.linear[s.key] = { title: s.title, total: 0, items: [] };
-          dataHsw.linear[s.key].total += val;
-          dataHsw.linear[s.key].items.push({ id: mastId, val: val });
-        }
+      // Struktur für die Daten
+      const buildData = () => ({
+        surfaces: {},
+        linear: {},
+        kabel: { title: "Kabel An-/Abklemmen (Stk)", total: 0, items: [] },
+        muffen: { title: "Muffen montieren (Stk)", total: 0, items: [] },
+        muffenDemo: { title: "Muffen demontieren (Stk)", total: 0, items: [] },
+        netz1: { title: "Netzanschluss bis 1m", total: 0, items: [] },
+        netz2: { title: "Netzanschluss über 1m", total: 0, items: [] },
+        netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
+        graben: { title: "Graben (m)", total: 0, items: [] },
+        kabelverlegen: { title: "Kabelverlegen (m)", total: 0, items: [] },
+        montagegrube: { title: "Montagegrube (Stk)", total: 0, items: [] },
+        handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] } // Neu
       });
 
-      // Handarbeit (Std)
-      if (num(m.handarbeitStd) > 0) {
-        dataHsw.handarbeitStd.total += num(m.handarbeitStd);
-        dataHsw.handarbeitStd.items.push({ id: mastId, val: num(m.handarbeitStd) });
+      const dataHsw = buildData();
+      const dataMueller = buildData();
+
+      if (form.aufmass?.masten) {
+        form.aufmass.masten.forEach((m, i) => {
+          const mastId = i + 1;
+
+          // --- 1. HSW POSITIONEN ---
+          
+          // Masten Oberfläche
+          const flaecheMast = num(m.oberflaecheX) * num(m.oberflaecheY);
+          if (flaecheMast > 0) {
+            const name = m.oberflaeche || "Sonstige";
+            if (!dataHsw.surfaces[name]) dataHsw.surfaces[name] = { title: `${name} (m²)`, total: 0, items: [] };
+            dataHsw.surfaces[name].total += flaecheMast;
+            dataHsw.surfaces[name].items.push({ id: mastId, val: flaecheMast });
+          }
+
+          // Rasenkante, Bordstein, Rinnenfluss
+          const sondersachen = [
+            { key: 'sondersacheRasenkante', title: 'Rasenkantenstein (Stk)' },
+            { key: 'sondersacheBordstein', title: 'Bordstein (Stk)' },
+            { key: 'sondersacheRinnenfluss', title: 'Rinnenflussbahn (m²)' }
+          ];
+          sondersachen.forEach(s => {
+            const val = num(m[s.key]);
+            if (val > 0) {
+              if (!dataHsw.linear[s.key]) dataHsw.linear[s.key] = { title: s.title, total: 0, items: [] };
+              dataHsw.linear[s.key].total += val;
+              dataHsw.linear[s.key].items.push({ id: mastId, val: val });
+            }
+          });
+
+          // Handarbeit (Std)
+          if (num(m.handarbeitStd) > 0) {
+            dataHsw.handarbeitStd.total += num(m.handarbeitStd);
+            dataHsw.handarbeitStd.items.push({ id: mastId, val: num(m.handarbeitStd) });
+          }
+
+          // --- 2. MÜLLER POSITIONEN ---
+
+          // Graben-Flächen (Platten / Asphalt)
+          const laengeGraben = num(m.grabenTiefeBreite);
+          const nameGraben = m.oberflaecheGraben || "Platten";
+          const catGrabenName = `Graben ${nameGraben}`;
+          const erlaubteOberflaechen = ["Platten", "Asphalt"];
+
+          // Prüfung: Graben vorhanden UND Oberfläche ist erlaubt
+          if (laengeGraben > 0 && erlaubteOberflaechen.includes(nameGraben)) {
+            
+            const catGrabenName = `Graben ${nameGraben}`;
+            const flaecheGraben = laengeGraben * 0.3;
+
+            if (!dataMueller.surfaces[catGrabenName]) {
+              dataMueller.surfaces[catGrabenName] = { 
+                title: `${catGrabenName} (m²)`, 
+                total: 0, 
+                items: [] 
+              };
+            }
+            dataMueller.surfaces[catGrabenName].total += flaecheGraben;
+            dataMueller.surfaces[catGrabenName].items.push({ id: mastId, val: flaecheGraben });
+          }
+
+          // Montagegrube Fläche
+          const countGruben = num(m.montagegrube);
+          if (countGruben > 0) {
+            const flaecheGruben = countGruben * 1.8;
+            if (!dataMueller.surfaces[catGrabenName]) dataMueller.surfaces[catGrabenName] = { title: `${catGrabenName} (m²)`, total: 0, items: [] };
+            dataMueller.surfaces[catGrabenName].total += flaecheGruben;
+            dataMueller.surfaces[catGrabenName].items.push({ id: mastId, val: flaecheGruben });
+          }
+
+          // Bau-Positionen Müller
+          if (laengeGraben > 0) { dataMueller.graben.total += laengeGraben; dataMueller.graben.items.push({ id: mastId, val: laengeGraben }); }
+          if (countGruben > 0) { dataMueller.montagegrube.total += countGruben; dataMueller.montagegrube.items.push({ id: mastId, val: countGruben }); }
+          if (num(m.grabenKabelverlegen) > 0) { dataMueller.kabelverlegen.total += num(m.grabenKabelverlegen); dataMueller.kabelverlegen.items.push({ id: mastId, val: num(m.grabenKabelverlegen) }); }
+          if (num(m.netzanschlussBis1m) > 0) { dataMueller.netz1.total += num(m.netzanschlussBis1m); dataMueller.netz1.items.push({ id: mastId, val: num(m.netzanschlussBis1m) }); }
+          if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ id: mastId, val: num(m.kabelAnAbklemmenAnzahl) }); }
+          if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ id: mastId, val: num(m.netzanschlussDemoAnzahl) }); }
+          const muffenSum = num(m.muffenMontierenUeber1m) + num(m.muffenMontierenTausch) + num(m.muffenDemoTausch) + num(m.muffenMontierenDemo) + num(m.muffenDemoDemo);
+          if (muffenSum > 0) { dataMueller.muffen.total += muffenSum; dataMueller.muffen.items.push({ id: mastId, val: muffenSum }); }
+          if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ id: mastId, val: num(m.muffenDemo) }); }
+        });
       }
 
-      // --- 2. MÜLLER POSITIONEN ---
+      // Hilfsfunktion zum Rendern
+      const renderCol = (title, dataObj) => {
+        const list = [
+          ...Object.values(dataObj.surfaces),
+          ...Object.values(dataObj.linear),
+          ...(dataObj.graben.total > 0 ? [dataObj.graben] : []),
+          ...(dataObj.montagegrube.total > 0 ? [dataObj.montagegrube] : []),
+          ...(dataObj.kabelverlegen.total > 0 ? [dataObj.kabelverlegen] : []),
+          ...(dataObj.netz1.total > 0 ? [dataObj.netz1] : []),
+          ...(dataObj.netz2.total > 0 ? [dataObj.netz2] : []),
+          ...(dataObj.kabel.total > 0 ? [dataObj.kabel] : []),
+          ...(dataObj.muffen.total > 0 ? [dataObj.muffen] : []),
+          ...(dataObj.muffenDemo.total > 0 ? [dataObj.muffenDemo] : []),
+          ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
+          ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : [])
+        ];
 
-      // Graben-Flächen (Platten / Asphalt)
-      const laengeGraben = num(m.grabenTiefeBreite);
-      const nameGraben = m.oberflaecheGraben || "Platten";
-      const catGrabenName = `Graben ${nameGraben}`;
-
-      if (laengeGraben > 0) {
-        const flaecheGraben = laengeGraben * 0.3;
-        if (!dataMueller.surfaces[catGrabenName]) dataMueller.surfaces[catGrabenName] = { title: `${catGrabenName} (m²)`, total: 0, items: [] };
-        dataMueller.surfaces[catGrabenName].total += flaecheGraben;
-        dataMueller.surfaces[catGrabenName].items.push({ id: mastId, val: flaecheGraben });
-      }
-
-      // Montagegrube Fläche
-      const countGruben = num(m.montagegrube);
-      if (countGruben > 0) {
-        const flaecheGruben = countGruben * 1.8;
-        if (!dataMueller.surfaces[catGrabenName]) dataMueller.surfaces[catGrabenName] = { title: `${catGrabenName} (m²)`, total: 0, items: [] };
-        dataMueller.surfaces[catGrabenName].total += flaecheGruben;
-        dataMueller.surfaces[catGrabenName].items.push({ id: mastId, val: flaecheGruben });
-      }
-
-      // Bau-Positionen Müller
-      if (laengeGraben > 0) { dataMueller.graben.total += laengeGraben; dataMueller.graben.items.push({ id: mastId, val: laengeGraben }); }
-      if (countGruben > 0) { dataMueller.montagegrube.total += countGruben; dataMueller.montagegrube.items.push({ id: mastId, val: countGruben }); }
-      if (num(m.grabenKabelverlegen) > 0) { dataMueller.kabelverlegen.total += num(m.grabenKabelverlegen); dataMueller.kabelverlegen.items.push({ id: mastId, val: num(m.grabenKabelverlegen) }); }
-      if (num(m.netzanschlussBis1m) > 0) { dataMueller.netz1.total += num(m.netzanschlussBis1m); dataMueller.netz1.items.push({ id: mastId, val: num(m.netzanschlussBis1m) }); }
-      if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ id: mastId, val: num(m.kabelAnAbklemmenAnzahl) }); }
-      if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ id: mastId, val: num(m.netzanschlussDemoAnzahl) }); }
-      const muffenSum = num(m.muffenMontierenUeber1m) + num(m.muffenMontierenTausch) + num(m.muffenDemoTausch) + num(m.muffenMontierenDemo) + num(m.muffenDemoDemo);
-      if (muffenSum > 0) { dataMueller.muffen.total += muffenSum; dataMueller.muffen.items.push({ id: mastId, val: muffenSum }); }
-      if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ id: mastId, val: num(m.muffenDemo) }); }
-    });
-  }
-
-  // Hilfsfunktion zum Rendern
-  const renderCol = (title, dataObj) => {
-    const list = [
-      ...Object.values(dataObj.surfaces),
-      ...Object.values(dataObj.linear),
-      ...(dataObj.graben.total > 0 ? [dataObj.graben] : []),
-      ...(dataObj.montagegrube.total > 0 ? [dataObj.montagegrube] : []),
-      ...(dataObj.kabelverlegen.total > 0 ? [dataObj.kabelverlegen] : []),
-      ...(dataObj.netz1.total > 0 ? [dataObj.netz1] : []),
-      ...(dataObj.netz2.total > 0 ? [dataObj.netz2] : []),
-      ...(dataObj.kabel.total > 0 ? [dataObj.kabel] : []),
-      ...(dataObj.muffen.total > 0 ? [dataObj.muffen] : []),
-      ...(dataObj.muffenDemo.total > 0 ? [dataObj.muffenDemo] : []),
-      ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
-      ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : [])
-    ];
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <h3 style={{ color: '#fff', borderBottom: '2px solid #38bdf8', paddingBottom: '5px' }}>{title}</h3>
-        {list.map((cat, idx) => (
-          <details key={`${title}-${idx}`} style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
-              <span>{cat.title}</span>
-              <span style={{ color: '#38bdf8' }}>{cat.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-            </summary>
-            <div style={{ marginTop: '10px', paddingLeft: '10px', borderLeft: '2px solid #38bdf8' }}>
-              {cat.items?.map((item, i) => (
-                <div key={`${title}-${cat.title}-${item.id}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                  <span style={{ color: '#94a3b8' }}>Mast {item.id}</span>
-                  <span>{item.val.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <h3 style={{ color: '#fff', borderBottom: '2px solid #38bdf8', paddingBottom: '5px' }}>{title}</h3>
+            {list.map((cat, idx) => (
+              <details key={`${title}-${idx}`} style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
+                  <span>{cat.title}</span>
+                  <span style={{ color: '#38bdf8' }}>{cat.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                </summary>
+                <div style={{ marginTop: '10px', paddingLeft: '10px', borderLeft: '2px solid #38bdf8' }}>
+                  {cat.items?.map((item, i) => (
+                    <div key={`${title}-${cat.title}-${item.id}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                      <span style={{ color: '#94a3b8' }}>Mast {item.id}</span>
+                      <span>{item.val.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </details>
-        ))}
-      </div>
-    );
-  };
+              </details>
+            ))}
+          </div>
+        );
+      };
 
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', width: '100%', padding: '10px' }}>
-      {renderCol("HSW", dataHsw)}
-      {renderCol("Müller", dataMueller)}
-    </div>
-  );
-})()}
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', width: '100%', padding: '10px' }}>
+          {renderCol("HSW", dataHsw)}
+          {renderCol("Müller", dataMueller)}
+        </div>
+      );
+    })()}
   </div>
 )}
 
