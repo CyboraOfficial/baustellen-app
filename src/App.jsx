@@ -2546,12 +2546,15 @@ const createProject = async () => {
 
           // Montagegrube Fläche
           const countGruben = num(m.montagegrube);
-          if (countGruben > 0) {
-            const flaecheGruben = countGruben * 1.8;
-            if (!dataMueller.surfaces[catGrabenName]) dataMueller.surfaces[catGrabenName] = { title: `${catGrabenName} (m²)`, total: 0, items: [] };
-            dataMueller.surfaces[catGrabenName].total += flaecheGruben;
-            dataMueller.surfaces[catGrabenName].items.push({ id: mastId, val: flaecheGruben });
-          }
+            if (countGruben > 0) {
+                // Falls du die Gruben unbedingt unter 'surfaces' als Stück zählen willst:
+                // (Ich empfehle aber, es wie unten bei 'Bau-Positionen' zu machen)
+                if (!dataMueller.surfaces["Montagegruben (Stk)"]) {
+                    dataMueller.surfaces["Montagegruben (Stk)"] = { title: "Montagegruben (Stk)", total: 0, items: [] };
+                }
+                dataMueller.surfaces["Montagegruben (Stk)"].total += countGruben;
+                dataMueller.surfaces["Montagegruben (Stk)"].items.push({ id: mastId, val: countGruben });
+            }
 
           // Bau-Positionen Müller
           if (laengeGraben > 0) { dataMueller.graben.total += laengeGraben; dataMueller.graben.items.push({ id: mastId, val: laengeGraben }); }
