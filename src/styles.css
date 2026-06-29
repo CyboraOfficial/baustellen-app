@@ -731,3 +731,301 @@ hr {
   height: 16px;
   cursor: pointer;
 }
+
+/* Falls das Aufmaß aktiv ist, weiten wir die Seitenleiste/Box nach rechts aus */
+.deine-seitenleiste-klasse:has(.masten-container) {
+  width: 85vw !important; /* Erlaubt der Box, weit über die Karte zu ragen */
+  max-width: 1200px !important; /* Begrenzt es auf großen Monitoren auf ein lesbares Maß */
+  z-index: 50; /* Legt sich über die Karte */
+  transition: width 0.2s ease-in-out; /* Schönes, flüssiges Aufgleiten */
+}
+
+/* Der Container selbst bleibt flexibel innerhalb der Box */
+.masten-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding-top: 15px;
+}
+
+/* Sauberes Grid für die Felder nebeneinander */
+.aufmass-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+/* Bändigt die Eingabefelder auf die Breite ihrer Spalte */
+.mast-input-base {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #f1f5f9 !important;
+  padding: 8px 12px !important;
+  border-radius: 6px !important;
+}
+
+.w-auto-input {
+  width: 80px !important;
+}
+
+/* =========================================================
+   AUFMAß KOMPONENTEN-STYLES
+   ========================================================= */
+
+.aufmass-allgemein-row {
+  background: #334155;
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.aufmass-section-title {
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.aufmass-text-muted {
+  color: #94a3b8;
+}
+
+.aufmass-text-subtle {
+  color: #64748b;
+}
+
+.aufmass-summen-details {
+  background: #1e293b;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.aufmass-summen-summary {
+  font-weight: bold;
+  color: #38bdf8;
+  font-size: 11px;
+}
+
+.aufmass-summen-content {
+  padding: 4px 0 0 5px;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.aufmass-summen-val {
+  color: #22c55e;
+  font-weight: bold;
+}
+
+/* Mast-Karte */
+.aufmass-mast-card {
+  background: #1e293b;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  border-left: 4px solid #38bdf8;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.aufmass-card-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+
+.aufmass-badge-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.aufmass-badge-label {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: bold;
+}
+
+.aufmass-badge-num {
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.aufmass-flex-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Grid & Spalten */
+.aufmass-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  align-items: start;
+}
+
+.aufmass-inner-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #0f172a;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.aufmass-row-justify {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.aufmass-oberflaeche-dim {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #1e293b;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.aufmass-kabel-zone {
+  border-top: 1px dashed #1e293b;
+  padding-top: 5px;
+  margin-top: 2px;
+}
+
+/* Sondersachen Dropdown */
+.aufmass-sondersachen-dropdown {
+  background: #1e293b;
+  border-radius: 6px;
+  padding: 2px 8px;
+  flex: 1;
+  max-width: 220px;
+  border: 1px solid #334155;
+}
+
+.aufmass-sondersachen-summary {
+  cursor: pointer;
+  color: #38bdf8;
+  font-weight: 500;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  outline: none;
+}
+
+.aufmass-sondersachen-content {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 5px 0;
+  border-top: 1px solid #334155;
+}
+
+/* Anschlüsse */
+.aufmass-anschluss-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aufmass-anschluss-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 1px dashed #223147;
+  padding-left: 10px;
+}
+
+.aufmass-sub-muffen-montage {
+  padding-left: 6px;
+  border-left: 2px solid #38bdf8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.aufmass-sub-graben-details {
+  padding-left: 6px;
+  border-left: 2px solid #38bdf8;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.aufmass-demo-block {
+  padding-left: 8px;
+  border-left: 2px solid #f43f5e;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.aufmass-tausch-block {
+  padding-left: 8px;
+  border-left: 2px solid #a855f7;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* Footer Zeile */
+.aufmass-card-footer {
+  margin-top: 6px;
+  border-top: 1px dashed #334155;
+  padding-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.aufmass-handarbeit-badge {
+  background: #0f172a;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.aufmass-btn-upload {
+  background: #475569;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+}
