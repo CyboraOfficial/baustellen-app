@@ -204,7 +204,7 @@ export default function App() {
 
   /* 🔍 FILTER */
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("Alle");
+  const [filterStatus, setFilterStatus] = useState("Offen (alle)");
   const [filterType, setFilterType] = useState("Alle");
 
   /* 🔎 ADRESSSUCHE FÜR ERSTELLEN */
@@ -1497,201 +1497,201 @@ const createProject = async () => {
 
     </div>
           
-<div className="sidebar-scroll-area" style={{ 
-      flexGrow: 1, 
-      overflowY: 'auto', // Nur hier wird gescrollt
-      padding: '5px'
-    }}>
-          {mode === "list" && (
-            <>
-              <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
-  </div>
-{filteredProjects.map((p) => (
-  <div 
-    key={p.id} 
-    className="project-card" 
-    onClick={() => openProject(p)}
-    // --- DRAG & DROP LOGIK START ---
-    onDragOver={(e) => {
-      e.preventDefault();
-      e.currentTarget.style.border = "2px solid #3498db"; // Highlight beim Drüberziehen
-      e.currentTarget.style.backgroundColor = "rgba(52, 152, 219, 0.1)";
-    }}
-    onDragLeave={(e) => {
-      e.currentTarget.style.border = "none"; // Reset wenn man wegzieht
-      e.currentTarget.style.backgroundColor = "transparent";
-    }}
-    onDrop={async (e) => {
-  e.preventDefault();
-  // Styles zurücksetzen
-  e.currentTarget.style.border = "none";
-  e.currentTarget.style.backgroundColor = "transparent";
-  
-  const rawFiles = Array.from(e.dataTransfer.files);
-  if (rawFiles.length === 0) return;
-
-  // Diese Variable hält unsere (komprimierten) Dateien bereit
-  let processedFilesForQueue = []; 
-
-  try {
-    setToast(`⏳ Verarbeitung & Upload läuft...`);
-
-    const formData = new FormData();
-    
-    // 1. Alle Dateien verarbeiten (Bilder komprimieren, Rest lassen)
-    await Promise.all(rawFiles.map(async (file) => {
-      if (file.type.startsWith('image/')) {
-        const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
-        try {
-          const compressedFile = await imageCompression(file, options);
-          formData.append('files+', compressedFile, file.name);
-          processedFilesForQueue.push(compressedFile); // Komprimiert für Offline-Speicher
-        } catch (compErr) {
-          formData.append('files+', file);
-          processedFilesForQueue.push(file);
-        }
-      } else {
-        formData.append('files+', file);
-        processedFilesForQueue.push(file); // Dokumente unverändert
-      }
-    }));
-
-    // 2. Upload Versuch zu PocketBase
-    const updatedRecord = await pb.collection('projects').update(p.id, formData);
-
-    // 3. State synchronisieren
-    setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
-
-    if (selectedProject?.id === p.id) {
-      setOriginalProject(updatedRecord);
-      setForm(updatedRecord);
-    }
-
-    setToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`);
-    setTimeout(() => setToast(null), 2500);
-
-  } catch (err) {
-    console.error("Upload Fehler:", err);
-    
-    // PRÜFEN: Liegt es am Internet?
-    if (!window.navigator.onLine || err.isAbort || err.message.includes('Network')) {
-      setToast("📡 Kein Netz! Datei wird lokal gesichert...");
-      
-      // WICHTIG: Hier nutzen wir jetzt die 'processedFilesForQueue' 
-      // (damit wir nicht die riesigen Originale in den LocalStorage quetschen)
-      await saveToOfflineQueue(p.id, processedFilesForQueue);
-      
-      setToast("💾 Lokal gesichert. Upload erfolgt bei Verbindung.");
-    } else {
-      setToast("❌ Fehler beim Hochladen");
-    }
-  }
-}}
-    // --- DRAG & DROP LOGIK ENDE ---
-  >
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ width: 12, height: 12, borderRadius: "50%", background: STATUS_COLORS[p.status] || "#999" }} />
-      <strong>{p.name}</strong>
-    </div>
-    <div>{p.status}</div>
-    <div style={{ fontSize: 12 }}>{p.type}</div>
-    {p.ab_hsw && <div style={{ fontSize: 12 }}>AB HSW: {p.ab_hsw}</div>}
-    {p.ab_mueller && <div style={{ fontSize: 12 }}>AB Müller: {p.ab_mueller}</div>}
-    {p.westnetz && (
-      <div style={{ fontSize: 12 }}>
-        <strong>WN:</strong>
-        {p.westnetz.split("\n").map((w, i) => (
-          <div key={i} style={{ marginLeft: 6 }}>• {w}</div>
-        ))}
-      </div>
-    )}
-  </div>
-))}
-            </>
-          )}
-
-          {(mode === "detail" || mode === "create") && (
-            <>
-
-              {activeTab === "Allgemein" && (
+    <div className="sidebar-scroll-area" style={{ 
+          flexGrow: 1, 
+          overflowY: 'auto', // Nur hier wird gescrollt
+          padding: '5px'
+        }}>
+              {mode === "list" && (
                 <>
-                  {mode === "create" && (
-                    <>
-                      <label>Adresse suchen</label>
-                      <div style={{ position: "relative", zIndex: 1000 }}>
-                        <input value={searchAddress} onChange={(e) => {
-                            const value = e.target.value;
-                            setSearchAddress(value);
-                            if (searchTimeout) clearTimeout(searchTimeout);
-                            setSearchTimeout(setTimeout(() => searchLocation(value), 500));
-                          }} placeholder="Straße + Ort" />
-                        {searchResults.length > 0 && (
-                          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ccc", borderRadius: "6px", marginTop: "4px", maxHeight: "200px", overflowY: "auto", zIndex: 99999 }}>
-                            {searchResults.map((r, i) => (
-                              <div key={i} onClick={() => {
-                                  setSelectedPosition({ lat: Number(r.lat), lng: Number(r.lon) });
-                                  setForm(prev => ({ ...prev, address: r.display_name }));
-                                  setSearchAddress(r.display_name);
-                                  setSearchResults([]);
-                                }} style={{ padding: "8px", cursor: "pointer", borderBottom: "1px solid #eee" }}>
-                                {r.display_name}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                  <label>Name</label>
-                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                  <label>Adresse</label>
-                  <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-                  <label>Westnetznummer</label>
-                  <textarea value={form.westnetz || ""} onChange={(e) => setForm({ ...form, westnetz: e.target.value })} rows={2} style={{ resize: "vertical", minHeight: "60px" }} />
-                  <label>AB-Nummer HSW</label>
-                  <input value={form.ab_hsw || ""} onChange={(e) => setForm({ ...form, ab_hsw: e.target.value })} />
-                  <label>AB-Nummer Müller</label>
-                  <input value={form.ab_mueller || ""} onChange={(e) => setForm({ ...form, ab_mueller: e.target.value })} />
-                  <label>Typ</label>
-                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                    <option>Konzept</option><option>Anfahrschaden</option><option>Störung</option><option>LK-Tausch</option><option>Sonstiges</option>
+                  <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
+      </div>
+      {filteredProjects.map((p) => (
+        <div 
+          key={p.id} 
+          className="project-card" 
+          onClick={() => openProject(p)}
+          // --- DRAG & DROP LOGIK START ---
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.style.border = "2px solid #3498db"; // Highlight beim Drüberziehen
+            e.currentTarget.style.backgroundColor = "rgba(52, 152, 219, 0.1)";
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.style.border = "none"; // Reset wenn man wegzieht
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
+          onDrop={async (e) => {
+        e.preventDefault();
+        // Styles zurücksetzen
+        e.currentTarget.style.border = "none";
+        e.currentTarget.style.backgroundColor = "transparent";
+        
+        const rawFiles = Array.from(e.dataTransfer.files);
+        if (rawFiles.length === 0) return;
+
+        // Diese Variable hält unsere (komprimierten) Dateien bereit
+        let processedFilesForQueue = []; 
+
+        try {
+          setToast(`⏳ Verarbeitung & Upload läuft...`);
+
+          const formData = new FormData();
+          
+          // 1. Alle Dateien verarbeiten (Bilder komprimieren, Rest lassen)
+          await Promise.all(rawFiles.map(async (file) => {
+            if (file.type.startsWith('image/')) {
+              const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true };
+              try {
+                const compressedFile = await imageCompression(file, options);
+                formData.append('files+', compressedFile, file.name);
+                processedFilesForQueue.push(compressedFile); // Komprimiert für Offline-Speicher
+              } catch (compErr) {
+                formData.append('files+', file);
+                processedFilesForQueue.push(file);
+              }
+            } else {
+              formData.append('files+', file);
+              processedFilesForQueue.push(file); // Dokumente unverändert
+            }
+          }));
+
+          // 2. Upload Versuch zu PocketBase
+          const updatedRecord = await pb.collection('projects').update(p.id, formData);
+
+          // 3. State synchronisieren
+          setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
+
+          if (selectedProject?.id === p.id) {
+            setOriginalProject(updatedRecord);
+            setForm(updatedRecord);
+          }
+
+          setToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`);
+          setTimeout(() => setToast(null), 2500);
+
+        } catch (err) {
+          console.error("Upload Fehler:", err);
+          
+          // PRÜFEN: Liegt es am Internet?
+          if (!window.navigator.onLine || err.isAbort || err.message.includes('Network')) {
+            setToast("📡 Kein Netz! Datei wird lokal gesichert...");
+            
+            // WICHTIG: Hier nutzen wir jetzt die 'processedFilesForQueue' 
+            // (damit wir nicht die riesigen Originale in den LocalStorage quetschen)
+            await saveToOfflineQueue(p.id, processedFilesForQueue);
+            
+            setToast("💾 Lokal gesichert. Upload erfolgt bei Verbindung.");
+          } else {
+            setToast("❌ Fehler beim Hochladen");
+          }
+        }
+      }}
+          // --- DRAG & DROP LOGIK ENDE ---
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: STATUS_COLORS[p.status] || "#999" }} />
+            <strong>{p.name}</strong>
+          </div>
+          <div>{p.status}</div>
+          <div style={{ fontSize: 12 }}>{p.type}</div>
+          {p.ab_hsw && <div style={{ fontSize: 12 }}>AB HSW: {p.ab_hsw}</div>}
+          {p.ab_mueller && <div style={{ fontSize: 12 }}>AB Müller: {p.ab_mueller}</div>}
+          {p.westnetz && (
+            <div style={{ fontSize: 12 }}>
+              <strong>WN:</strong>
+              {p.westnetz.split("\n").map((w, i) => (
+                <div key={i} style={{ marginLeft: 6 }}>• {w}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+          </>
+        )}
+
+        {(mode === "detail" || mode === "create") && (
+          <>
+
+            {activeTab === "Allgemein" && (
+              <>
+                {mode === "create" && (
+                  <>
+                    <label>Adresse suchen</label>
+                    <div style={{ position: "relative", zIndex: 1000 }}>
+                      <input value={searchAddress} onChange={(e) => {
+                          const value = e.target.value;
+                          setSearchAddress(value);
+                          if (searchTimeout) clearTimeout(searchTimeout);
+                          setSearchTimeout(setTimeout(() => searchLocation(value), 500));
+                        }} placeholder="Straße + Ort" />
+                      {searchResults.length > 0 && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ccc", borderRadius: "6px", marginTop: "4px", maxHeight: "200px", overflowY: "auto", zIndex: 99999 }}>
+                          {searchResults.map((r, i) => (
+                            <div key={i} onClick={() => {
+                                setSelectedPosition({ lat: Number(r.lat), lng: Number(r.lon) });
+                                setForm(prev => ({ ...prev, address: r.display_name }));
+                                setSearchAddress(r.display_name);
+                                setSearchResults([]);
+                              }} style={{ padding: "8px", cursor: "pointer", borderBottom: "1px solid #eee" }}>
+                              {r.display_name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                <label>Name</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <label>Adresse</label>
+                <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                <label>Westnetznummer</label>
+                <textarea value={form.westnetz || ""} onChange={(e) => setForm({ ...form, westnetz: e.target.value })} rows={2} style={{ resize: "vertical", minHeight: "60px" }} />
+                <label>AB-Nummer HSW</label>
+                <input value={form.ab_hsw || ""} onChange={(e) => setForm({ ...form, ab_hsw: e.target.value })} />
+                <label>AB-Nummer Müller</label>
+                <input value={form.ab_mueller || ""} onChange={(e) => setForm({ ...form, ab_mueller: e.target.value })} />
+                <label>Typ</label>
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <option>Konzept</option><option>Anfahrschaden</option><option>Störung</option><option>LK-Tausch</option><option>Sonstiges</option>
+                </select>
+                <label>Status</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999" }} />
+                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                    <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Abgerechnet</option>
                   </select>
-                  <label>Status</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999" }} />
-                    <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                      <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Abgerechnet</option>
-                    </select>
-                  </div>
-                  <label>PGK</label>
-                  <input value={form.pgk} onChange={(e) => setForm({ ...form, pgk: e.target.value })} />
-                  <label>Notizen</label>
-                  <textarea ref={notesRef} value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} style={{ resize: "vertical", overflow: "hidden", minHeight: "60px" }} />
-                  {mode === "create" ? (
-      <button 
-        onClick={createProject} 
-        style={{ 
-          background: "#27ae60", 
-          color: "white", 
-          padding: "12px", 
-          borderRadius: "4px", 
-          cursor: "pointer", 
-          fontWeight: "bold",
-          marginTop: "10px",
-          border: "none" 
-        }}
-      >
-        ✔ Baustelle speichern
-      </button>
-    ) : (
-      <button 
-        className="delete-btn" 
-        onClick={() => deleteProject(selectedProject.id)}
-        style={{ background: "#e74c3c", color: "white", padding: "8px", borderRadius: "4px", cursor: "pointer", marginTop: "10px" }}
-      >
-        Baustelle löschen
-      </button>
-    )}
+                </div>
+                <label>PGK</label>
+                <input value={form.pgk} onChange={(e) => setForm({ ...form, pgk: e.target.value })} />
+                <label>Notizen</label>
+                <textarea ref={notesRef} value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} style={{ resize: "vertical", overflow: "hidden", minHeight: "60px" }} />
+                {mode === "create" ? (
+    <button 
+      onClick={createProject} 
+      style={{ 
+        background: "#27ae60", 
+        color: "white", 
+        padding: "12px", 
+        borderRadius: "4px", 
+        cursor: "pointer", 
+        fontWeight: "bold",
+        marginTop: "10px",
+        border: "none" 
+      }}
+    >
+      ✔ Baustelle speichern
+    </button>
+  ) : (
+    <button 
+      className="delete-btn" 
+      onClick={() => deleteProject(selectedProject.id)}
+      style={{ background: "#e74c3c", color: "white", padding: "8px", borderRadius: "4px", cursor: "pointer", marginTop: "10px" }}
+    >
+      Baustelle löschen
+    </button>
+  )}
                 </>
               )}
 
