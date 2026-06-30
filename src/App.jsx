@@ -204,7 +204,7 @@ export default function App() {
 
   /* 🔍 FILTER */
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("Offen (alle)");
+  const [filterStatus, setFilterStatus] = useState("OffenAlle");
   const [filterType, setFilterType] = useState("Alle");
 
   /* 🔎 ADRESSSUCHE FÜR ERSTELLEN */
