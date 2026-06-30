@@ -2477,7 +2477,8 @@ const createProject = async () => {
         graben: { title: "Graben (m)", total: 0, items: [] },
         kabelverlegen: { title: "Kabelverlegen (m)", total: 0, items: [] },
         montagegrube: { title: "Montagegrube (Stk)", total: 0, items: [] },
-        handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] } // Neu
+        handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] },
+        transport: { title: "Transport (Std)", total: 0, items: [] }
       });
 
       const dataHsw = buildData();
@@ -2568,6 +2569,15 @@ const createProject = async () => {
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ id: mastId, val: num(m.muffenDemo) }); }
         });
       }
+      
+        if (form.aufmass?.allgemein?.transport) {
+          const transportAllgemein = num(form.aufmass.allgemein.transport);
+          if (transportAllgemein > 0) {
+            dataHsw.transport.total += transportAllgemein;
+            // Optional: Hier eine Markierung für "Gesamt" oder "Allgemein" hinzufügen
+            dataHsw.transport.items.push({ id: "Allg.", val: transportAllgemein });
+          }
+        }
 
       // Hilfsfunktion zum Rendern
       const renderCol = (title, dataObj) => {
@@ -2583,7 +2593,8 @@ const createProject = async () => {
           ...(dataObj.muffen.total > 0 ? [dataObj.muffen] : []),
           ...(dataObj.muffenDemo.total > 0 ? [dataObj.muffenDemo] : []),
           ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
-          ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : [])
+          ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : []),
+          ...(dataObj.transport.total > 0 ? [dataObj.transport] : [])
         ];
 
         return (
