@@ -539,7 +539,11 @@ Weitere Infos: ${form.notes || ""}
       (p.name?.toLowerCase().includes(text) ||
         p.address?.toLowerCase().includes(text) ||
         p.westnetz?.toLowerCase().includes(text) ||
-        p.notes?.toLowerCase().includes(text)) &&
+        p.notes?.toLowerCase().includes(text) ||
+        p.ab_hsw?.toLowerCase().includes(text) ||
+        p.ab_mueller?.toLowerCase().includes(text) ||
+        p.type?.toLowerCase().includes(text) ||
+        p.pgk?.toLowerCase().includes(text)) &&
       (filterStatus === "Alle" || (filterStatus === "OffenAlle" && OFFENE_STATUS.includes(p.status)) || p.status === filterStatus) &&
       (filterType === "Alle" || p.type === filterType)
     );
@@ -1570,9 +1574,9 @@ const createProject = async () => {
       }}
           // --- DRAG & DROP LOGIK ENDE ---
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 12, height: 12, borderRadius: "50%", background: STATUS_COLORS[p.status] || "#999" }} />
-            <strong>{p.name}</strong>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: STATUS_COLORS[p.status] || "#999", flexShrink: 0, marginTop: 2 }} />
+            <strong style={{ wordBreak: "break-word", wordWrap: "break-word", overflow: "hidden" }}>{p.name}</strong>
           </div>
           <div>{p.status}</div>
           <div style={{ fontSize: 12 }}>{p.type}</div>
@@ -1639,7 +1643,7 @@ const createProject = async () => {
                 </select>
                 <label>Status</label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999" }} />
+                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999", flexShrink: 0 }} />
                   <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                     <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Abgerechnet</option>
                   </select>
@@ -2745,7 +2749,11 @@ const createProject = async () => {
     cursor: mode !== "create" ? "pointer" : "default", 
     color: "#3498db",
     textDecoration: mode !== "create" ? "underline" : "none",
-    flexGrow: 1
+    flexGrow: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
   }}
 >
   📄 {displayName}
@@ -2784,7 +2792,8 @@ const createProject = async () => {
           color: "#e74c3c", 
           cursor: "pointer", 
           fontSize: "16px",
-          marginLeft: "10px"
+          marginLeft: "10px",
+          flexShrink: 0
         }}
       >
         ✕
