@@ -7,6 +7,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { useMap } from "react-leaflet"; 
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
+import * as XLSX from 'xlsx';
 
 L.Map.mergeOptions({ zoomAnimation: true, zoomAnimationThreshold: 10 });
 
@@ -153,6 +154,163 @@ const STATUS_COLORS = {
   Abgerechnet: "#000000",
 };
 
+const DEFAULT_NACHKALKULATION = {
+  stunden: "",
+  gesamtHsw: "",
+  gesamtMueller: ""
+};
+
+const DEFAULT_AUFMASS_ALLGEMEIN = {
+  transport: "",
+  extraInfos: "",
+  einmessungWeggeschicktAm: "",
+  materialbuchungErfolgtAm: "",
+  nachkalkulation: { ...DEFAULT_NACHKALKULATION }
+};
+
+const DEFAULT_AUFMASS = {
+  allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN },
+  masten: []
+};
+
+const MIN_HOURLY_RATE = 56;
+const NORMAL_HOURLY_RATE = 59;
+const VERY_GOOD_HOURLY_RATE = 68.9;
+
+const parseNumberInput = (value) => {
+  const num = Number(String(value || "").replace(',', '.').trim());
+  return Number.isFinite(num) ? num : 0;
+};
+
+const formatEuro = (value) => `${(Number(value) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
+
+const SURFACE_OPTIONS = [
+  { value: "Grass", label: "Gras / Acker" },
+  { value: "Platten", label: "Platten / Pflaster" },
+  { value: "Asphalt", label: "Asphalt / Bitum" }
+];
+
+const normalizeSurfaceType = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "Grass";
+  if (["grass", "gras", "gras/acker", "gras / acker", "gruen", "grün", "gras/ acker", "gras acker"].includes(raw)) return "Grass";
+  if (["platten", "pflaster", "platten/pflaster", "platten / pflaster"].includes(raw)) return "Platten";
+  if (["asphalt", "bitum", "asphalt/bitum", "asphalt / bitum"].includes(raw)) return "Asphalt";
+  return "Grass";
+};
+
+const getSurfaceLabel = (surface) => SURFACE_OPTIONS.find((opt) => opt.value === normalizeSurfaceType(surface))?.label || "Gras / Acker";
+
+const createExtraSurface = () => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  typ: "Platten",
+  x: "",
+  y: ""
+});
+
+const normalizeExtraSurfaces = (surfaces) => {
+  if (!Array.isArray(surfaces)) return [];
+  return surfaces
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry, idx) => ({
+      id: entry.id || `surface-${idx}`,
+      typ: normalizeSurfaceType(entry.typ),
+      x: entry.x || "",
+      y: entry.y || ""
+    }));
+};
+
+const getMastAssignedSurfaces = (mast = {}) => {
+  const base = normalizeSurfaceType(mast.oberflaeche || "Grass");
+  const extra = normalizeExtraSurfaces(mast.oberflaechenExtra).map((entry) => normalizeSurfaceType(entry.typ));
+  return Array.from(new Set([base, ...extra]));
+};
+
+const getMastSurfaceAreasByType = (mast = {}) => {
+  const result = {};
+
+  const addArea = (surfaceType, xVal, yVal) => {
+    const type = normalizeSurfaceType(surfaceType);
+    if (type === "Grass") return;
+    const area = (parseFloat(String(xVal || "").replace(',', '.')) || 0) * (parseFloat(String(yVal || "").replace(',', '.')) || 0);
+    if (area <= 0) return;
+    result[type] = (result[type] || 0) + area;
+  };
+
+  addArea(mast.oberflaeche || "Grass", mast.oberflaecheX, mast.oberflaecheY);
+  normalizeExtraSurfaces(mast.oberflaechenExtra).forEach((entry) => {
+    addArea(entry.typ, entry.x, entry.y);
+  });
+
+  return result;
+};
+
+const formatDateToDDMMYYYY = (date) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear());
+  return `${day}.${month}.${year}`;
+};
+
+const normalizeDateValue = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  // Bereits im Ziel-Format dd.mm.yyyy.
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(raw)) return raw;
+
+  // dd/mm/yyyy in dd.mm.yyyy umwandeln.
+  const slashMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    return `${day}.${month}.${year}`;
+  }
+
+  // yyyy-mm-dd oder yyyy-mm-ddThh:mm:ss.
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day}.${month}.${year}`;
+  }
+
+  // dd.mm.yyyy beibehalten.
+  const dotMatch = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (dotMatch) {
+    return raw;
+  }
+
+  // Freitext/Teileingabe unveraendert lassen.
+  return raw;
+};
+
+const getTodayDateString = () => formatDateToDDMMYYYY(new Date());
+const getCurrentYearStartDateString = () => formatDateToDDMMYYYY(new Date(new Date().getFullYear(), 0, 1));
+
+const getProfitabilityColor = (hourlyRate, minRate = 35, maxRate = 95) => {
+  const rate = Number(hourlyRate) || 0;
+  const safeMin = Number(minRate) || 0;
+  const safeMax = Number(maxRate) || 1;
+  const goodStart = NORMAL_HOURLY_RATE;
+
+  if (rate <= safeMin) return 'rgb(239, 68, 68)';
+
+  // Unterhalb "gut": rot -> gelbgruen
+  if (rate < goodStart) {
+    const t = Math.max(0, Math.min(1, (rate - safeMin) / Math.max(0.0001, (goodStart - safeMin))));
+    const red = Math.round(239 * (1 - t) + 163 * t);
+    const green = Math.round(68 * (1 - t) + 230 * t);
+    const blue = Math.round(68 * (1 - t) + 53 * t);
+    return `rgb(${red}, ${green}, ${blue})`;
+  }
+
+  // Ab "gut" (ca. 59/60): klar gruen, Richtung sehr gut wird satter.
+  const t = Math.max(0, Math.min(1, (rate - goodStart) / Math.max(0.0001, (safeMax - goodStart))));
+  const red = Math.round(34 * (1 - t) + 21 * t);
+  const green = Math.round(197 * (1 - t) + 128 * t);
+  const blue = Math.round(94 * (1 - t) + 61 * t);
+  return `rgb(${red}, ${green}, ${blue})`;
+};
+
 /* ================= MAP CLICK ================= */
 function MapClickHandler({ mode, onPick, setAddress }) {
   useMapEvents({
@@ -211,6 +369,15 @@ export default function App() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchTimeout, setSearchTimeout] = useState(null);
   const [searchAddress, setSearchAddress] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTypeFilter, setSettingsTypeFilter] = useState("Alle");
+  const [settingsSortBy, setSettingsSortBy] = useState("date-desc");
+  const [settingsDateFrom, setSettingsDateFrom] = useState(() => getCurrentYearStartDateString());
+  const [settingsDateTo, setSettingsDateTo] = useState(() => getTodayDateString());
+  const [proformaDateFrom, setProformaDateFrom] = useState(() => getCurrentYearStartDateString());
+  const [proformaDateTo, setProformaDateTo] = useState(() => getTodayDateString());
+  const [proformaExportPopupOpen, setProformaExportPopupOpen] = useState(false);
+  const [settingsChartView, setSettingsChartView] = useState("timeline");
 
   const [originalProject, setOriginalProject] = useState(null);
   const [toast, setToast] = useState(null);
@@ -233,7 +400,10 @@ export default function App() {
     pgk: "",
     notes: "",
     masten: [],
-    aufmass: [],
+    aufmass: {
+      allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN },
+      masten: []
+    },
     log: [],
     ab_hsw: "AB",
     ab_mueller: "AB"
@@ -266,12 +436,50 @@ const updateMast = (index, field, value) => {
   });
 };
 
+const parseMastNumber = (label) => {
+  const num = Number(String(label || "").replace(/\D/g, ""));
+  return Number.isFinite(num) && num > 0 ? num : null;
+};
+
+const normalizeMastLabels = (masten = []) => {
+  const usedNumbers = new Set();
+
+  return masten.map((m, index) => {
+    const existingNumber = parseMastNumber(m?.mastLabel);
+    let finalNumber = existingNumber;
+
+    // Bei fehlender/duplizierter Nummer fortlaufend neu vergeben.
+    if (!finalNumber || usedNumbers.has(finalNumber)) {
+      finalNumber = index + 1;
+      while (usedNumbers.has(finalNumber)) finalNumber += 1;
+    }
+
+    usedNumbers.add(finalNumber);
+
+    return {
+      ...m,
+      mastLabel: `Mast ${finalNumber}`
+    };
+  });
+};
+
+const findOriginalIndexByMast = (list = [], mast) => {
+  if (!Array.isArray(list)) return -1;
+  if (mast?.id) {
+    const byId = list.findIndex(item => item?.id === mast.id);
+    if (byId !== -1) return byId;
+  }
+
+  // Fallback fuer alte Datensaetze ohne id.
+  return list.findIndex(item => item === mast);
+};
+
 const [aufmassRefreshKey, setAufmassRefreshKey] = React.useState(0);
 
 const generiereAufmassDaten = (masten) => {
   if (!masten) return [];
 
-  return masten.map((m, index) => {
+  return normalizeMastLabels(masten).map((m) => {
     return {
       ...m, // Kopiert alle vorhandenen Felder (wie aktion, leuchten etc.)
       
@@ -293,11 +501,25 @@ const generiereAufmassDaten = (masten) => {
       demontageTyp: m.demontageTyp || "Fundament",
       tauschDemoTyp: m.tauschDemoTyp || "Fundament",
       tauschMontageTyp: m.tauschMontageTyp || "Fundament",
-      oberflaeche: m.oberflaeche || "Grass",
-      oberflaecheX: "",
-      oberflaecheY: "",
+      oberflaeche: normalizeSurfaceType(m.oberflaeche || "Grass"),
+      oberflaecheX: m.oberflaecheX || "",
+      oberflaecheY: m.oberflaecheY || "",
+      oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
       mastTypAlt: m.mastTypAlt || "",
-      mastTypNeu: m.mastTypNeu || ""
+      mastTypNeu: m.mastTypNeu || "",
+      grabenTiefeBreite: m.grabenTiefeBreite || "",
+      grabenKabelverlegen: m.grabenKabelverlegen || "",
+      oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Platten"),
+      montagegrube: m.montagegrube || "",
+      montagegrubeDemo: m.montagegrubeDemo || "",
+      montagegrubeTausch: m.montagegrubeTausch || "",
+      muffenDemoMontage: m.muffenDemoMontage || "",
+      grabenTiefeBreiteDemo: m.grabenTiefeBreiteDemo || "",
+      grabenKabelverlegenDemo: m.grabenKabelverlegenDemo || "",
+      oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten"),
+      grabenTiefeBreiteTausch: m.grabenTiefeBreiteTausch || "",
+      grabenKabelverlegenTausch: m.grabenKabelverlegenTausch || "",
+      oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")
     };
   });
 };
@@ -574,7 +796,7 @@ Weitere Infos: ${form.notes || ""}
 const updateAufmass = (index, field, value) => {
   setForm(prev => {
     // Sicherstellen, dass die Struktur existiert
-    const aktuellesAufmass = prev.aufmass || { allgemein: { transport: "", extraInfos: "" }, masten: [] };
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
     const neueMasten = [...(aktuellesAufmass.masten || [])];
     
     // Wert des spezifischen Mastens aktualisieren
@@ -590,16 +812,115 @@ const updateAufmass = (index, field, value) => {
   });
 };
 
+const addExtraOberflaeche = (index) => {
+  setForm(prev => {
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
+    const neueMasten = [...(aktuellesAufmass.masten || [])];
+    if (!neueMasten[index]) return prev;
+
+    const currentExtras = normalizeExtraSurfaces(neueMasten[index].oberflaechenExtra);
+    neueMasten[index] = {
+      ...neueMasten[index],
+      oberflaechenExtra: [...currentExtras, createExtraSurface()]
+    };
+
+    return {
+      ...prev,
+      aufmass: {
+        ...aktuellesAufmass,
+        masten: neueMasten
+      }
+    };
+  });
+};
+
+const updateExtraOberflaeche = (index, extraIndex, field, value) => {
+  setForm(prev => {
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
+    const neueMasten = [...(aktuellesAufmass.masten || [])];
+    if (!neueMasten[index]) return prev;
+
+    const currentExtras = normalizeExtraSurfaces(neueMasten[index].oberflaechenExtra);
+    if (!currentExtras[extraIndex]) return prev;
+
+    currentExtras[extraIndex] = {
+      ...currentExtras[extraIndex],
+      [field]: field === 'typ' ? normalizeSurfaceType(value) : value
+    };
+
+    neueMasten[index] = {
+      ...neueMasten[index],
+      oberflaechenExtra: currentExtras
+    };
+
+    return {
+      ...prev,
+      aufmass: {
+        ...aktuellesAufmass,
+        masten: neueMasten
+      }
+    };
+  });
+};
+
+const removeExtraOberflaeche = (index, extraIndex) => {
+  setForm(prev => {
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
+    const neueMasten = [...(aktuellesAufmass.masten || [])];
+    if (!neueMasten[index]) return prev;
+
+    const currentExtras = normalizeExtraSurfaces(neueMasten[index].oberflaechenExtra);
+    neueMasten[index] = {
+      ...neueMasten[index],
+      oberflaechenExtra: currentExtras.filter((_, idx) => idx !== extraIndex)
+    };
+
+    return {
+      ...prev,
+      aufmass: {
+        ...aktuellesAufmass,
+        masten: neueMasten
+      }
+    };
+  });
+};
+
 const updateAufmassAllgemein = (field, value) => {
   setForm(prev => {
-    const aktuellesAufmass = prev.aufmass || { allgemein: { transport: "", extraInfos: "" }, masten: [] };
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
     return {
       ...prev,
       aufmass: {
         ...aktuellesAufmass,
         allgemein: {
+          ...DEFAULT_AUFMASS_ALLGEMEIN,
           ...(aktuellesAufmass.allgemein || {}),
           [field]: value
+        }
+      }
+    };
+  });
+};
+
+const updateNachkalkulation = (field, value) => {
+  setForm(prev => {
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
+    const aktuelleNachkalkulation = {
+      ...DEFAULT_NACHKALKULATION,
+      ...(aktuellesAufmass.allgemein?.nachkalkulation || {})
+    };
+
+    return {
+      ...prev,
+      aufmass: {
+        ...aktuellesAufmass,
+        allgemein: {
+          ...DEFAULT_AUFMASS_ALLGEMEIN,
+          ...(aktuellesAufmass.allgemein || {}),
+          nachkalkulation: {
+            ...aktuelleNachkalkulation,
+            [field]: value
+          }
         }
       }
     };
@@ -622,13 +943,34 @@ const handleInitialisiereAufmass = () => {
     aufmassMuffen: "",
     sondersacheRasenkante: "",
     sondersacheBordstein: "",
-    sondersacheRinnenfluss: ""
+    sondersacheRinnenfluss: "",
+    oberflaeche: normalizeSurfaceType(m.oberflaeche || "Grass"),
+    oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
+    oberflaecheGraben: "Platten",
+    oberflaecheGrabenDemo: "Platten",
+    oberflaecheGrabenTausch: "Platten",
+    grabenTiefeBreite: "",
+    grabenKabelverlegen: "",
+    montagegrube: "",
+    montagegrubeDemo: "",
+    montagegrubeTausch: "",
+    muffenDemoMontage: "",
+    grabenTiefeBreiteDemo: "",
+    grabenKabelverlegenDemo: "",
+    grabenTiefeBreiteTausch: "",
+    grabenKabelverlegenTausch: ""
   }));
 
   setForm(prev => ({
     ...prev,
     aufmass: {
-      allgemein: { transport: "", extraInfos: "" },
+      allgemein: {
+        ...DEFAULT_AUFMASS_ALLGEMEIN,
+        nachkalkulation: {
+          ...DEFAULT_NACHKALKULATION,
+          ...(prev.aufmass?.allgemein?.nachkalkulation || {})
+        }
+      },
       masten: kopieMasten
     }
   }));
@@ -642,7 +984,7 @@ const openProject = (p) => {
   };
 
   const parsedPosition = parseSafe(p.position, null);
-  const parsedMasten = parseSafe(p.masten, []);
+  const parsedMasten = normalizeMastLabels(parseSafe(p.masten, []));
   const parsedLeuchten = parseSafe(p.leuchten, []);
   
   // Das Aufmaß-Objekt sicher parsen
@@ -652,6 +994,9 @@ const openProject = (p) => {
   let aufmassMasten = [];
   let allgemeinTransport = "";
   let allgemeinExtraInfos = "";
+  let allgemeinEinmessungWeggeschicktAm = "";
+  let allgemeinMaterialbuchungErfolgtAm = "";
+  let allgemeinNachkalkulation = { ...DEFAULT_NACHKALKULATION };
 
   if (rawAufmass) {
     if (Array.isArray(rawAufmass)) {
@@ -662,10 +1007,18 @@ const openProject = (p) => {
       aufmassMasten = rawAufmass.masten || [];
       allgemeinTransport = rawAufmass.allgemein?.transport || "";
       allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
+      allgemeinEinmessungWeggeschicktAm = rawAufmass.allgemein?.einmessungWeggeschicktAm || "";
+      allgemeinMaterialbuchungErfolgtAm = rawAufmass.allgemein?.materialbuchungErfolgtAm || "";
+      allgemeinNachkalkulation = {
+        ...DEFAULT_NACHKALKULATION,
+        ...(rawAufmass.allgemein?.nachkalkulation || {}),
+        gesamtHsw: rawAufmass.allgemein?.nachkalkulation?.gesamtHsw || rawAufmass.allgemein?.nachkalkulation?.summeHsw || rawAufmass.allgemein?.summeHsw || "",
+        gesamtMueller: rawAufmass.allgemein?.nachkalkulation?.gesamtMueller || rawAufmass.allgemein?.nachkalkulation?.summeMueller || rawAufmass.allgemein?.summeMueller || ""
+      };
     }
   }
 
-  const aufbereiteteAufmassMasten = aufmassMasten.map(m => ({
+  const aufbereiteteAufmassMasten = normalizeMastLabels(aufmassMasten).map(m => ({
     ...m,
     aktion: m.aktion || "Montage",
     lichtpunkthoehe: m.lichtpunkthoehe || "", // 👈 NEU: Lichtpunkthöhe initialisieren
@@ -677,9 +1030,23 @@ const openProject = (p) => {
     demontageTyp: m.demontageTyp || "Fundament",
     tauschDemoTyp: m.tauschDemoTyp || "Fundament",
     tauschMontageTyp: m.tauschMontageTyp || "Fundament",
-    oberflaeche: m.oberflaeche || "Gras/Acker", // 👈 NEU: "Gras/Acker" als Standard (Oberfläche 0)
+    oberflaeche: normalizeSurfaceType(m.oberflaeche || "Grass"),
     oberflaecheX: m.oberflaecheX || "",
-    oberflaecheY: m.oberflaecheY || ""
+    oberflaecheY: m.oberflaecheY || "",
+    oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
+    grabenTiefeBreite: m.grabenTiefeBreite || "",
+    grabenKabelverlegen: m.grabenKabelverlegen || "",
+    oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Platten"),
+    montagegrube: m.montagegrube || "",
+    montagegrubeDemo: m.montagegrubeDemo || "",
+    montagegrubeTausch: m.montagegrubeTausch || "",
+    muffenDemoMontage: m.muffenDemoMontage || "",
+    grabenTiefeBreiteDemo: m.grabenTiefeBreiteDemo || "",
+    grabenKabelverlegenDemo: m.grabenKabelverlegenDemo || "",
+    oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten"),
+    grabenTiefeBreiteTausch: m.grabenTiefeBreiteTausch || "",
+    grabenKabelverlegenTausch: m.grabenKabelverlegenTausch || "",
+    oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")
   }));
 
   // 🔥 DAS VOLLSTÄNDIGE FORM-OBJEKT EINMAL VORBEREITEN
@@ -696,7 +1063,10 @@ const openProject = (p) => {
     aufmass: {
       allgemein: {
         transport: allgemeinTransport,
-        extraInfos: allgemeinExtraInfos
+        extraInfos: allgemeinExtraInfos,
+        einmessungWeggeschicktAm: allgemeinEinmessungWeggeschicktAm,
+        materialbuchungErfolgtAm: allgemeinMaterialbuchungErfolgtAm,
+        nachkalkulation: allgemeinNachkalkulation
       },
       masten: aufbereiteteAufmassMasten
     },
@@ -896,7 +1266,14 @@ useEffect(() => {
       return {
         ...prev,
         aufmass: {
-          allgemein: prev.aufmass?.allgemein || { transport: "", extraInfos: "" },
+          allgemein: {
+            ...DEFAULT_AUFMASS_ALLGEMEIN,
+            ...(prev.aufmass?.allgemein || {}),
+            nachkalkulation: {
+              ...DEFAULT_NACHKALKULATION,
+              ...(prev.aufmass?.allgemein?.nachkalkulation || {})
+            }
+          },
           masten: generiereAufmassDaten(prev.masten) // Hier unsere Funktion!
         }
       };
@@ -930,17 +1307,25 @@ useEffect(() => {
   // 3. 🔥 INTELLIGENTER AUFMAẞ-VERGLEICH (Immun gegen PocketBase-Key-Reihenfolge)
   const normalizeAufmass = (data) => {
     if (Array.isArray(data)) {
-      return { allgemein: { transport: "", extraInfos: "" }, masten: data };
+      return { allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN }, masten: data };
     }
 
     if (!data || typeof data !== 'object') {
-      return { allgemein: { transport: "", extraInfos: "" }, masten: [] };
+      return { allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN }, masten: [] };
     }
 
     return {
       allgemein: {
         transport: data.allgemein?.transport || "",
-        extraInfos: data.allgemein?.extraInfos || ""
+        extraInfos: data.allgemein?.extraInfos || "",
+        einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
+        materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
+        nachkalkulation: {
+          ...DEFAULT_NACHKALKULATION,
+          ...(data.allgemein?.nachkalkulation || {}),
+          gesamtHsw: data.allgemein?.nachkalkulation?.gesamtHsw || data.allgemein?.nachkalkulation?.summeHsw || data.allgemein?.summeHsw || "",
+          gesamtMueller: data.allgemein?.nachkalkulation?.gesamtMueller || data.allgemein?.nachkalkulation?.summeMueller || data.allgemein?.summeMueller || ""
+        }
       },
       masten: Array.isArray(data.masten) ? data.masten : []
     };
@@ -971,23 +1356,31 @@ const getFormSnapshot = (currentForm = form) => JSON.stringify({
   ...currentForm,
   masten: currentForm.masten || [],
   leuchten: currentForm.leuchten || [],
-  aufmass: currentForm.aufmass || { allgemein: { transport: "", extraInfos: "" }, masten: [] },
+  aufmass: currentForm.aufmass || { allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN }, masten: [] },
   log: currentForm.log || []
 });
 
 const normalizeAufmass = (data) => {
   if (Array.isArray(data)) {
-    return { allgemein: { transport: "", extraInfos: "" }, masten: data };
+    return { allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN }, masten: data };
   }
 
   if (!data || typeof data !== 'object') {
-    return { allgemein: { transport: "", extraInfos: "" }, masten: [] };
+    return { allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN }, masten: [] };
   }
 
   return {
     allgemein: {
       transport: data.allgemein?.transport || "",
-      extraInfos: data.allgemein?.extraInfos || ""
+      extraInfos: data.allgemein?.extraInfos || "",
+      einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
+      materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
+      nachkalkulation: {
+        ...DEFAULT_NACHKALKULATION,
+        ...(data.allgemein?.nachkalkulation || {}),
+        gesamtHsw: data.allgemein?.nachkalkulation?.gesamtHsw || data.allgemein?.nachkalkulation?.summeHsw || data.allgemein?.summeHsw || "",
+        gesamtMueller: data.allgemein?.nachkalkulation?.gesamtMueller || data.allgemein?.nachkalkulation?.summeMueller || data.allgemein?.summeMueller || ""
+      }
     },
     masten: Array.isArray(data.masten) ? data.masten : []
   };
@@ -1016,7 +1409,16 @@ const saveAction = async () => {
 
     fields.forEach(f => {
       if (String(originalProject[f.id] || "") !== String(form[f.id] || "")) {
-        newLogEntries.push({ date: now, user: currentUser, action: `${f.label} geändert` });
+        newLogEntries.push({
+          date: now,
+          user: currentUser,
+          action: `${f.label} geändert`,
+          changes: [{
+            field: f.label,
+            old: String(originalProject[f.id] || ""),
+            new: String(form[f.id] || "")
+          }]
+        });
       }
     });
 
@@ -1037,16 +1439,23 @@ const saveAction = async () => {
       return;
     }
 
-    // Payload erstellen (nur was in DB soll)
+    // Payload strikt auf bekannte Collection-Felder begrenzen.
+    // Wichtig: Kein leuchten-Feld senden (wurde in der Migration durch aufmass ersetzt).
     const payload = {
-      ...form, // Vorsicht: Wenn form zu groß, hier explizit die Felder auflisten!
+      name: form.name || "",
+      address: form.address || "",
+      westnetz: form.westnetz || "",
+      type: form.type || "Konzept",
+      status: form.status || "Offen",
+      pgk: form.pgk || "",
+      notes: form.notes || "",
+      ab_hsw: form.ab_hsw || "",
+      ab_mueller: form.ab_mueller || "",
+      masten: Array.isArray(form.masten) ? form.masten : [],
+      aufmass: normalizeAufmass(form.aufmass),
       log: [...(form.log || []), ...newLogEntries],
-      aufmass: normalizeAufmass(form.aufmass)
+      position: selectedPosition || originalProject?.position || null
     };
-
-    // Unnötige System-Felder entfernen
-    delete payload.id; delete payload.created; delete payload.updated;
-    delete payload.collectionId; delete payload.collectionName; delete payload.expand;
 
     // API Call
     const updatedRecord = await pb.collection('projects').update(selectedProject.id, payload);
@@ -1077,7 +1486,9 @@ const saveAction = async () => {
     setTimeout(() => setToast(null), 1500);
 
   } catch (err) {
+    const details = err?.response?.data || err?.data || err;
     console.error("Speicherfehler:", err);
+    console.error("Speicherfehler Details:", details);
     setToast("❌ Fehler beim Speichern");
   } finally {
     isSavingRef.current = false;
@@ -1168,7 +1579,7 @@ const createProject = async () => {
     formData.append('position', JSON.stringify(selectedPosition));
     formData.append('masten', JSON.stringify(form.masten || []));
     formData.append('log', JSON.stringify(form.log || []));
-    formData.append('aufmass', JSON.stringify(form.aufmass || []));
+    formData.append('aufmass', JSON.stringify(normalizeAufmass(form.aufmass)));
 
     // Dateien hinzufügen
     if (tempFiles.length > 0) {
@@ -1206,6 +1617,415 @@ const createProject = async () => {
 
   const leuchtenSumme = (form.leuchten || []).reduce((a, l) => a + (Number(l.anzahl) || 0), 0);
   const lumenSumme = (form.leuchten || []).reduce((a, l) => a + (Number(l.lumen) || 0) * (Number(l.anzahl) || 1), 0);
+
+  const nachkalkulation = form.aufmass?.allgemein?.nachkalkulation || DEFAULT_NACHKALKULATION;
+  const nachkalkStunden = parseNumberInput(nachkalkulation.stunden);
+  const nachkalkGesamtHsw = parseNumberInput(nachkalkulation.gesamtHsw);
+  const nachkalkGesamtMueller = parseNumberInput(nachkalkulation.gesamtMueller);
+  const nachkalkGesamt = nachkalkGesamtHsw + nachkalkGesamtMueller;
+  const stundenlohnKombiniert = nachkalkStunden > 0 ? nachkalkGesamt / nachkalkStunden : 0;
+  const stundenlohnDiffMin = stundenlohnKombiniert - MIN_HOURLY_RATE;
+  const stundenlohnDiffNormal = stundenlohnKombiniert - NORMAL_HOURLY_RATE;
+  const stundenlohnDiffVeryGood = stundenlohnKombiniert - VERY_GOOD_HOURLY_RATE;
+  const minTargetGesamt = nachkalkStunden * MIN_HOURLY_RATE;
+  const maxTargetGesamt = nachkalkStunden * VERY_GOOD_HOURLY_RATE;
+  const gesamtDiffToMin = nachkalkGesamt - minTargetGesamt;
+  const gesamtDiffToMax = nachkalkGesamt - maxTargetGesamt;
+  const stundenlohnStatus = nachkalkStunden <= 0
+    ? "Keine Stunden erfasst"
+    : stundenlohnKombiniert < MIN_HOURLY_RATE
+      ? `Schlecht (unter Minimum ${MIN_HOURLY_RATE.toFixed(2)} EUR/h)`
+      : stundenlohnKombiniert < NORMAL_HOURLY_RATE
+        ? `Schlecht (bis Normal ${NORMAL_HOURLY_RATE.toFixed(2)} EUR/h)`
+        : stundenlohnKombiniert < VERY_GOOD_HOURLY_RATE
+          ? `Gut (ab ${NORMAL_HOURLY_RATE.toFixed(2)} EUR/h)`
+          : `Sehr gut (ab ${VERY_GOOD_HOURLY_RATE.toFixed(2)} EUR/h)`;
+
+  const detectCityFromAddress = (address = "") => {
+    const text = String(address || "").toLowerCase();
+    if (text.includes("meschede")) return "Meschede";
+    if (text.includes("olsberg")) return "Olsberg";
+    if (text.includes("bestwig")) return "Bestwig";
+    return "Sonstige";
+  };
+
+  const countMastActions = (masten = []) => {
+    let montageCount = 0;
+    let demontageCount = 0;
+
+    (Array.isArray(masten) ? masten : []).forEach((m) => {
+      const action = String(m?.aktion || m?.typ || "").toLowerCase();
+      if (action.includes("tausch")) {
+        montageCount += 1;
+        demontageCount += 1;
+      } else if (action.includes("montage")) {
+        montageCount += 1;
+      } else if (action.includes("demontage")) {
+        demontageCount += 1;
+      }
+    });
+
+    return { montageCount, demontageCount };
+  };
+
+  const parseProjectAufmassStats = (project) => {
+    let parsed = project?.aufmass;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch (e) {
+        parsed = null;
+      }
+    }
+
+    if (Array.isArray(parsed)) {
+      const actionCounts = countMastActions(parsed);
+      return { stunden: 0, gesamtHsw: 0, gesamtMueller: 0, gesamt: 0, hourlyRate: 0, ...actionCounts };
+    }
+
+    const nachkalk = parsed?.allgemein?.nachkalkulation || {};
+    const stunden = parseNumberInput(nachkalk.stunden);
+    const sumHsw = parseNumberInput(nachkalk.gesamtHsw || nachkalk.summeHsw || parsed?.allgemein?.summeHsw);
+    const sumMueller = parseNumberInput(nachkalk.gesamtMueller || nachkalk.summeMueller || parsed?.allgemein?.summeMueller);
+    const gesamt = sumHsw + sumMueller;
+    const hourlyRate = stunden > 0 ? gesamt / stunden : 0;
+    const actionCounts = countMastActions(parsed?.masten || []);
+    return { stunden, gesamtHsw: sumHsw, gesamtMueller: sumMueller, gesamt, hourlyRate, ...actionCounts };
+  };
+
+  const analyticsRowsBase = projects.map((p) => {
+    const stats = parseProjectAufmassStats(p);
+    const createdAt = p.created ? new Date(p.created) : null;
+    return {
+      id: p.id,
+      name: p.name || "Unbenannt",
+      type: p.type || "Unbekannt",
+      city: detectCityFromAddress(p.address),
+      createdAt,
+      createdDate: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "",
+      ...stats
+    };
+  }).filter((row) => row.stunden > 0);
+
+  const normalizeDateFilterInputToISO = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    const dot = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (dot) return `${dot[3]}-${dot[2]}-${dot[1]}`;
+
+    const slash = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (slash) return `${slash[3]}-${slash[2]}-${slash[1]}`;
+
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) return raw;
+
+    return "";
+  };
+
+  const settingsDateFromISO = normalizeDateFilterInputToISO(settingsDateFrom);
+  const settingsDateToISO = normalizeDateFilterInputToISO(settingsDateTo);
+
+  const analyticsRows = analyticsRowsBase
+    .filter((row) => settingsTypeFilter === "Alle" || row.type === settingsTypeFilter)
+    .filter((row) => !settingsDateFromISO || (row.createdDate && row.createdDate >= settingsDateFromISO))
+    .filter((row) => !settingsDateToISO || (row.createdDate && row.createdDate <= settingsDateToISO))
+    .sort((a, b) => {
+      if (settingsSortBy === "hourly-desc") return b.hourlyRate - a.hourlyRate;
+      if (settingsSortBy === "hourly-asc") return a.hourlyRate - b.hourlyRate;
+      if (settingsSortBy === "date-asc") {
+        const aMs = a.createdAt ? a.createdAt.getTime() : 0;
+        const bMs = b.createdAt ? b.createdAt.getTime() : 0;
+        return aMs - bMs;
+      }
+      const aMs = a.createdAt ? a.createdAt.getTime() : 0;
+      const bMs = b.createdAt ? b.createdAt.getTime() : 0;
+      return bMs - aMs;
+    });
+
+  const overviewAverageRate = analyticsRows.length > 0
+    ? analyticsRows.reduce((sum, item) => sum + item.hourlyRate, 0) / analyticsRows.length
+    : 0;
+  const overviewProfitabelCount = analyticsRows.filter((item) => item.hourlyRate >= NORMAL_HOURLY_RATE).length;
+  const overviewVeryGoodCount = analyticsRows.filter((item) => item.hourlyRate >= VERY_GOOD_HOURLY_RATE).length;
+  const totalMontageCount = analyticsRows.reduce((sum, item) => sum + (item.montageCount || 0), 0);
+  const totalDemontageCount = analyticsRows.reduce((sum, item) => sum + (item.demontageCount || 0), 0);
+  const overviewMaxRate = Math.max(1, ...analyticsRows.map((item) => item.hourlyRate));
+  const defaultTypeOptions = ["Konzept", "Anfahrschaden", "Störung", "LK-Tausch", "Sonstiges"];
+  const analyticsTypeOptions = [
+    "Alle",
+    ...Array.from(new Set([...defaultTypeOptions, ...projects.map((p) => p.type).filter(Boolean)]))
+  ];
+
+  const parseLogDateTime = (value) => {
+    if (!value) return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    const direct = new Date(raw);
+    if (!Number.isNaN(direct.getTime())) return direct;
+
+    const m = raw.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?/);
+    if (!m) return null;
+
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    const year = Number(m[3]);
+    const hour = Number(m[4] || 0);
+    const minute = Number(m[5] || 0);
+    const parsed = new Date(year, month - 1, day, hour, minute);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const parseProjectLog = (project) => {
+    const rawLog = project?.log;
+    if (Array.isArray(rawLog)) return rawLog;
+    if (typeof rawLog === 'string') {
+      try {
+        const parsed = JSON.parse(rawLog);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const PROFORMA_STATUS = "Proformarechnung weggeschickt";
+  const isProformaStatus = (value) => {
+    const text = String(value || "").toLowerCase();
+    return text.includes("proforma");
+  };
+
+  const normalizeDateForFilter = (value) => {
+    const normalized = normalizeDateValue(value);
+    const parsed = parseLogDateTime(normalized);
+    return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : "";
+  };
+
+  const getProformaSetTimestamp = (project) => {
+    const logEntries = parseProjectLog(project);
+    let matched = null;
+
+    logEntries.forEach((entry) => {
+      const entryDate = parseLogDateTime(entry?.date);
+      if (!entryDate) return;
+
+      const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+      const hasExplicitStatusSet = changes.some((c) => {
+        const fieldText = String(c?.field || "").toLowerCase();
+        const newText = String(c?.new || "");
+        return fieldText.includes("status") && isProformaStatus(newText);
+      });
+
+      if (hasExplicitStatusSet) {
+        if (!matched || entryDate > matched) matched = entryDate;
+      }
+    });
+
+    // Fallback fuer aeltere Logs ohne changes-Details.
+    if (!matched && isProformaStatus(project?.status)) {
+      logEntries.forEach((entry) => {
+        const entryDate = parseLogDateTime(entry?.date);
+        if (!entryDate) return;
+        if (String(entry?.action || "").toLowerCase().includes("status geändert")) {
+          if (!matched || entryDate > matched) matched = entryDate;
+        }
+      });
+    }
+
+    return matched;
+  };
+
+  const proformaFilterFrom = normalizeDateForFilter(proformaDateFrom);
+  const proformaFilterTo = normalizeDateForFilter(proformaDateTo);
+
+  const proformaExportRows = projects
+    .map((p) => {
+      const proformaSetAt = getProformaSetTimestamp(p);
+      const proformaDate = proformaSetAt && !Number.isNaN(proformaSetAt.getTime())
+        ? proformaSetAt.toISOString().slice(0, 10)
+        : "";
+      return {
+        id: p.id,
+        beschreibung: p.name || p.notes || "",
+        abMueller: p.ab_mueller || "",
+        typ: p.type || "",
+        westnetznummer: p.westnetz || "",
+        proformaSetAt,
+        proformaDate,
+        status: p.status || ""
+      };
+    })
+    .filter((row) => isProformaStatus(row.status) && !!row.proformaDate)
+    .filter((row) => !proformaFilterFrom || row.proformaDate >= proformaFilterFrom)
+    .filter((row) => !proformaFilterTo || row.proformaDate <= proformaFilterTo)
+    .sort((a, b) => (b.proformaSetAt?.getTime() || 0) - (a.proformaSetAt?.getTime() || 0));
+
+  const exportProformaToExcel = () => {
+    if (proformaExportRows.length === 0) {
+      setToast("Keine Proforma-Projekte im gewählten Zeitraum gefunden");
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    const rows = proformaExportRows.map((item) => ({
+      Beschreibung: item.beschreibung,
+      "AB Müller": item.abMueller,
+      Typ: item.typ,
+      Westnetznummer: item.westnetznummer,
+      "Status auf Proforma gesetzt am": item.proformaSetAt
+        ? formatDateToDDMMYYYY(item.proformaSetAt)
+        : ""
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet['!cols'] = [
+      { wch: 36 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 38 },
+      { wch: 24 }
+    ];
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Proforma');
+
+    const fromPart = normalizeDateValue(proformaDateFrom) || 'alle';
+    const toPart = normalizeDateValue(proformaDateTo) || 'heute';
+    XLSX.writeFile(workbook, `Proforma_Export_${fromPart}_bis_${toPart}.xlsx`);
+
+    setToast(`✅ Proforma-Export erstellt (${rows.length} Projekte)`);
+    setTimeout(() => setToast(null), 2200);
+  };
+
+  const exportAnalyticsToExcel = () => {
+    if (analyticsRows.length === 0) {
+      setToast("Keine Daten fuer Excel-Export vorhanden");
+      setTimeout(() => setToast(null), 2200);
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+
+    const exportRows = analyticsRows.map((item) => ({
+      Projekt: item.name,
+      Typ: item.type,
+      Stadt: item.city,
+      Datum: item.createdAt ? item.createdAt.toLocaleDateString('de-DE') : '-',
+      Stunden: Number(item.stunden.toFixed(2)),
+      HSW_EUR: Number(item.gesamtHsw.toFixed(2)),
+      Mueller_EUR: Number(item.gesamtMueller.toFixed(2)),
+      Gesamt_EUR: Number(item.gesamt.toFixed(2)),
+      Stundenlohn_EUR_h: Number(item.hourlyRate.toFixed(2)),
+      Masten_Montage: item.montageCount || 0,
+      Masten_Demontage: item.demontageCount || 0
+    }));
+
+    const dataSheet = XLSX.utils.json_to_sheet(exportRows);
+    dataSheet['!cols'] = [
+      { wch: 34 }, { wch: 16 }, { wch: 14 }, { wch: 12 },
+      { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 14 }, { wch: 16 }, { wch: 18 }
+    ];
+    XLSX.utils.book_append_sheet(workbook, dataSheet, 'Baustellen');
+
+    const summaryRows = [
+      { Kennzahl: 'Filter Typ', Wert: settingsTypeFilter },
+      { Kennzahl: 'Von Datum', Wert: settingsDateFrom || '-' },
+      { Kennzahl: 'Bis Datum', Wert: settingsDateTo || '-' },
+      { Kennzahl: 'Anzahl Datensaetze', Wert: analyticsRows.length },
+      { Kennzahl: 'Durchschnitt Stundenlohn', Wert: Number(overviewAverageRate.toFixed(2)) },
+      { Kennzahl: `Anzahl >= ${NORMAL_HOURLY_RATE.toFixed(1)} EUR/h (Gut+)`, Wert: overviewProfitabelCount },
+      { Kennzahl: `Anzahl >= ${VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h (Sehr gut)`, Wert: overviewVeryGoodCount },
+      { Kennzahl: 'Montierte Masten (gesamt)', Wert: totalMontageCount },
+      { Kennzahl: 'Demontierte Masten (gesamt)', Wert: totalDemontageCount }
+    ];
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{ wch: 34 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Uebersicht');
+
+    const dateTag = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `Nachkalkulation_${dateTag}.xlsx`);
+  };
+
+  const timelineData = Object.values(
+    analyticsRows.reduce((acc, row) => {
+      if (!row.createdDate) return acc;
+      const monthKey = row.createdDate.slice(0, 7);
+      if (!acc[monthKey]) acc[monthKey] = { key: monthKey, sumRate: 0, count: 0 };
+      acc[monthKey].sumRate += row.hourlyRate;
+      acc[monthKey].count += 1;
+      return acc;
+    }, {})
+  )
+    .map((item) => ({
+      ...item,
+      avgRate: item.count > 0 ? item.sumRate / item.count : 0
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+
+  const cityOrder = ["Meschede", "Olsberg", "Bestwig", "Sonstige"];
+  const cityData = cityOrder.map((city) => {
+    const rows = analyticsRows.filter((row) => row.city === city);
+    const avgRate = rows.length > 0 ? rows.reduce((sum, row) => sum + row.hourlyRate, 0) / rows.length : 0;
+    return { city, avgRate, count: rows.length };
+  });
+
+  const typeData = Object.values(
+    analyticsRows.reduce((acc, row) => {
+      if (!acc[row.type]) acc[row.type] = { type: row.type, sumRate: 0, count: 0 };
+      acc[row.type].sumRate += row.hourlyRate;
+      acc[row.type].count += 1;
+      return acc;
+    }, {})
+  )
+    .map((item) => ({
+      ...item,
+      avgRate: item.count > 0 ? item.sumRate / item.count : 0
+    }))
+    .sort((a, b) => b.avgRate - a.avgRate);
+
+  const distributionData = [
+    {
+      label: `< ${MIN_HOURLY_RATE.toFixed(0)} EUR/h`,
+      count: analyticsRows.filter((row) => row.hourlyRate < MIN_HOURLY_RATE).length,
+      color: '#ef4444'
+    },
+    {
+      label: `${MIN_HOURLY_RATE.toFixed(0)} - ${NORMAL_HOURLY_RATE.toFixed(1)} EUR/h`,
+      count: analyticsRows.filter((row) => row.hourlyRate >= MIN_HOURLY_RATE && row.hourlyRate < NORMAL_HOURLY_RATE).length,
+      color: '#fb7185'
+    },
+    {
+      label: `${NORMAL_HOURLY_RATE.toFixed(1)} - ${VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h`,
+      count: analyticsRows.filter((row) => row.hourlyRate >= NORMAL_HOURLY_RATE && row.hourlyRate < VERY_GOOD_HOURLY_RATE).length,
+      color: '#22c55e'
+    },
+    {
+      label: `>= ${VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h`,
+      count: analyticsRows.filter((row) => row.hourlyRate >= VERY_GOOD_HOURLY_RATE).length,
+      color: '#16a34a'
+    }
+  ];
+
+  const monthlyVolumeData = Object.values(
+    analyticsRows.reduce((acc, row) => {
+      if (!row.createdDate) return acc;
+      const monthKey = row.createdDate.slice(0, 7);
+      if (!acc[monthKey]) acc[monthKey] = { key: monthKey, totalHours: 0, count: 0 };
+      acc[monthKey].totalHours += row.stunden;
+      acc[monthKey].count += 1;
+      return acc;
+    }, {})
+  ).sort((a, b) => a.key.localeCompare(b.key));
+
+  const timelineMax = Math.max(1, ...timelineData.map((item) => item.avgRate));
+  const cityMax = Math.max(1, ...cityData.map((item) => item.avgRate));
+  const typeMax = Math.max(1, ...typeData.map((item) => item.avgRate));
+  const distributionMax = Math.max(1, ...distributionData.map((item) => item.count));
+  const monthlyHoursMax = Math.max(1, ...monthlyVolumeData.map((item) => item.totalHours));
 
   // Prüfe: Ist der Tab korrekt UND sind wir in der Detailansicht (Projekt offen)?
   const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung") && !!selectedProject;
@@ -1369,8 +2189,8 @@ const createProject = async () => {
           + Neue Baustelle
         </button>
         <button onClick={handleBack}>← Zurück </button>
-        <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c' }}>
-            Logout
+        <button onClick={() => setSettingsOpen(true)} style={{ backgroundColor: '#2c3e50' }}>
+          Einstellungen
         </button>
       </div>
 
@@ -1851,22 +2671,22 @@ const createProject = async () => {
                 const numB = parseInt((b.mastLabel || "").replace(/\D/g, '')) || 0;
                 return numA - numB;
               })
-              .map((m) => {
+              .map((m, index) => {
                 // WICHTIG: Wir suchen den echten Index im Original-Array, 
                 // damit updateMast den richtigen Datensatz ändert!
-                const originalIndex = form.masten.findIndex(item => item.id === m.id);
+                const originalIndex = findOriginalIndexByMast(form.masten, m);
                 
                 const displayNum = (m.mastLabel || "").replace(/\D/g, '');
                 const currentTyp = m.leuchten && m.leuchten[0] ? m.leuchten[0].typ : "";
                 const isCustomLeuchte = currentTyp && !LEUCHTEN_DATA[currentTyp] && currentTyp !== "";
 
                 return (
-                  <div key={m.id} className="mast-card">
+                  <div key={m.id || `mast-${displayNum || index + 1}-${index}`} className="mast-card">
                     {/* HEADER */}
                     <div className="mast-header">
                       <div className="field-group">
                         <span className="field-label">MAST</span>
-                        <div className="mast-num-badge">{displayNum || `Mast ${originalIndex + 1}`}</div>
+                        <div className="mast-num-badge">{displayNum || String(index + 1)}</div>
                       </div>
 
                       <div className="field-group">
@@ -2006,46 +2826,95 @@ const createProject = async () => {
   <div className="masten-container" style={{ color: '#f1f5f9', padding: '4px', fontSize: '12px' }}>
     
     {/* 1. ALLGEMEIN SEKTION */}
-    <div className="aufmass-allgemein-row">
+    <div className="aufmass-allgemein-row" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 10px', overflowX: 'hidden', whiteSpace: 'normal' }}>
       <div className="aufmass-flex-center" style={{ gap: '8px' }}>
         <span className="aufmass-section-title">🚛 Transport:</span>
         <input 
           type="text" 
           inputMode="decimal"
           className="mast-input-base" 
-          style={{ width: '50px', padding: '2px 6px', height: '26px', borderRadius: '4px' }}
+          style={{ width: '46px', padding: '2px 6px', height: '24px', borderRadius: '4px' }}
           value={form.aufmass?.allgemein?.transport || ""} 
           onChange={(e) => updateAufmassAllgemein('transport', e.target.value)} 
         />
         <span className="aufmass-text-muted">Std</span>
       </div>
 
-      <div className="aufmass-flex-center" style={{ gap: '8px', flex: 1, maxWidth: '500px' }}>
+      <div className="aufmass-flex-center" style={{ gap: '8px', flex: 1, minWidth: '240px', maxWidth: '360px' }}>
         <span className="aufmass-section-title">📝 Infos:</span>
         <input 
           type="text"
           className="mast-input-base" 
-          style={{ padding: '2px 6px', height: '26px', borderRadius: '4px', width: '100%' }}
+          style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '100%' }}
           placeholder="Anmerkungen zur Baustelle..."
           value={form.aufmass?.allgemein?.extraInfos || ""} 
           onChange={(e) => updateAufmassAllgemein('extraInfos', e.target.value)} 
         />
       </div>
 
+      <div className="aufmass-flex-center" style={{ gap: '6px' }}>
+        <span className="aufmass-section-title">📏 Einmessung weggeschickt:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={10}
+            className="mast-input-base"
+            placeholder="dd.mm.yyyy"
+            style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '104px', fontSize: '12px' }}
+            value={normalizeDateValue(form.aufmass?.allgemein?.einmessungWeggeschicktAm || "")}
+            onChange={(e) => updateAufmassAllgemein('einmessungWeggeschicktAm', e.target.value)}
+            onBlur={(e) => updateAufmassAllgemein('einmessungWeggeschicktAm', normalizeDateValue(e.target.value))}
+          />
+          <button
+            type="button"
+            onClick={() => updateAufmassAllgemein('einmessungWeggeschicktAm', getTodayDateString())}
+            style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
+          >
+            Heute
+          </button>
+        </div>
+      </div>
+
+      <div className="aufmass-flex-center" style={{ gap: '6px' }}>
+        <span className="aufmass-section-title">📦 Materialbuchung erfolgt:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={10}
+            className="mast-input-base"
+            placeholder="dd.mm.yyyy"
+            style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '104px', fontSize: '12px' }}
+            value={normalizeDateValue(form.aufmass?.allgemein?.materialbuchungErfolgtAm || "")}
+            onChange={(e) => updateAufmassAllgemein('materialbuchungErfolgtAm', e.target.value)}
+            onBlur={(e) => updateAufmassAllgemein('materialbuchungErfolgtAm', normalizeDateValue(e.target.value))}
+          />
+          <button
+            type="button"
+            onClick={() => updateAufmassAllgemein('materialbuchungErfolgtAm', getTodayDateString())}
+            style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
+          >
+            Heute
+          </button>
+        </div>
+      </div>
+
       <button 
         onClick={resetAufmassVonMasten}
         style={{
-          marginBottom: '20px',
-          padding: '10px 20px',
+          marginBottom: '0',
+          padding: '6px 10px',
           background: '#ef4444',
           color: '#fff',
           border: 'none',
           borderRadius: '6px',
           cursor: 'pointer',
           fontWeight: 'bold',
+          fontSize: '12px',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px'
+          gap: '6px'
         }}
       >
         <span>🗑️ Aufmaß komplett neu laden</span>
@@ -2068,16 +2937,16 @@ const createProject = async () => {
           const numB = parseInt((b.mastLabel || "").replace(/\D/g, '')) || 0;
           return numA - numB;
         })
-        .map((m) => {
-          const originalIndex = form.aufmass.masten.findIndex((item) => item.id === m.id);
+        .map((m, index) => {
+          const originalIndex = findOriginalIndexByMast(form.aufmass.masten, m);
 
           return (
-            <div key={m.id} className="aufmass-mast-card">
+            <div key={m.id || `aufmass-mast-${index + 1}`} className="aufmass-mast-card">
               <div className="aufmass-card-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
                 
                 <div className="aufmass-badge-container" style={{ flexShrink: 0 }}>
                   <span className="aufmass-badge-label">MAST</span>
-                  <div className="aufmass-badge-num">{(m.mastLabel || "").replace(/\D/g, '')}</div>
+                  <div className="aufmass-badge-num">{(m.mastLabel || "").replace(/\D/g, '') || String(index + 1)}</div>
                 </div>
 
                 <div style={{ width: '110px', minWidth: '110px', flexShrink: 0 }}>
@@ -2170,25 +3039,73 @@ const createProject = async () => {
               <div className="aufmass-grid-2col">
                 <div className="aufmass-inner-block">
                   <div className="aufmass-row-justify">
-                    <div className="aufmass-flex-center">
+                    <div className="aufmass-flex-center" style={{ alignItems: 'flex-start', gap: '6px' }}>
                       <span style={{ color: '#38bdf8', fontWeight: '500' }}>🪵 Oberfläche:</span>
-                      <select className="mast-input-base" style={{ padding: '2px 4px', height: '24px', width: '120px', borderRadius: '4px' }} value={m.oberflaeche || "Grass"} onChange={(e) => updateAufmass(originalIndex, 'oberflaeche', e.target.value)}>
-                        <option value="Grass">Gras / Acker</option>
-                        <option value="Platten">Platten / Pflaster</option>
-                        <option value="Asphalt">Asphalt / Bitum</option>
-                      </select>
-                    </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div className="aufmass-flex-center" style={{ gap: '4px' }}>
+                          <select className="mast-input-base" style={{ padding: '2px 4px', height: '24px', width: '130px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaeche || "Grass")} onChange={(e) => updateAufmass(originalIndex, 'oberflaeche', normalizeSurfaceType(e.target.value))}>
+                            {SURFACE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
 
-                    {m.oberflaeche !== "Grass" && (
-                      <div className="aufmass-oberflaeche-dim">
-                        <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={m.oberflaecheX || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheX', e.target.value)} />
-                        <span className="aufmass-text-subtle">×</span>
-                        <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={m.oberflaecheY || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheY', e.target.value)} />
-                        <span style={{ borderLeft: '1px solid #334155', paddingLeft: '4px', marginLeft: '2px', color: '#22c55e', fontWeight: 'bold' }}>
-                          {((parseFloat(String(m.oberflaecheX || '').replace(',', '.')) || 0) * (parseFloat(String(m.oberflaecheY || '').replace(',', '.')) || 0)).toFixed(2)} m²
+                          {normalizeSurfaceType(m.oberflaeche || "Grass") !== "Grass" && (
+                            <>
+                              <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={m.oberflaecheX || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheX', e.target.value)} />
+                              <span className="aufmass-text-subtle">×</span>
+                              <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={m.oberflaecheY || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheY', e.target.value)} />
+                            </>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => addExtraOberflaeche(originalIndex)}
+                            title="Weitere Oberfläche hinzufügen"
+                            style={{ width: '22px', height: '22px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontWeight: 'bold', lineHeight: '1' }}
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {normalizeExtraSurfaces(m.oberflaechenExtra).map((extra, extraIndex) => (
+                          <div key={extra.id || `${originalIndex}-${extraIndex}`} className="aufmass-flex-center" style={{ gap: '4px' }}>
+                            <select className="mast-input-base" style={{ padding: '2px 4px', height: '22px', width: '130px', borderRadius: '4px' }} value={normalizeSurfaceType(extra.typ || "Platten")} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'typ', e.target.value)}>
+                              {SURFACE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            {normalizeSurfaceType(extra.typ || "Platten") !== "Grass" && (
+                              <>
+                                <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={extra.x || ""} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'x', e.target.value)} />
+                                <span className="aufmass-text-subtle">×</span>
+                                <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={extra.y || ""} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'y', e.target.value)} />
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeExtraOberflaeche(originalIndex, extraIndex)}
+                              title="Oberfläche entfernen"
+                              style={{ width: '22px', height: '22px', borderRadius: '4px', border: '1px solid #7f1d1d', background: '#7f1d1d', color: '#fff', cursor: 'pointer', lineHeight: '1' }}
+                            >
+                              -
+                            </button>
+                          </div>
+                        ))}
+
+                        <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '11px' }}>
+                          Gesamtfläche: {(() => {
+                            const base = normalizeSurfaceType(m.oberflaeche || "Grass") !== "Grass"
+                              ? (parseFloat(String(m.oberflaecheX || '').replace(',', '.')) || 0) * (parseFloat(String(m.oberflaecheY || '').replace(',', '.')) || 0)
+                              : 0;
+                            const extraTotal = normalizeExtraSurfaces(m.oberflaechenExtra).reduce((sum, entry) => {
+                              if (normalizeSurfaceType(entry.typ) === "Grass") return sum;
+                              return sum + ((parseFloat(String(entry.x || '').replace(',', '.')) || 0) * (parseFloat(String(entry.y || '').replace(',', '.')) || 0));
+                            }, 0);
+                            return (base + extraTotal).toFixed(2);
+                          })()} m²
                         </span>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="aufmass-kabel-zone">
@@ -2254,20 +3171,25 @@ const createProject = async () => {
                           <div className="aufmass-sub-graben-details">
                             <span>↳ Muffen mont. (Stk):</span>
                             <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenUeber1m', e.target.value)} />
-                            <span>↳ Graben 30/60 (m):</span>
+                            <span>↳ Graben ANS (m):</span>
                             <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreite || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreite', e.target.value)} />
-                            <span>↳ Graben-Oberfläche:</span>
-                            <select className="mast-input-base" style={{ width: '70px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.oberflaecheGraben || "Platten"} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGraben', e.target.value)}>
-                              <option value="Grass">Grass</option>
-                              <option value="Platten">Platten</option>
-                              <option value="Asphalt">Asphalt</option>
+                            <span>↳ Graben-Oberfläche ANS:</span>
+                            <select className="mast-input-base" style={{ width: '96px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGraben || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGraben', normalizeSurfaceType(e.target.value))}>
+                              {SURFACE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
                             </select>
-                            <span>↳ Kabelverlegen (m):</span>
+                            <span>↳ Kabelverlegen ANS (m):</span>
                             <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegen || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegen', e.target.value)} />
-                            <span>↳ Montagegrube (Stk):</span>
+                            <span>↳ Montagegrube ANS (Stk):</span>
                             <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrube || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrube', e.target.value)} />
+                            <span>↳ Muffen demont. ANS (Stk):</span>
+                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemoMontage || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoMontage', e.target.value)} />
                           </div>
                         )}
+                        <div style={{ marginTop: '4px', fontSize: '10px', color: '#94a3b8' }}>
+                          Für ANS zählt externe Graben-Oberfläche plus zusätzlich die Lampen-Oberflächen.
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2286,6 +3208,26 @@ const createProject = async () => {
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemo', e.target.value)} />
                         </div>
                       )}
+
+                      {Number(m.netzanschlussDemoAnzahl) > 0 && (
+                      <details className="aufmass-demo-block" style={{ marginTop: '6px' }} open>
+                        <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#fda4af' }}>📦 Positionen ABR</summary>
+                        <div className="aufmass-demo-block" style={{ marginTop: '4px' }}>
+                          <span>↳ Graben ABR (m):</span>
+                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreiteDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteDemo', e.target.value)} />
+                          <span>↳ Kabelverlegen ABR (m):</span>
+                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenDemo', e.target.value)} />
+                          <span>↳ Montagegrube ABR (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeDemo', e.target.value)} />
+                          <span>↳ Graben-Oberfläche:</span>
+                          <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenDemo', normalizeSurfaceType(e.target.value))}>
+                            {SURFACE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </details>
+                      )}
                     </>
                   )}
 
@@ -2302,6 +3244,26 @@ const createProject = async () => {
                           <span>↳ Muffen demontieren (Alt-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemoTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoTausch', e.target.value)} />
                         </div>
+                      )}
+
+                      {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
+                      <details className="aufmass-tausch-block" style={{ marginTop: '6px' }} open>
+                        <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#d8b4fe' }}>📦 Positionen ÄND</summary>
+                        <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
+                          <span>↳ Graben ÄND (m):</span>
+                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreiteTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteTausch', e.target.value)} />
+                          <span>↳ Kabelverlegen ÄND (m):</span>
+                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenTausch', e.target.value)} />
+                          <span>↳ Montagegrube ÄND (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeTausch', e.target.value)} />
+                          <span>↳ Graben-Oberfläche:</span>
+                          <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenTausch', normalizeSurfaceType(e.target.value))}>
+                            {SURFACE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </details>
                       )}
                     </>
                   )}
@@ -2349,6 +3311,76 @@ const createProject = async () => {
         <p style={{ color: '#cbd5e1' }}>Warte auf Masten...</p>
       </div>
     )}
+
+    <div style={{ marginTop: '14px', background: '#0f172a', borderRadius: '8px', padding: '12px', border: '1px solid #334155' }}>
+      <h4 style={{ margin: 0, color: '#67e8f9' }}>Nachkalkulation</h4>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px', marginTop: '10px' }}>
+        <div>
+          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Stunden</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="mast-input-base"
+            value={nachkalkulation.stunden || ''}
+            onChange={(e) => updateNachkalkulation('stunden', e.target.value)}
+            placeholder="z. B. 42"
+            style={{ width: '100%' }}
+          />
+        </div>
+        <div>
+          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Gesamtsumme HSW</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="mast-input-base"
+            value={nachkalkulation.gesamtHsw || ''}
+            onChange={(e) => updateNachkalkulation('gesamtHsw', e.target.value)}
+            placeholder="z. B. 4200"
+            style={{ width: '100%' }}
+          />
+        </div>
+        <div>
+          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Gesamtsumme Müller</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="mast-input-base"
+            value={nachkalkulation.gesamtMueller || ''}
+            onChange={(e) => updateNachkalkulation('gesamtMueller', e.target.value)}
+            placeholder="z. B. 3100"
+            style={{ width: '100%' }}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Kombinierte Gesamtsumme</div>
+          <strong style={{ color: '#e2e8f0', fontSize: '14px' }}>{formatEuro(nachkalkGesamt)}</strong>
+        </div>
+        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Dein Stundenlohn (gesamt / Stunden)</div>
+          <strong style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{stundenlohnKombiniert.toFixed(2)} EUR/h</strong>
+        </div>
+        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Bewertung</div>
+          <strong style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{stundenlohnStatus}</strong>
+        </div>
+      </div>
+
+      <div style={{ marginTop: '6px', display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#cbd5e1', fontSize: '11px' }}>
+        <span>Differenz zu 56,00 EUR/h: <strong style={{ color: stundenlohnDiffMin >= 0 ? '#4ade80' : '#f87171' }}>{stundenlohnDiffMin >= 0 ? '+' : ''}{stundenlohnDiffMin.toFixed(2)} EUR/h</strong></span>
+        <span>Differenz zu 59,00 EUR/h: <strong style={{ color: stundenlohnDiffNormal >= 0 ? '#4ade80' : '#f87171' }}>{stundenlohnDiffNormal >= 0 ? '+' : ''}{stundenlohnDiffNormal.toFixed(2)} EUR/h</strong></span>
+        <span>Differenz zu 68,90 EUR/h: <strong style={{ color: stundenlohnDiffVeryGood >= 0 ? '#4ade80' : '#f87171' }}>{stundenlohnDiffVeryGood >= 0 ? '+' : ''}{stundenlohnDiffVeryGood.toFixed(2)} EUR/h</strong></span>
+      </div>
+
+      <div style={{ marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#cbd5e1', fontSize: '11px' }}>
+        <span>Differenz Gesamtsumme zu Minimum: <strong style={{ color: gesamtDiffToMin >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMin >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMin)}</strong></span>
+        <span>Differenz Gesamtsumme zu Maximum: <strong style={{ color: gesamtDiffToMax >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMax >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMax)}</strong></span>
+      </div>
+
+    </div>
   </div>
 )}
 
@@ -2408,14 +3440,21 @@ const createProject = async () => {
         muffenMontierenUeber1m: { title: "Muffen montieren ANS(Stk)", total: 0, items: [] },
         muffenMontierenTausch: { title: "Muffen montieren ÄND(Stk)", total: 0, items: [] },
         muffenMontierenDemo: { title: "Muffen montieren ABR(Stk)", total: 0, items: [] },
+        muffenDemoMontage: { title: "Muffen demontieren ANS(Stk)", total: 0, items: [] },
         muffenDemo: { title: "Muffen demontieren ABR(Stk)", total: 0, items: [] },
         muffenDemoTausch: { title: "Muffen demontieren ÄND(Stk)", total: 0, items: [] },
         netz1: { title: "Netzanschluss bis 1m", total: 0, items: [] },
         netz2: { title: "Netzanschluss über 1m", total: 0, items: [] },
         netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
-        graben: { title: "Graben (m)", total: 0, items: [] },
-        kabelverlegen: { title: "Kabelverlegen (m)", total: 0, items: [] },
-        montagegrube: { title: "Montagegrube (Stk)", total: 0, items: [] },
+        grabenAns: { title: "Graben ANS (m)", total: 0, items: [] },
+        grabenAend: { title: "Graben ÄND (m)", total: 0, items: [] },
+        grabenAbr: { title: "Graben ABR (m)", total: 0, items: [] },
+        kabelverlegenAns: { title: "Kabelverlegen ANS (m)", total: 0, items: [] },
+        kabelverlegenAend: { title: "Kabelverlegen ÄND (m)", total: 0, items: [] },
+        kabelverlegenAbr: { title: "Kabelverlegen ABR (m)", total: 0, items: [] },
+        montagegrubeAns: { title: "Montagegrube ANS (Stk)", total: 0, items: [] },
+        montagegrubeAend: { title: "Montagegrube ÄND (Stk)", total: 0, items: [] },
+        montagegrubeAbr: { title: "Montagegrube ABR (Stk)", total: 0, items: [] },
         handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] },
         transport: { title: "Transport (Std)", total: 0, items: [] }
       });
@@ -2424,18 +3463,26 @@ const createProject = async () => {
       const dataMueller = buildData();
 
       if (form.aufmass?.masten) {
-        form.aufmass.masten.forEach((m) => {
+        form.aufmass.masten.forEach((m, mastIdx) => {
           // WICHTIG: Hier nutzen wir das Label aus dem Formular statt des Index
           const mastLabel = m.mastLabel || "Mast ?";
 
           // --- 1. HSW POSITIONEN ---
-          const flaecheMast = num(m.oberflaecheX) * num(m.oberflaecheY);
-          if (flaecheMast > 0) {
-            const name = m.oberflaeche || "Sonstige";
+          const mastSurfaces = [
+            { typ: normalizeSurfaceType(m.oberflaeche || "Grass"), x: m.oberflaecheX, y: m.oberflaecheY },
+            ...normalizeExtraSurfaces(m.oberflaechenExtra)
+          ];
+
+          mastSurfaces.forEach((entry, idx) => {
+            if (normalizeSurfaceType(entry.typ) === "Grass") return;
+            const flaeche = num(entry.x) * num(entry.y);
+            if (flaeche <= 0) return;
+
+            const name = getSurfaceLabel(entry.typ);
             if (!dataHsw.surfaces[name]) dataHsw.surfaces[name] = { title: `${name} (m²)`, total: 0, items: [] };
-            dataHsw.surfaces[name].total += flaecheMast;
-            dataHsw.surfaces[name].items.push({ label: mastLabel, val: flaecheMast });
-          }
+            dataHsw.surfaces[name].total += flaeche;
+            dataHsw.surfaces[name].items.push({ label: idx === 0 ? mastLabel : `${mastLabel} (extra)`, val: flaeche });
+          });
 
           const sondersachen = [
             { key: 'sondersacheRasenkante', title: 'Rasenkantenstein (Stk)' },
@@ -2457,39 +3504,103 @@ const createProject = async () => {
           }
 
           // --- 2. MÜLLER POSITIONEN ---
-          const laengeGraben = num(m.grabenTiefeBreite);
-          const nameGraben = m.oberflaecheGraben || "Platten";
-          const catGrabenName = `Graben ${nameGraben}`;
-          const erlaubteOberflaechen = ["Platten", "Asphalt"];
-
-          if (laengeGraben > 0 && erlaubteOberflaechen.includes(nameGraben)) {
-            const flaecheGraben = laengeGraben * 0.3;
+          const addMuellerSurface = (surfaceType, area, labelSuffix) => {
+            const normalized = normalizeSurfaceType(surfaceType);
+            if (area <= 0 || normalized === "Grass") return;
+            const catGrabenName = `Graben ${getSurfaceLabel(normalized)}${labelSuffix ? ` ${labelSuffix}` : ""}`;
             if (!dataMueller.surfaces[catGrabenName]) {
               dataMueller.surfaces[catGrabenName] = { title: `${catGrabenName} (m²)`, total: 0, items: [] };
             }
-            dataMueller.surfaces[catGrabenName].total += flaecheGraben;
-            dataMueller.surfaces[catGrabenName].items.push({ label: mastLabel, val: flaecheGraben });
+            dataMueller.surfaces[catGrabenName].total += area;
+            dataMueller.surfaces[catGrabenName].items.push({ label: mastLabel, val: area });
+          };
+
+          const laengeGrabenAns = num(m.grabenTiefeBreite);
+          const laengeGrabenAend = num(m.grabenTiefeBreiteTausch);
+          const laengeGrabenAbr = num(m.grabenTiefeBreiteDemo);
+
+          if (laengeGrabenAns > 0) {
+            const basisMast = (form.masten || []).find((mast) => {
+              if (mast?.id && m?.id) return mast.id === m.id;
+              if (mast?.mastLabel && m?.mastLabel) return mast.mastLabel === m.mastLabel;
+              return false;
+            }) || (form.masten || [])[mastIdx] || {};
+
+            const aufmassAreasByType = getMastSurfaceAreasByType(m);
+            const basisAreasByType = getMastSurfaceAreasByType(basisMast);
+            const mergedLampAreasByType = {};
+            const areaTypes = Array.from(new Set([
+              ...Object.keys(aufmassAreasByType),
+              ...Object.keys(basisAreasByType)
+            ]));
+            areaTypes.forEach((type) => {
+              mergedLampAreasByType[type] = aufmassAreasByType[type] > 0 ? aufmassAreasByType[type] : (basisAreasByType[type] || 0);
+            });
+
+            const flaecheGrabenAns = laengeGrabenAns * 0.3;
+
+            // Externe Graben-Oberfläche bleibt erhalten.
+            addMuellerSurface(m.oberflaecheGraben || "Platten", flaecheGrabenAns, "(ANS)");
+
+            // Lampen-Oberflächen kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
+            Object.entries(mergedLampAreasByType).forEach(([surfaceType, area]) => {
+              if ((Number(area) || 0) > 0) {
+                addMuellerSurface(surfaceType, area, "(ANS)");
+              }
+            });
           }
 
-          const countGruben = num(m.montagegrube);
-          if (countGruben > 0) {
-            if (!dataMueller.surfaces["Montagegruben (Stk)"]) {
-              dataMueller.surfaces["Montagegruben (Stk)"] = { title: "Montagegruben (Stk)", total: 0, items: [] };
+          if (laengeGrabenAend > 0) {
+            addMuellerSurface(m.oberflaecheGrabenTausch || "Platten", laengeGrabenAend * 0.3, "(ÄND)");
+          }
+
+          if (laengeGrabenAbr > 0) {
+            addMuellerSurface(m.oberflaecheGrabenDemo || "Platten", laengeGrabenAbr * 0.3, "(ABR)");
+          }
+
+          const countGrubenAns = num(m.montagegrube);
+          const countGrubenAend = num(m.montagegrubeTausch);
+          const countGrubenAbr = num(m.montagegrubeDemo);
+
+          if (countGrubenAns > 0) {
+            if (!dataMueller.surfaces["Montagegruben ANS (Stk)"]) {
+              dataMueller.surfaces["Montagegruben ANS (Stk)"] = { title: "Montagegruben ANS (Stk)", total: 0, items: [] };
             }
-            dataMueller.surfaces["Montagegruben (Stk)"].total += countGruben;
-            dataMueller.surfaces["Montagegruben (Stk)"].items.push({ label: mastLabel, val: countGruben });
+            dataMueller.surfaces["Montagegruben ANS (Stk)"].total += countGrubenAns;
+            dataMueller.surfaces["Montagegruben ANS (Stk)"].items.push({ label: mastLabel, val: countGrubenAns });
+          }
+          if (countGrubenAend > 0) {
+            if (!dataMueller.surfaces["Montagegruben ÄND (Stk)"]) {
+              dataMueller.surfaces["Montagegruben ÄND (Stk)"] = { title: "Montagegruben ÄND (Stk)", total: 0, items: [] };
+            }
+            dataMueller.surfaces["Montagegruben ÄND (Stk)"].total += countGrubenAend;
+            dataMueller.surfaces["Montagegruben ÄND (Stk)"].items.push({ label: mastLabel, val: countGrubenAend });
+          }
+          if (countGrubenAbr > 0) {
+            if (!dataMueller.surfaces["Montagegruben ABR (Stk)"]) {
+              dataMueller.surfaces["Montagegruben ABR (Stk)"] = { title: "Montagegruben ABR (Stk)", total: 0, items: [] };
+            }
+            dataMueller.surfaces["Montagegruben ABR (Stk)"].total += countGrubenAbr;
+            dataMueller.surfaces["Montagegruben ABR (Stk)"].items.push({ label: mastLabel, val: countGrubenAbr });
           }
 
           // Bau-Positionen Müller
-          if (laengeGraben > 0) { dataMueller.graben.total += laengeGraben; dataMueller.graben.items.push({ label: mastLabel, val: laengeGraben }); }
-          if (countGruben > 0) { dataMueller.montagegrube.total += countGruben; dataMueller.montagegrube.items.push({ label: mastLabel, val: countGruben }); }
-          if (num(m.grabenKabelverlegen) > 0) { dataMueller.kabelverlegen.total += num(m.grabenKabelverlegen); dataMueller.kabelverlegen.items.push({ label: mastLabel, val: num(m.grabenKabelverlegen) }); }
+          if (laengeGrabenAns > 0) { dataMueller.grabenAns.total += laengeGrabenAns; dataMueller.grabenAns.items.push({ label: mastLabel, val: laengeGrabenAns }); }
+          if (laengeGrabenAend > 0) { dataMueller.grabenAend.total += laengeGrabenAend; dataMueller.grabenAend.items.push({ label: mastLabel, val: laengeGrabenAend }); }
+          if (laengeGrabenAbr > 0) { dataMueller.grabenAbr.total += laengeGrabenAbr; dataMueller.grabenAbr.items.push({ label: mastLabel, val: laengeGrabenAbr }); }
+          if (countGrubenAns > 0) { dataMueller.montagegrubeAns.total += countGrubenAns; dataMueller.montagegrubeAns.items.push({ label: mastLabel, val: countGrubenAns }); }
+          if (countGrubenAend > 0) { dataMueller.montagegrubeAend.total += countGrubenAend; dataMueller.montagegrubeAend.items.push({ label: mastLabel, val: countGrubenAend }); }
+          if (countGrubenAbr > 0) { dataMueller.montagegrubeAbr.total += countGrubenAbr; dataMueller.montagegrubeAbr.items.push({ label: mastLabel, val: countGrubenAbr }); }
+          if (num(m.grabenKabelverlegen) > 0) { dataMueller.kabelverlegenAns.total += num(m.grabenKabelverlegen); dataMueller.kabelverlegenAns.items.push({ label: mastLabel, val: num(m.grabenKabelverlegen) }); }
+          if (num(m.grabenKabelverlegenTausch) > 0) { dataMueller.kabelverlegenAend.total += num(m.grabenKabelverlegenTausch); dataMueller.kabelverlegenAend.items.push({ label: mastLabel, val: num(m.grabenKabelverlegenTausch) }); }
+          if (num(m.grabenKabelverlegenDemo) > 0) { dataMueller.kabelverlegenAbr.total += num(m.grabenKabelverlegenDemo); dataMueller.kabelverlegenAbr.items.push({ label: mastLabel, val: num(m.grabenKabelverlegenDemo) }); }
           if (num(m.netzanschlussBis1m) > 0) { dataMueller.netz1.total += num(m.netzanschlussBis1m); dataMueller.netz1.items.push({ label: mastLabel, val: num(m.netzanschlussBis1m) }); }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ label: mastLabel, val: num(m.kabelAnAbklemmenAnzahl) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ label: mastLabel, val: num(m.netzanschlussDemoAnzahl) }); }
           if (num(m.muffenMontierenUeber1m) > 0) { dataMueller.muffenMontierenUeber1m.total += num(m.muffenMontierenUeber1m); dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: num(m.muffenMontierenUeber1m) }); }
           if (num(m.muffenMontierenTausch) > 0) { dataMueller.muffenMontierenTausch.total += num(m.muffenMontierenTausch); dataMueller.muffenMontierenTausch.items.push({ label: mastLabel, val: num(m.muffenMontierenTausch) }); }
           if (num(m.muffenMontierenDemo) > 0) { dataMueller.muffenMontierenDemo.total += num(m.muffenMontierenDemo); dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: num(m.muffenMontierenDemo) }); }
+          if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ label: mastLabel, val: num(m.muffenDemo) }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
         });
@@ -2508,15 +3619,22 @@ const createProject = async () => {
         const list = [
           ...Object.values(dataObj.surfaces),
           ...Object.values(dataObj.linear),
-          ...(dataObj.graben.total > 0 ? [dataObj.graben] : []),
-          ...(dataObj.montagegrube.total > 0 ? [dataObj.montagegrube] : []),
-          ...(dataObj.kabelverlegen.total > 0 ? [dataObj.kabelverlegen] : []),
+          ...(dataObj.grabenAns.total > 0 ? [dataObj.grabenAns] : []),
+          ...(dataObj.grabenAend.total > 0 ? [dataObj.grabenAend] : []),
+          ...(dataObj.grabenAbr.total > 0 ? [dataObj.grabenAbr] : []),
+          ...(dataObj.montagegrubeAns.total > 0 ? [dataObj.montagegrubeAns] : []),
+          ...(dataObj.montagegrubeAend.total > 0 ? [dataObj.montagegrubeAend] : []),
+          ...(dataObj.montagegrubeAbr.total > 0 ? [dataObj.montagegrubeAbr] : []),
+          ...(dataObj.kabelverlegenAns.total > 0 ? [dataObj.kabelverlegenAns] : []),
+          ...(dataObj.kabelverlegenAend.total > 0 ? [dataObj.kabelverlegenAend] : []),
+          ...(dataObj.kabelverlegenAbr.total > 0 ? [dataObj.kabelverlegenAbr] : []),
           ...(dataObj.netz1.total > 0 ? [dataObj.netz1] : []),
           ...(dataObj.netz2.total > 0 ? [dataObj.netz2] : []),
           ...(dataObj.kabel.total > 0 ? [dataObj.kabel] : []),
           ...(dataObj.muffenMontierenUeber1m.total > 0 ? [dataObj.muffenMontierenUeber1m] : []),
           ...(dataObj.muffenMontierenTausch.total > 0 ? [dataObj.muffenMontierenTausch] : []),
           ...(dataObj.muffenMontierenDemo.total > 0 ? [dataObj.muffenMontierenDemo] : []),
+          ...(dataObj.muffenDemoMontage.total > 0 ? [dataObj.muffenDemoMontage] : []),
           ...(dataObj.muffenDemo.total > 0 ? [dataObj.muffenDemo] : []),
           ...(dataObj.muffenDemoTausch.total > 0 ? [dataObj.muffenDemoTausch] : []),
           ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
@@ -2920,6 +4038,331 @@ const createProject = async () => {
         </div>
       )}
       </main>
+
+      {settingsOpen && (
+        <div
+          onClick={() => setSettingsOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(2,6,23,0.7)',
+            zIndex: 12000,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '16px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(1100px, 95vw)',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              background: '#0f172a',
+              border: '1px solid #334155',
+              borderRadius: '12px',
+              padding: '16px',
+              color: '#e2e8f0'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>Einstellungen & Nachkalkulation</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                  Excel Export
+                </button>
+                <button onClick={() => setProformaExportPopupOpen(true)} style={{ backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                  Proforma Excel Export
+                </button>
+                <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                  Logout
+                </button>
+                <button onClick={() => setSettingsOpen(false)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>
+                  Schließen
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
+                <select value={settingsTypeFilter} onChange={(e) => setSettingsTypeFilter(e.target.value)} className="mast-input-base" style={{ width: '100%', marginTop: '4px' }}>
+                  {analyticsTypeOptions.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Sortierung</label>
+                <select value={settingsSortBy} onChange={(e) => setSettingsSortBy(e.target.value)} className="mast-input-base" style={{ width: '100%', marginTop: '4px' }}>
+                  <option value="date-desc">Datum (neu zuerst)</option>
+                  <option value="date-asc">Datum (alt zuerst)</option>
+                  <option value="hourly-desc">Stundenlohn (hoch zuerst)</option>
+                  <option value="hourly-asc">Stundenlohn (niedrig zuerst)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd.mm.yyyy"
+                  value={normalizeDateValue(settingsDateFrom)}
+                  onChange={(e) => setSettingsDateFrom(e.target.value)}
+                  onBlur={(e) => setSettingsDateFrom(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd.mm.yyyy"
+                  value={normalizeDateValue(settingsDateTo)}
+                  onChange={(e) => setSettingsDateTo(e.target.value)}
+                  onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
+              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Ø Stundenlohn (Filter)</div>
+                <strong style={{ color: getProfitabilityColor(overviewAverageRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{overviewAverageRate.toFixed(2)} EUR/h</strong>
+              </div>
+              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>&ge; {NORMAL_HOURLY_RATE.toFixed(1)} EUR/h (Gut+)</div>
+                <strong style={{ color: '#4ade80', fontSize: '14px' }}>{overviewProfitabelCount} / {analyticsRows.length}</strong>
+              </div>
+              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>&ge; {VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h (Sehr gut)</div>
+                <strong style={{ color: '#22c55e', fontSize: '14px' }}>{overviewVeryGoodCount}</strong>
+              </div>
+              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>{'<'} {MIN_HOURLY_RATE.toFixed(0)} EUR/h</div>
+                <strong style={{ color: '#f87171', fontSize: '14px' }}>{analyticsRows.filter((item) => item.hourlyRate < MIN_HOURLY_RATE).length}</strong>
+              </div>
+              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Masten Montage (Zeitraum)</div>
+                <strong style={{ color: '#22c55e', fontSize: '14px' }}>{totalMontageCount}</strong>
+              </div>
+              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Masten Demontage (Zeitraum)</div>
+                <strong style={{ color: '#f87171', fontSize: '14px' }}>{totalDemontageCount}</strong>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {[
+                { id: 'timeline', label: 'Verlauf' },
+                { id: 'city', label: 'Städte' },
+                { id: 'type', label: 'Auftragstypen' },
+                { id: 'distribution', label: 'Rentabilität' },
+                { id: 'monthly', label: 'Monatliche Stunden' }
+              ].map((chart) => (
+                <button
+                  key={chart.id}
+                  onClick={() => setSettingsChartView(chart.id)}
+                  style={{
+                    background: settingsChartView === chart.id ? '#0284c7' : '#1e293b',
+                    color: 'white',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  {chart.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px', padding: '12px' }}>
+              {settingsChartView === 'timeline' && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn-Verlauf nach Monat</h4>
+                  {timelineData.length > 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', minHeight: '220px', overflowX: 'auto', paddingBottom: '8px' }}>
+                      {timelineData.map((item) => (
+                        <div key={item.key} style={{ minWidth: '48px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{item.avgRate.toFixed(1)}</div>
+                          <div style={{
+                            height: `${Math.max(8, (item.avgRate / timelineMax) * 170)}px`,
+                            background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10),
+                            borderRadius: '6px 6px 0 0'
+                          }} />
+                          <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '4px' }}>{item.key.slice(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div style={{ color: '#94a3b8' }}>Keine Verlaufsdaten im aktuellen Filter.</div>}
+                </>
+              )}
+
+              {settingsChartView === 'city' && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn nach Stadt</h4>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {cityData.map((item) => (
+                      <div key={item.city} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 150px', gap: '8px', alignItems: 'center' }}>
+                        <span>{item.city}</span>
+                        <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, (item.avgRate / cityMax) * 100)}%`, height: '100%', background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
+                        </div>
+                        <span style={{ textAlign: 'right', color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {settingsChartView === 'type' && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn nach Auftragstyp</h4>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {typeData.map((item) => (
+                      <div key={item.type} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 150px', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</span>
+                        <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, (item.avgRate / typeMax) * 100)}%`, height: '100%', background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
+                        </div>
+                        <span style={{ textAlign: 'right', color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {settingsChartView === 'distribution' && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Rentabilitäts-Verteilung</h4>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {distributionData.map((item) => (
+                      <div key={item.label} style={{ display: 'grid', gridTemplateColumns: '170px 1fr 80px', gap: '8px', alignItems: 'center' }}>
+                        <span>{item.label}</span>
+                        <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, (item.count / distributionMax) * 100)}%`, height: '100%', background: item.color }} />
+                        </div>
+                        <span style={{ textAlign: 'right', fontWeight: 700 }}>{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {settingsChartView === 'monthly' && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Monatliche Stunden (Auslastung)</h4>
+                  {monthlyVolumeData.length > 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', minHeight: '220px', overflowX: 'auto', paddingBottom: '8px' }}>
+                      {monthlyVolumeData.map((item) => (
+                        <div key={item.key} style={{ minWidth: '48px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{item.totalHours.toFixed(0)}h</div>
+                          <div style={{
+                            height: `${Math.max(8, (item.totalHours / monthlyHoursMax) * 170)}px`,
+                            background: '#38bdf8',
+                            borderRadius: '6px 6px 0 0'
+                          }} />
+                          <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '4px' }}>{item.key.slice(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div style={{ color: '#94a3b8' }}>Keine Stundendaten im aktuellen Filter.</div>}
+                </>
+              )}
+
+              {analyticsRows.length === 0 && (
+                <div style={{ color: '#94a3b8', marginTop: '8px' }}>Keine Datensätze für die aktuelle Filter-/Sortierauswahl.</div>
+              )}
+            </div>
+
+            {proformaExportPopupOpen && (
+              <div
+                onClick={() => setProformaExportPopupOpen(false)}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(2,6,23,0.75)',
+                  zIndex: 13000,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: '16px'
+                }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    width: 'min(560px, 96vw)',
+                    background: '#0b1220',
+                    border: '1px solid #1f2a44',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    color: '#e2e8f0'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <h4 style={{ margin: 0, color: '#7dd3fc' }}>Proforma Export</h4>
+                    <button onClick={() => setProformaExportPopupOpen(false)} style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}>
+                      Schließen
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: '10px', fontSize: '12px', color: '#93c5fd' }}>
+                    Zeitraum bezieht sich auf den Zeitpunkt, wann der Status auf Proforma gesetzt wurde.
+                  </div>
+
+                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder="dd.mm.yyyy"
+                        value={normalizeDateValue(proformaDateFrom)}
+                        onChange={(e) => setProformaDateFrom(e.target.value)}
+                        onBlur={(e) => setProformaDateFrom(normalizeDateValue(e.target.value))}
+                        className="mast-input-base"
+                        style={{ width: '100%', marginTop: '4px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder="dd.mm.yyyy"
+                        value={normalizeDateValue(proformaDateTo)}
+                        onChange={(e) => setProformaDateTo(e.target.value)}
+                        onBlur={(e) => setProformaDateTo(normalizeDateValue(e.target.value))}
+                        className="mast-input-base"
+                        style={{ width: '100%', marginTop: '4px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#93c5fd' }}>Treffer: {proformaExportRows.length}</span>
+                    <button onClick={exportProformaToExcel} style={{ backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                      Jetzt Proforma exportieren
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       </>
     )}
     </div>
