@@ -165,6 +165,7 @@ const DEFAULT_AUFMASS_ALLGEMEIN = {
   extraInfos: "",
   einmessungWeggeschicktAm: "",
   materialbuchungErfolgtAm: "",
+  proformaRechnungWeggeschicktAm: "",
   nachkalkulation: { ...DEFAULT_NACHKALKULATION }
 };
 
@@ -377,6 +378,10 @@ export default function App() {
   const [proformaDateFrom, setProformaDateFrom] = useState(() => getCurrentYearStartDateString());
   const [proformaDateTo, setProformaDateTo] = useState(() => getTodayDateString());
   const [proformaExportPopupOpen, setProformaExportPopupOpen] = useState(false);
+  const [proformaReminderDays, setProformaReminderDays] = useState(() => {
+    const saved = Number(localStorage.getItem('proforma_reminder_days'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 14;
+  });
   const [settingsChartView, setSettingsChartView] = useState("timeline");
 
   const [originalProject, setOriginalProject] = useState(null);
@@ -902,6 +907,35 @@ const updateAufmassAllgemein = (field, value) => {
   });
 };
 
+const handleStatusChange = (newStatus) => {
+  setForm(prev => {
+    const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
+    const aktuellesAllgemein = {
+      ...DEFAULT_AUFMASS_ALLGEMEIN,
+      ...(aktuellesAufmass.allgemein || {})
+    };
+
+    const shouldAutoSetProformaDate =
+      !isProformaStatus(prev.status) &&
+      isProformaStatus(newStatus) &&
+      !String(aktuellesAllgemein.proformaRechnungWeggeschicktAm || "").trim();
+
+    return {
+      ...prev,
+      status: newStatus,
+      aufmass: {
+        ...aktuellesAufmass,
+        allgemein: {
+          ...aktuellesAllgemein,
+          proformaRechnungWeggeschicktAm: shouldAutoSetProformaDate
+            ? getTodayDateString()
+            : aktuellesAllgemein.proformaRechnungWeggeschicktAm
+        }
+      }
+    };
+  });
+};
+
 const updateNachkalkulation = (field, value) => {
   setForm(prev => {
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
@@ -996,6 +1030,7 @@ const openProject = (p) => {
   let allgemeinExtraInfos = "";
   let allgemeinEinmessungWeggeschicktAm = "";
   let allgemeinMaterialbuchungErfolgtAm = "";
+  let allgemeinProformaRechnungWeggeschicktAm = "";
   let allgemeinNachkalkulation = { ...DEFAULT_NACHKALKULATION };
 
   if (rawAufmass) {
@@ -1009,6 +1044,7 @@ const openProject = (p) => {
       allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
       allgemeinEinmessungWeggeschicktAm = rawAufmass.allgemein?.einmessungWeggeschicktAm || "";
       allgemeinMaterialbuchungErfolgtAm = rawAufmass.allgemein?.materialbuchungErfolgtAm || "";
+      allgemeinProformaRechnungWeggeschicktAm = rawAufmass.allgemein?.proformaRechnungWeggeschicktAm || "";
       allgemeinNachkalkulation = {
         ...DEFAULT_NACHKALKULATION,
         ...(rawAufmass.allgemein?.nachkalkulation || {}),
@@ -1066,6 +1102,7 @@ const openProject = (p) => {
         extraInfos: allgemeinExtraInfos,
         einmessungWeggeschicktAm: allgemeinEinmessungWeggeschicktAm,
         materialbuchungErfolgtAm: allgemeinMaterialbuchungErfolgtAm,
+        proformaRechnungWeggeschicktAm: allgemeinProformaRechnungWeggeschicktAm,
         nachkalkulation: allgemeinNachkalkulation
       },
       masten: aufbereiteteAufmassMasten
@@ -1228,6 +1265,14 @@ useEffect(() => {
 }, [search, selectedProject]); // Diese Variablen muss der Hook "beobachten"
 
 useEffect(() => {
+  if (!alertToast.show) return;
+  const timer = setTimeout(() => {
+    setAlertToast({ show: false, message: "" });
+  }, 6000);
+  return () => clearTimeout(timer);
+}, [alertToast.show]);
+
+useEffect(() => {
   const map = mapRef.current;
   if (!map) return;
 
@@ -1320,6 +1365,7 @@ useEffect(() => {
         extraInfos: data.allgemein?.extraInfos || "",
         einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
         materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
+        proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
         nachkalkulation: {
           ...DEFAULT_NACHKALKULATION,
           ...(data.allgemein?.nachkalkulation || {}),
@@ -1375,6 +1421,7 @@ const normalizeAufmass = (data) => {
       extraInfos: data.allgemein?.extraInfos || "",
       einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
       materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
+      proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
       nachkalkulation: {
         ...DEFAULT_NACHKALKULATION,
         ...(data.allgemein?.nachkalkulation || {}),
@@ -1839,12 +1886,26 @@ const createProject = async () => {
     return matched;
   };
 
+  const getProformaSentTimestampFromAufmass = (project) => {
+    let parsedAufmass = project?.aufmass;
+    if (typeof parsedAufmass === 'string') {
+      try {
+        parsedAufmass = JSON.parse(parsedAufmass);
+      } catch (e) {
+        parsedAufmass = null;
+      }
+    }
+
+    const value = parsedAufmass?.allgemein?.proformaRechnungWeggeschicktAm;
+    return parseLogDateTime(value);
+  };
+
   const proformaFilterFrom = normalizeDateForFilter(proformaDateFrom);
   const proformaFilterTo = normalizeDateForFilter(proformaDateTo);
 
   const proformaExportRows = projects
     .map((p) => {
-      const proformaSetAt = getProformaSetTimestamp(p);
+      const proformaSetAt = getProformaSentTimestampFromAufmass(p) || getProformaSetTimestamp(p);
       const proformaDate = proformaSetAt && !Number.isNaN(proformaSetAt.getTime())
         ? proformaSetAt.toISOString().slice(0, 10)
         : "";
@@ -1899,6 +1960,42 @@ const createProject = async () => {
     setToast(`✅ Proforma-Export erstellt (${rows.length} Projekte)`);
     setTimeout(() => setToast(null), 2200);
   };
+
+  useEffect(() => {
+    localStorage.setItem('proforma_reminder_days', String(proformaReminderDays));
+  }, [proformaReminderDays]);
+
+  const proformaReminderSignatureRef = React.useRef("");
+
+  useEffect(() => {
+    if (!Array.isArray(projects) || projects.length === 0) return;
+    if (!(Number(proformaReminderDays) > 0)) return;
+
+    const nowMs = Date.now();
+    const msThreshold = Number(proformaReminderDays) * 24 * 60 * 60 * 1000;
+
+    const overdueItems = projects
+      .filter((p) => isProformaStatus(p?.status))
+      .map((p) => ({
+        id: p.id,
+        name: p.name || "Unbenannt",
+        sentAt: getProformaSentTimestampFromAufmass(p)
+      }))
+      .filter((item) => item.sentAt && (nowMs - item.sentAt.getTime()) >= msThreshold);
+
+    if (overdueItems.length === 0) return;
+
+    const signature = overdueItems.map((i) => `${i.id}:${i.sentAt?.getTime() || 0}`).sort().join('|');
+    if (signature === proformaReminderSignatureRef.current) return;
+    proformaReminderSignatureRef.current = signature;
+
+    const firstName = overdueItems[0]?.name || "Projekt";
+    const baseMsg = overdueItems.length === 1
+      ? `⏰ Erinnerung: Proforma bei "${firstName}" seit ${proformaReminderDays} Tagen offen.`
+      : `⏰ Erinnerung: ${overdueItems.length} Proforma-Rechnungen sind seit mindestens ${proformaReminderDays} Tagen offen.`;
+
+    setAlertToast({ show: true, message: baseMsg });
+  }, [projects, proformaReminderDays]);
 
   const exportAnalyticsToExcel = () => {
     if (analyticsRows.length === 0) {
@@ -2464,7 +2561,7 @@ const createProject = async () => {
                 <label>Status</label>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999", flexShrink: 0 }} />
-                  <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <select value={form.status} onChange={(e) => handleStatusChange(e.target.value)}>
                     <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Abgerechnet</option>
                   </select>
                 </div>
@@ -2893,6 +2990,30 @@ const createProject = async () => {
           <button
             type="button"
             onClick={() => updateAufmassAllgemein('materialbuchungErfolgtAm', getTodayDateString())}
+            style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
+          >
+            Heute
+          </button>
+        </div>
+      </div>
+
+      <div className="aufmass-flex-center" style={{ gap: '6px' }}>
+        <span className="aufmass-section-title">🧾 Proforma Rechnung weggeschickt:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={10}
+            className="mast-input-base"
+            placeholder="dd.mm.yyyy"
+            style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '104px', fontSize: '12px' }}
+            value={normalizeDateValue(form.aufmass?.allgemein?.proformaRechnungWeggeschicktAm || "")}
+            onChange={(e) => updateAufmassAllgemein('proformaRechnungWeggeschicktAm', e.target.value)}
+            onBlur={(e) => updateAufmassAllgemein('proformaRechnungWeggeschicktAm', normalizeDateValue(e.target.value))}
+          />
+          <button
+            type="button"
+            onClick={() => updateAufmassAllgemein('proformaRechnungWeggeschicktAm', getTodayDateString())}
             style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
           >
             Heute
@@ -4126,6 +4247,21 @@ const createProject = async () => {
                   value={normalizeDateValue(settingsDateTo)}
                   onChange={(e) => setSettingsDateTo(e.target.value)}
                   onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Proforma-Erinnerung (Tage)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={proformaReminderDays}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setProformaReminderDays(Number.isFinite(val) && val > 0 ? Math.round(val) : 1);
+                  }}
                   className="mast-input-base"
                   style={{ width: '100%', marginTop: '4px' }}
                 />
