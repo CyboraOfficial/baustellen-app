@@ -2564,7 +2564,7 @@ const createProject = async () => {
           if (num(m.netzanschlussBis1m) > 0) { dataMueller.netz1.total += num(m.netzanschlussBis1m); dataMueller.netz1.items.push({ id: mastId, val: num(m.netzanschlussBis1m) }); }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ id: mastId, val: num(m.kabelAnAbklemmenAnzahl) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ id: mastId, val: num(m.netzanschlussDemoAnzahl) }); }
-          const muffenSum = num(m.muffenMontierenUeber1m) + num(m.muffenMontierenTausch) + num(m.muffenDemoTausch) + num(m.muffenMontierenDemo) + num(m.muffenDemoDemo);
+          const muffenSum = num(m.muffenMontierenUeber1m) + num(m.muffenMontierenTausch) + num(m.muffenDemoTausch) + num(m.muffenMontierenDemo);
           if (muffenSum > 0) { dataMueller.muffen.total += muffenSum; dataMueller.muffen.items.push({ id: mastId, val: muffenSum }); }
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ id: mastId, val: num(m.muffenDemo) }); }
         });
