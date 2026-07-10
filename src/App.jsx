@@ -258,9 +258,12 @@ const [loginEmail, setLoginEmail] = useState("");
 const [loginPass, setLoginPass] = useState("");
 
 const updateMast = (index, field, value) => {
-  const newMasten = [...form.masten];
-  newMasten[index][field] = value;
-  setForm({ ...form, masten: newMasten });
+  setForm(prev => {
+    const newMasten = [...(prev.masten || [])];
+    if (!newMasten[index]) return prev;
+    newMasten[index] = { ...newMasten[index], [field]: value };
+    return { ...prev, masten: newMasten };
+  });
 };
 
 const [aufmassRefreshKey, setAufmassRefreshKey] = React.useState(0);
@@ -316,50 +319,64 @@ const resetAufmassVonMasten = () => {
 };
 
 const addLeuchte = (mastIndex) => {
-  const newMasten = [...form.masten];
-  // Falls das Array noch nicht existiert, erstellen
-  if (!newMasten[mastIndex].leuchten) {
-    newMasten[mastIndex].leuchten = [];
-  }
-  newMasten[mastIndex].leuchten.push({ typ: "", lumen: 0, grad: 0, anzahl: 1 });
-  setForm({ ...form, masten: newMasten });
+  setForm(prev => {
+    const newMasten = [...(prev.masten || [])];
+    if (!newMasten[mastIndex]) return prev;
+    if (!newMasten[mastIndex].leuchten) {
+      newMasten[mastIndex].leuchten = [];
+    }
+    newMasten[mastIndex].leuchten = [...newMasten[mastIndex].leuchten, { typ: "", lumen: 0, grad: 0, anzahl: 1 }];
+    return { ...prev, masten: newMasten };
+  });
 };
 
 const updateLeuchte = (mastIndex, leuchtenIndex, field, value) => {
-  const newMasten = [...form.masten];
-  newMasten[mastIndex].leuchten[leuchtenIndex][field] = value;
-  
-  // Automatisches Lumen-Update (deine Logik)
-  if (field === 'typ') {
-    if (value === "Trilux Cuvia") newMasten[mastIndex].leuchten[leuchtenIndex].lumen = 2600;
-    if (value === "Trilux 9701") newMasten[mastIndex].leuchten[leuchtenIndex].lumen = 4600;
-    if (value === "Trilux 9821") newMasten[mastIndex].leuchten[leuchtenIndex].lumen = 2600;
-  }
-  
-  setForm({ ...form, masten: newMasten });
+  setForm(prev => {
+    const newMasten = [...(prev.masten || [])];
+    if (!newMasten[mastIndex]?.leuchten?.[leuchtenIndex]) return prev;
+
+    const newLeuchten = [...newMasten[mastIndex].leuchten];
+    newLeuchten[leuchtenIndex] = { ...newLeuchten[leuchtenIndex], [field]: value };
+
+    // Automatisches Lumen-Update (deine Logik)
+    if (field === 'typ') {
+      if (value === "Trilux Cuvia") newLeuchten[leuchtenIndex].lumen = 2600;
+      if (value === "Trilux 9701") newLeuchten[leuchtenIndex].lumen = 4600;
+      if (value === "Trilux 9821") newLeuchten[leuchtenIndex].lumen = 2600;
+    }
+
+    newMasten[mastIndex] = { ...newMasten[mastIndex], leuchten: newLeuchten };
+    return { ...prev, masten: newMasten };
+  });
 };
 
 const removeLeuchte = (mastIndex, leuchtenIndex) => {
-  const newMasten = [...form.masten];
-  newMasten[mastIndex].leuchten.splice(leuchtenIndex, 1);
-  setForm({ ...form, masten: newMasten });
+  setForm(prev => {
+    const newMasten = [...(prev.masten || [])];
+    if (!newMasten[mastIndex]?.leuchten) return prev;
+    const newLeuchten = [...newMasten[mastIndex].leuchten];
+    newLeuchten.splice(leuchtenIndex, 1);
+    newMasten[mastIndex] = { ...newMasten[mastIndex], leuchten: newLeuchten };
+    return { ...prev, masten: newMasten };
+  });
 };
 
 const batchAddMasten = (anzahl, standardLPH, standardTyp, leuchtenTyp) => {
-  const neueMasten = [];
-  for (let i = 0; i < anzahl; i++) {
-    neueMasten.push({
-      id: "", 
-      lph: standardLPH, 
-      typ: standardTyp, 
-      form: "gerade", 
-      // Direkt mit Standard-Leuchte vorbefüllen
-      leuchten: leuchtenTyp ? [{ typ: leuchtenTyp, lumen: 2600, anzahl: 1 }] : [], 
-      fotos: [], 
-      plaene: [] 
-    });
-  }
-  setForm({ ...form, masten: [...form.masten, ...neueMasten] });
+  setForm(prev => {
+    const neueMasten = [];
+    for (let i = 0; i < anzahl; i++) {
+      neueMasten.push({
+        id: "",
+        lph: standardLPH,
+        typ: standardTyp,
+        form: "gerade",
+        leuchten: leuchtenTyp ? [{ typ: leuchtenTyp, lumen: 2600, anzahl: 1 }] : [],
+        fotos: [],
+        plaene: []
+      });
+    }
+    return { ...prev, masten: [...(prev.masten || []), ...neueMasten] };
+  });
 };
 
 // Eine Funktion zum Einloggen
@@ -907,44 +924,33 @@ useEffect(() => {
   const leuchtenChanged = JSON.stringify(form.leuchten) !== JSON.stringify(dbLeuchten);
 
   // 3. 🔥 INTELLIGENTER AUFMAẞ-VERGLEICH (Immun gegen PocketBase-Key-Reihenfolge)
-  const dbAufmass = parseSafe(originalProject.aufmass, {});
-  const stateMasts = form.aufmass?.masten || [];
-  const dbMasts = dbAufmass.masten || [];
-
-  let aufmassChanged = false;
-
-  // Wenn die Anzahl der Masten ungleich ist, gab es eine Änderung
-  if (stateMasts.length !== dbMasts.length) {
-    aufmassChanged = true;
-  } else {
-    // Wir vergleichen NUR die echten Input-Werte der Masten, völlig egal in welcher Reihenfolge sie im Objekt liegen!
-    const keysToCompare = [
-      'aufmassKabel', 'aufmassMuffen', 'handarbeitStd', 'aufmassNotiz',
-      'montageTyp', 'demontageTyp', 'tauschDemoTyp', 'tauschMontageTyp',
-      'oberflaeche', 'oberflaecheX', 'oberflaecheY', 'aktion', 'lichtpunkthoehe'
-    ];
-
-    for (let i = 0; i < stateMasts.length; i++) {
-      const sm = stateMasts[i];
-      const dm = dbMasts[i];
-      if (!sm || !dm) { aufmassChanged = true; break; }
-      
-      const fieldsMatch = keysToCompare.every(k => String(sm[k] || "") === String(dm[k] || ""));
-      if (!fieldsMatch) {
-        aufmassChanged = true;
-        break;
-      }
+  const normalizeAufmass = (data) => {
+    if (Array.isArray(data)) {
+      return { allgemein: { transport: "", extraInfos: "" }, masten: data };
     }
 
-    // Transportfelder prüfen
-    if (String(form.aufmass?.allgemein?.transport || "") !== String(dbAufmass.allgemein?.transport || "")) aufmassChanged = true;
-    if (String(form.aufmass?.allgemein?.extraInfos || "") !== String(dbAufmass.allgemein?.extraInfos || "")) aufmassChanged = true;
-  }
+    if (!data || typeof data !== 'object') {
+      return { allgemein: { transport: "", extraInfos: "" }, masten: [] };
+    }
+
+    return {
+      allgemein: {
+        transport: data.allgemein?.transport || "",
+        extraInfos: data.allgemein?.extraInfos || ""
+      },
+      masten: Array.isArray(data.masten) ? data.masten : []
+    };
+  };
+
+  const dbAufmass = normalizeAufmass(originalProject.aufmass);
+  const stateAufmass = normalizeAufmass(form.aufmass);
+  const aufmassChanged = JSON.stringify(stateAufmass) !== JSON.stringify(dbAufmass);
 
   // Gesamtergebnis ermitteln
   const hasChanges = hasFieldChanges || mastenChanged || leuchtenChanged || aufmassChanged;
+  const currentSnapshot = getFormSnapshot(form);
 
-  if (hasChanges) {
+  if (hasChanges && currentSnapshot !== lastSavedSnapshotRef.current && !isSavingRef.current) {
     const timer = setTimeout(() => {
       saveAction();
     }, 3000); // Wartet 3 Sekunden nach dem letzten Tastendruck
@@ -954,10 +960,40 @@ useEffect(() => {
 }, [form, originalProject, mode]);
 
 const [isSaving, setIsSaving] = useState(false);
+const isSavingRef = useRef(false);
+const lastSavedSnapshotRef = useRef("");
+
+const getFormSnapshot = (currentForm = form) => JSON.stringify({
+  ...currentForm,
+  masten: currentForm.masten || [],
+  leuchten: currentForm.leuchten || [],
+  aufmass: currentForm.aufmass || { allgemein: { transport: "", extraInfos: "" }, masten: [] },
+  log: currentForm.log || []
+});
+
+const normalizeAufmass = (data) => {
+  if (Array.isArray(data)) {
+    return { allgemein: { transport: "", extraInfos: "" }, masten: data };
+  }
+
+  if (!data || typeof data !== 'object') {
+    return { allgemein: { transport: "", extraInfos: "" }, masten: [] };
+  }
+
+  return {
+    allgemein: {
+      transport: data.allgemein?.transport || "",
+      extraInfos: data.allgemein?.extraInfos || ""
+    },
+    masten: Array.isArray(data.masten) ? data.masten : []
+  };
+};
+
   // --- AUTOSAVE EFFEKT ---
 const saveAction = async () => {
   // 1. Guard: Verhindere mehrfache Ausführung & Abbruchbedingungen
-  if (isSaving || !selectedProject?.id || mode !== "detail") return;
+  if (isSavingRef.current || !selectedProject?.id || mode !== "detail") return;
+  isSavingRef.current = true;
   setIsSaving(true);
 
   try {
@@ -985,7 +1021,7 @@ const saveAction = async () => {
 
     const mastenChanged = isDifferent(form.masten, originalProject.masten);
     const leuchtenChanged = isDifferent(form.leuchten, originalProject.leuchten);
-    const aufmassChanged = isDifferent(form.aufmass, originalProject.aufmass);
+    const aufmassChanged = JSON.stringify(normalizeAufmass(form.aufmass)) !== JSON.stringify(normalizeAufmass(originalProject.aufmass));
 
     if (mastenChanged) newLogEntries.push({ date: now, user: currentUser, action: "Masten aktualisiert" });
     if (leuchtenChanged) newLogEntries.push({ date: now, user: currentUser, action: "Leuchten aktualisiert" });
@@ -1001,7 +1037,7 @@ const saveAction = async () => {
     const payload = {
       ...form, // Vorsicht: Wenn form zu groß, hier explizit die Felder auflisten!
       log: [...(form.log || []), ...newLogEntries],
-      aufmass: form.aufmass
+      aufmass: normalizeAufmass(form.aufmass)
     };
 
     // Unnötige System-Felder entfernen
@@ -1015,6 +1051,13 @@ const saveAction = async () => {
     // Wir nehmen den updatedRecord DIREKT aus der DB für unser originalProject.
     // KEIN Mapping, KEINE Berechnungen, KEINE Defaults hier einfügen!
     setOriginalProject(updatedRecord);
+    lastSavedSnapshotRef.current = getFormSnapshot({
+      ...form,
+      log: updatedRecord.log,
+      masten: form.masten || [],
+      leuchten: form.leuchten || [],
+      aufmass: normalizeAufmass(form.aufmass)
+    });
 
     // Form Update (Logbuch aktualisieren, UI-Zustand beibehalten)
     setForm(prev => ({
@@ -1033,6 +1076,7 @@ const saveAction = async () => {
     console.error("Speicherfehler:", err);
     setToast("❌ Fehler beim Speichern");
   } finally {
+    isSavingRef.current = false;
     setIsSaving(false);
   }
 };
@@ -1787,7 +1831,7 @@ const createProject = async () => {
         leuchten: batchAktion !== "Demontage" ? [{ typ: selectedLeuchte, lumen: document.getElementById('batch-lumen-neu').value }] : []
       }));
       
-      setForm({ ...form, masten: [...(form.masten || []), ...neueMasten] });
+      setForm(prev => ({ ...prev, masten: [...(prev.masten || []), ...neueMasten] }));
     }}
   >
     + Hinzufügen
@@ -1818,7 +1862,7 @@ const createProject = async () => {
                     <div className="mast-header">
                       <div className="field-group">
                         <span className="field-label">MAST</span>
-                        <div className="mast-num-badge">{displayNum || `Mast ${i + 1}`}</div>
+                        <div className="mast-num-badge">{displayNum || `Mast ${originalIndex + 1}`}</div>
                       </div>
 
                       <div className="field-group">
@@ -1839,7 +1883,7 @@ const createProject = async () => {
                         <button style={{ background: '#ef4444' }} onClick={() => {
                           const n = [...form.masten];
                           n.splice(originalIndex, 1);
-                          setForm({ ...form, masten: n });
+                          setForm(prev => ({ ...prev, masten: n }));
                         }}>
                           🗑️
                         </button>
@@ -1853,14 +1897,14 @@ const createProject = async () => {
                     <div style={{display: 'flex', gap: '15px'}}>
                       <div className="field-group" style={{flex: 1}}>
                         <span className="field-label">Alter Masttyp</span>
-                        <select className="mast-input-base" style={{width: '100%'}} value={m.mastTypAlt} onChange={(e) => updateMast(i, 'mastTypAlt', e.target.value)}>
+                        <select className="mast-input-base" style={{width: '100%'}} value={m.mastTypAlt} onChange={(e) => updateMast(originalIndex, 'mastTypAlt', e.target.value)}>
                           <option value="Gerade">Gerade</option>
                           <option value="Gebogen">Gebogen</option>
                         </select>
                       </div>
                       <div className="field-group">
                         <span className="field-label">LPH Alt</span>
-                        <input className="mast-input-base" style={{width: '70px'}} value={m.lphAlt} onChange={(e) => updateMast(i, 'lphAlt', e.target.value)} />
+                        <input className="mast-input-base" style={{width: '70px'}} value={m.lphAlt} onChange={(e) => updateMast(originalIndex, 'lphAlt', e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -1876,7 +1920,7 @@ const createProject = async () => {
                 <select 
                   className="mast-input-base" 
                   value={m.mastTypNeu} 
-                  onChange={(e) => updateMast(i, 'mastTypNeu', e.target.value)}
+                  onChange={(e) => updateMast(originalIndex, 'mastTypNeu', e.target.value)}
                 >
                   <option value="Gerade">Gerade</option>
                   <option value="Gebogen">Gebogen</option>
@@ -1897,7 +1941,7 @@ const createProject = async () => {
                       nl[0].typ = val;
                       if (LEUCHTEN_DATA[val]) nl[0].lumen = LEUCHTEN_DATA[val];
                     }
-                    updateMast(i, 'leuchten', nl);
+                    updateMast(originalIndex, 'leuchten', nl);
                   }}
                 >
                   <option value="">Wählen...</option>
@@ -1915,7 +1959,7 @@ const createProject = async () => {
                     onChange={(e) => {
                       const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
                       nl[0].typ = e.target.value;
-                      updateMast(i, 'leuchten', nl);
+                      updateMast(originalIndex, 'leuchten', nl);
                     }}
                   />
                 )}
@@ -1926,7 +1970,7 @@ const createProject = async () => {
                   className="mast-input-base" 
                   style={{width: '60px'}} 
                   value={m.lphNeu} 
-                  onChange={(e) => updateMast(i, 'lphNeu', e.target.value)} 
+                  onChange={(e) => updateMast(originalIndex, 'lphNeu', e.target.value)} 
                 />
               </div>
                       <div className="field-group">
@@ -1938,7 +1982,7 @@ const createProject = async () => {
                   onChange={(e) => {
                     const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }]; 
                     nl[0].lumen = e.target.value; 
-                    updateMast(i, 'leuchten', nl);
+                    updateMast(originalIndex, 'leuchten', nl);
                   }} 
                 />
               </div>
