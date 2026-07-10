@@ -1,7 +1,7 @@
 {
   "name": "baustellen-app",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "App zur Verwaltung von Baustellen",
   "author": "CyboraOfficial",
   "main": "electron/main.js",
