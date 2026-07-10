@@ -290,7 +290,7 @@ const generiereAufmassDaten = (masten) => {
       demontageTyp: m.demontageTyp || "Fundament",
       tauschDemoTyp: m.tauschDemoTyp || "Fundament",
       tauschMontageTyp: m.tauschMontageTyp || "Fundament",
-      oberflaeche: m.oberflaeche || "Platten",
+      oberflaeche: m.oberflaeche || "Grass",
       oberflaecheX: "",
       oberflaecheY: "",
       mastTypAlt: m.mastTypAlt || "",
@@ -1811,7 +1811,7 @@ const createProject = async () => {
 
       <div className="field-group">
         <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
-        <input id="batch-lph-neu" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+        <input id="batch-lph-neu" defaultValue="6" className="mast-input-base" style={{width: '50px'}} />
       </div>
       <div className="field-group">
         <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
@@ -2230,7 +2230,7 @@ const createProject = async () => {
                 <div className="aufmass-flex-center">
                   <span style={{ color: '#38bdf8', fontWeight: '500' }}>🪵 Oberfläche:</span>
                   <select className="mast-input-base" style={{ padding: '2px 4px', height: '24px', width: '120px', borderRadius: '4px' }} value={m.oberflaeche || "Grass"} onChange={(e) => updateAufmass(i, 'oberflaeche', e.target.value)}>
-                    <option value="Grass">Grass / Acker</option>
+                    <option value="Grass">Gras / Acker</option>
                     <option value="Platten">Platten / Pflaster</option>
                     <option value="Asphalt">Asphalt / Bitum</option>
                   </select>
@@ -2469,8 +2469,11 @@ const createProject = async () => {
         surfaces: {},
         linear: {},
         kabel: { title: "Kabel An-/Abklemmen (Stk)", total: 0, items: [] },
-        muffen: { title: "Muffen montieren (Stk)", total: 0, items: [] },
-        muffenDemo: { title: "Muffen demontieren (Stk)", total: 0, items: [] },
+        muffenMontierenUeber1m: { title: "Muffen montieren ANS(Stk)", total: 0, items: [] },
+        muffenMontierenTausch: { title: "Muffen montieren ÄND(Stk)", total: 0, items: [] },
+        muffenMontierenDemo: { title: "Muffen montieren ABR(Stk)", total: 0, items: [] },
+        muffenDemo: { title: "Muffen demontieren ABR(Stk)", total: 0, items: [] },
+        muffenDemoTausch: { title: "Muffen demontieren ÄND(Stk)", total: 0, items: [] },
         netz1: { title: "Netzanschluss bis 1m", total: 0, items: [] },
         netz2: { title: "Netzanschluss über 1m", total: 0, items: [] },
         netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
@@ -2564,9 +2567,11 @@ const createProject = async () => {
           if (num(m.netzanschlussBis1m) > 0) { dataMueller.netz1.total += num(m.netzanschlussBis1m); dataMueller.netz1.items.push({ id: mastId, val: num(m.netzanschlussBis1m) }); }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ id: mastId, val: num(m.kabelAnAbklemmenAnzahl) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ id: mastId, val: num(m.netzanschlussDemoAnzahl) }); }
-          const muffenSum = num(m.muffenMontierenUeber1m) + num(m.muffenMontierenTausch) + num(m.muffenDemoTausch) + num(m.muffenMontierenDemo);
-          if (muffenSum > 0) { dataMueller.muffen.total += muffenSum; dataMueller.muffen.items.push({ id: mastId, val: muffenSum }); }
+          if (num(m.muffenMontierenUeber1m) > 0) { dataMueller.muffenMontierenUeber1m.total += num(m.muffenMontierenUeber1m); dataMueller.muffenMontierenUeber1m.items.push({ id: mastId, val: num(m.muffenMontierenUeber1m) }); }
+          if (num(m.muffenMontierenTausch) > 0) { dataMueller.muffenMontierenTausch.total += num(m.muffenMontierenTausch); dataMueller.muffenMontierenTausch.items.push({ id: mastId, val: num(m.muffenMontierenTausch) }); }
+          if (num(m.muffenMontierenDemo) > 0) { dataMueller.muffenMontierenDemo.total += num(m.muffenMontierenDemo); dataMueller.muffenMontierenDemo.items.push({ id: mastId, val: num(m.muffenMontierenDemo) }); }
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ id: mastId, val: num(m.muffenDemo) }); }
+          if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ id: mastId, val: num(m.muffenDemoTausch) }); }
         });
       }
       
@@ -2590,8 +2595,11 @@ const createProject = async () => {
           ...(dataObj.netz1.total > 0 ? [dataObj.netz1] : []),
           ...(dataObj.netz2.total > 0 ? [dataObj.netz2] : []),
           ...(dataObj.kabel.total > 0 ? [dataObj.kabel] : []),
-          ...(dataObj.muffen.total > 0 ? [dataObj.muffen] : []),
+          ...(dataObj.muffenMontierenUeber1m.total > 0 ? [dataObj.muffenMontierenUeber1m] : []),
+          ...(dataObj.muffenMontierenTausch.total > 0 ? [dataObj.muffenMontierenTausch] : []),
+          ...(dataObj.muffenMontierenDemo.total > 0 ? [dataObj.muffenMontierenDemo] : []),
           ...(dataObj.muffenDemo.total > 0 ? [dataObj.muffenDemo] : []),
+          ...(dataObj.muffenDemoTausch.total > 0 ? [dataObj.muffenDemoTausch] : []),
           ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
           ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : []),
           ...(dataObj.transport.total > 0 ? [dataObj.transport] : [])
