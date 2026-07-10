@@ -352,6 +352,7 @@ export default function App() {
   const [isSatellite, setIsSatellite] = useState(false);
 
   const [projects, setProjects] = useState([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [mode, setMode] = useState("list");
   const [activeTab, setActiveTab] = useState("Allgemein");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -753,6 +754,8 @@ Weitere Infos: ${form.notes || ""}
   } catch (error) {
     console.error("Fehler beim Laden:", error);
     setToast("Serververbindung fehlgeschlagen");
+  } finally {
+    setProjectsLoaded(true);
   }
 };
 
@@ -1965,11 +1968,14 @@ const createProject = async () => {
     localStorage.setItem('proforma_reminder_days', String(proformaReminderDays));
   }, [proformaReminderDays]);
 
-  const proformaReminderSignatureRef = React.useRef("");
+  const proformaReminderCheckedRef = React.useRef(false);
 
   useEffect(() => {
-    if (!Array.isArray(projects) || projects.length === 0) return;
+    if (!projectsLoaded) return;
+    if (proformaReminderCheckedRef.current) return;
     if (!(Number(proformaReminderDays) > 0)) return;
+
+    proformaReminderCheckedRef.current = true;
 
     const nowMs = Date.now();
     const msThreshold = Number(proformaReminderDays) * 24 * 60 * 60 * 1000;
@@ -1985,17 +1991,13 @@ const createProject = async () => {
 
     if (overdueItems.length === 0) return;
 
-    const signature = overdueItems.map((i) => `${i.id}:${i.sentAt?.getTime() || 0}`).sort().join('|');
-    if (signature === proformaReminderSignatureRef.current) return;
-    proformaReminderSignatureRef.current = signature;
-
     const firstName = overdueItems[0]?.name || "Projekt";
     const baseMsg = overdueItems.length === 1
       ? `⏰ Erinnerung: Proforma bei "${firstName}" seit ${proformaReminderDays} Tagen offen.`
       : `⏰ Erinnerung: ${overdueItems.length} Proforma-Rechnungen sind seit mindestens ${proformaReminderDays} Tagen offen.`;
 
     setAlertToast({ show: true, message: baseMsg });
-  }, [projects, proformaReminderDays]);
+  }, [projectsLoaded, projects, proformaReminderDays]);
 
   const exportAnalyticsToExcel = () => {
     if (analyticsRows.length === 0) {
