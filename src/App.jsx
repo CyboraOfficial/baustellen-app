@@ -953,150 +953,87 @@ useEffect(() => {
   }
 }, [form, originalProject, mode]);
 
+const [isSaving, setIsSaving] = useState(false);
   // --- AUTOSAVE EFFEKT ---
 const saveAction = async () => {
-  if (!selectedProject?.id || mode !== "detail") return;
-
-  const currentUser = pb.authStore.model?.email || "Unbekannter User";
-  const now = new Date().toLocaleString('de-DE');
-  const newLogEntries = [];
-
-  const fields = [
-    { id: 'name', label: 'Name' },
-    { id: 'address', label: 'Adresse' },
-    { id: 'westnetz', label: 'Westnetz' },
-    { id: 'type', label: 'Typ' },
-    { id: 'status', label: 'Status' },
-    { id: 'pgk', label: 'PGK' },
-    { id: 'notes', label: 'Notizen' },
-    { id: 'ab_hsw', label: 'AB HSW' },
-    { id: 'ab_mueller', label: 'AB Müller' }
-  ];
-
-  fields.forEach(f => {
-    const oldVal = originalProject[f.id] || "";
-    const newVal = form[f.id] || "";
-    if (String(oldVal) !== String(newVal)) {
-      newLogEntries.push({
-        date: now,
-        user: currentUser,
-        action: `${f.label} geändert: "${oldVal}" ➔ "${newVal}"`
-      });
-    }
-  });
-
-  const parseSafe = (data, fallback) => {
-    if (!data) return fallback;
-    if (typeof data === 'object') return data;
-    try { return JSON.parse(data); } catch (e) { return fallback; }
-  };
-
-  const mastenChanged = JSON.stringify(form.masten) !== JSON.stringify(parseSafe(originalProject.masten, []));
-  const leuchtenChanged = JSON.stringify(form.leuchten) !== JSON.stringify(parseSafe(originalProject.leuchten, []));
-  
-  const oldAufmassObj = parseSafe(originalProject.aufmass, {});
-  const aufmassChanged = JSON.stringify(form.aufmass) !== JSON.stringify(oldAufmassObj);
-  
-  if (mastenChanged) newLogEntries.push({ date: now, user: currentUser, action: "Masten-Daten aktualisiert" });
-  if (leuchtenChanged) newLogEntries.push({ date: now, user: currentUser, action: "Leuchten-Daten aktualisiert" });
-  if (aufmassChanged) newLogEntries.push({ date: now, user: currentUser, action: "Aufmaß-Daten aktualisiert" });
-
-  if (newLogEntries.length === 0 && !mastenChanged && !leuchtenChanged && !aufmassChanged) {
-    console.log("Keine Änderungen erkannt.");
-    return;
-  }
-
-  // IN DEINER saveAction:
-  const updatedLog = [...(form.log || []), ...newLogEntries];
-  
-  const dataToSave = {
-    ...form,
-    log: updatedLog,
-    aufmass: form.aufmass // 🔥 ALS REINES OBJEKT SENDEN! Kein JSON.stringify hier!
-  };
-
-  delete dataToSave.files;
-  delete dataToSave.id;
-  delete dataToSave.created;
-  delete dataToSave.updated;
-  delete dataToSave.collectionId;
-  delete dataToSave.collectionName;
-  delete dataToSave.expand;
+  // 1. Guard: Verhindere mehrfache Ausführung & Abbruchbedingungen
+  if (isSaving || !selectedProject?.id || mode !== "detail") return;
+  setIsSaving(true);
 
   try {
-    const updatedRecord = await pb.collection('projects').update(selectedProject.id, dataToSave);
-    
-    setToast("✅ Änderungen gespeichert & geloggt");
+    const currentUser = pb.authStore.model?.email || "Unbekannter User";
+    const now = new Date().toLocaleString('de-DE');
+    const newLogEntries = [];
 
-    // 1. Wir parsen das Aufmaß, das VOM SERVER kommt, für das originalProject
-    const rawAufmass = parseSafe(updatedRecord.aufmass, null);
-    let aufmassMasten = [];
-    let allgemeinTransport = "";
-    let allgemeinExtraInfos = "";
+    // Vergleich der Basis-Felder
+    const fields = [
+      { id: 'name', label: 'Name' }, { id: 'address', label: 'Adresse' },
+      { id: 'westnetz', label: 'Westnetz' }, { id: 'type', label: 'Typ' },
+      { id: 'status', label: 'Status' }, { id: 'pgk', label: 'PGK' },
+      { id: 'notes', label: 'Notizen' }, { id: 'ab_hsw', label: 'AB HSW' },
+      { id: 'ab_mueller', label: 'AB Müller' }
+    ];
 
-    if (rawAufmass && typeof rawAufmass === 'object' && !Array.isArray(rawAufmass)) {
-      allgemeinTransport = rawAufmass.allgemein?.transport || "";
-      allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
-      
-      if (Array.isArray(rawAufmass.masten)) {
-        aufmassMasten = rawAufmass.masten.map(m => ({
-          ...m,
-          aktion: m.aktion || "Montage",
-          aufmassKabel: m.aufmassKabel || "",
-          aufmassMuffen: m.aufmassMuffen || "",
-          handarbeitStd: m.handarbeitStd || "",
-          aufmassNotiz: m.aufmassNotiz || "",
-          montageTyp: m.montageTyp || "Fundament",
-          demontageTyp: m.demontageTyp || "Fundament",
-          tauschDemoTyp: m.tauschDemoTyp || "Fundament",
-          tauschMontageTyp: m.tauschMontageTyp || "Fundament",
-          oberflaeche: m.oberflaeche || "Platten",
-          oberflaecheX: m.oberflaecheX || "",
-          oberflaecheY: m.oberflaecheY || ""
-        }));
+    fields.forEach(f => {
+      if (String(originalProject[f.id] || "") !== String(form[f.id] || "")) {
+        newLogEntries.push({ date: now, user: currentUser, action: `${f.label} geändert` });
       }
-    }
-
-    // Das ist der saubere DB-Stand für den Vergleich
-    const finalCleanObject = {
-      ...updatedRecord,
-      log: parseSafe(updatedRecord.log, []),
-      masten: parseSafe(updatedRecord.masten, []),
-      leuchten: parseSafe(updatedRecord.leuchten, []),
-      aufmass: {
-        allgemein: { transport: allgemeinTransport, extraInfos: allgemeinExtraInfos },
-        masten: aufmassMasten
-      }
-    };
-
-    // 🔥 SCHRITT A: Das Original-Projekt kriegt den sauberen Server-Stand für den nächsten Vergleich
-    setOriginalProject(finalCleanObject);
-
-    // 🔥 SCHRITT B: Der Form-State (deine Inputs!) wird NICHT blind überschrieben!
-    // Wir behalten dein aktuelles Aufmaß bei und updaten nur die Server-IDs und das Logbook!
-    setForm(prev => {
-      return {
-        ...prev,                  // Behalte deine aktuellen Eingaben (Masten bleiben sichtbar!)
-        log: parseSafe(updatedRecord.log, []), // Aktualisiere nur das neue Logbook vom Server
-        // Falls wir gezwungen sind, Felder zu synchronisieren, tun wir das, 
-        // aber wir fassen prev.aufmass hier NICHT an, damit deine Eingaben nicht gelöscht werden!
-        aufmass: prev.aufmass 
-      };
     });
 
-    // 3. Karten-Array aktualisieren
-    if (setProjects) {
-      setProjects(prevProjects => {
-        return prevProjects.map(p => p.id === updatedRecord.id ? updatedRecord : p);
-      });
+    // Helper für Deep-Comparison (verhindert Loop durch falsche Reihenfolge)
+    const isDifferent = (a, b) => JSON.stringify(a || {}) !== JSON.stringify(b || {});
+
+    const mastenChanged = isDifferent(form.masten, originalProject.masten);
+    const leuchtenChanged = isDifferent(form.leuchten, originalProject.leuchten);
+    const aufmassChanged = isDifferent(form.aufmass, originalProject.aufmass);
+
+    if (mastenChanged) newLogEntries.push({ date: now, user: currentUser, action: "Masten aktualisiert" });
+    if (leuchtenChanged) newLogEntries.push({ date: now, user: currentUser, action: "Leuchten aktualisiert" });
+    if (aufmassChanged) newLogEntries.push({ date: now, user: currentUser, action: "Aufmaß aktualisiert" });
+
+    // Wenn wirklich gar nichts geändert wurde: Abbruch
+    if (newLogEntries.length === 0) {
+      setIsSaving(false);
+      return;
     }
 
-    setTimeout(() => setToast(null), 2500);
-    console.log("Änderungen erfolgreich gespeichert und geloggt");
+    // Payload erstellen (nur was in DB soll)
+    const payload = {
+      ...form, // Vorsicht: Wenn form zu groß, hier explizit die Felder auflisten!
+      log: [...(form.log || []), ...newLogEntries],
+      aufmass: form.aufmass
+    };
+
+    // Unnötige System-Felder entfernen
+    delete payload.id; delete payload.created; delete payload.updated;
+    delete payload.collectionId; delete payload.collectionName; delete payload.expand;
+
+    // API Call
+    const updatedRecord = await pb.collection('projects').update(selectedProject.id, payload);
+
+    // ✅ JETZT DER WICHTIGE TEIL:
+    // Wir nehmen den updatedRecord DIREKT aus der DB für unser originalProject.
+    // KEIN Mapping, KEINE Berechnungen, KEINE Defaults hier einfügen!
+    setOriginalProject(updatedRecord);
+
+    // Form Update (Logbuch aktualisieren, UI-Zustand beibehalten)
+    setForm(prev => ({
+      ...prev,
+      log: updatedRecord.log
+    }));
+
+    if (setProjects) {
+      setProjects(prev => prev.map(p => p.id === updatedRecord.id ? updatedRecord : p));
+    }
+
+    setToast("✅ Gespeichert");
+    setTimeout(() => setToast(null), 1500);
+
   } catch (err) {
-    console.error("Detaillierter Speicherfehler:", err);
-    setToast("❌ Fehler: " + (err.message || "Serverfehler"));
-    setTimeout(() => setToast(null), 4000);
+    console.error("Speicherfehler:", err);
+    setToast("❌ Fehler beim Speichern");
+  } finally {
+    setIsSaving(false);
   }
 };
 
