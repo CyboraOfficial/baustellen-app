@@ -157,7 +157,8 @@ const STATUS_COLORS = {
 const DEFAULT_NACHKALKULATION = {
   stunden: "",
   gesamtHsw: "",
-  gesamtMueller: ""
+  gesamtMueller: "",
+  subKosten: ""
 };
 
 const DEFAULT_AUFMASS_ALLGEMEIN = {
@@ -1056,7 +1057,8 @@ const openProject = (p) => {
         ...DEFAULT_NACHKALKULATION,
         ...(rawAufmass.allgemein?.nachkalkulation || {}),
         gesamtHsw: rawAufmass.allgemein?.nachkalkulation?.gesamtHsw || rawAufmass.allgemein?.nachkalkulation?.summeHsw || rawAufmass.allgemein?.summeHsw || "",
-        gesamtMueller: rawAufmass.allgemein?.nachkalkulation?.gesamtMueller || rawAufmass.allgemein?.nachkalkulation?.summeMueller || rawAufmass.allgemein?.summeMueller || ""
+        gesamtMueller: rawAufmass.allgemein?.nachkalkulation?.gesamtMueller || rawAufmass.allgemein?.nachkalkulation?.summeMueller || rawAufmass.allgemein?.summeMueller || "",
+        subKosten: rawAufmass.allgemein?.nachkalkulation?.subKosten || rawAufmass.allgemein?.nachkalkulation?.fremdkosten || rawAufmass.allgemein?.subKosten || rawAufmass.allgemein?.fremdkosten || ""
       };
     }
   }
@@ -1377,7 +1379,8 @@ useEffect(() => {
           ...DEFAULT_NACHKALKULATION,
           ...(data.allgemein?.nachkalkulation || {}),
           gesamtHsw: data.allgemein?.nachkalkulation?.gesamtHsw || data.allgemein?.nachkalkulation?.summeHsw || data.allgemein?.summeHsw || "",
-          gesamtMueller: data.allgemein?.nachkalkulation?.gesamtMueller || data.allgemein?.nachkalkulation?.summeMueller || data.allgemein?.summeMueller || ""
+          gesamtMueller: data.allgemein?.nachkalkulation?.gesamtMueller || data.allgemein?.nachkalkulation?.summeMueller || data.allgemein?.summeMueller || "",
+          subKosten: data.allgemein?.nachkalkulation?.subKosten || data.allgemein?.nachkalkulation?.fremdkosten || data.allgemein?.subKosten || data.allgemein?.fremdkosten || ""
         }
       },
       masten: Array.isArray(data.masten) ? data.masten : []
@@ -1433,7 +1436,8 @@ const normalizeAufmass = (data) => {
         ...DEFAULT_NACHKALKULATION,
         ...(data.allgemein?.nachkalkulation || {}),
         gesamtHsw: data.allgemein?.nachkalkulation?.gesamtHsw || data.allgemein?.nachkalkulation?.summeHsw || data.allgemein?.summeHsw || "",
-        gesamtMueller: data.allgemein?.nachkalkulation?.gesamtMueller || data.allgemein?.nachkalkulation?.summeMueller || data.allgemein?.summeMueller || ""
+        gesamtMueller: data.allgemein?.nachkalkulation?.gesamtMueller || data.allgemein?.nachkalkulation?.summeMueller || data.allgemein?.summeMueller || "",
+        subKosten: data.allgemein?.nachkalkulation?.subKosten || data.allgemein?.nachkalkulation?.fremdkosten || data.allgemein?.subKosten || data.allgemein?.fremdkosten || ""
       }
     },
     masten: Array.isArray(data.masten) ? data.masten : []
@@ -1676,7 +1680,9 @@ const createProject = async () => {
   const nachkalkStunden = parseNumberInput(nachkalkulation.stunden);
   const nachkalkGesamtHsw = parseNumberInput(nachkalkulation.gesamtHsw);
   const nachkalkGesamtMueller = parseNumberInput(nachkalkulation.gesamtMueller);
-  const nachkalkGesamt = nachkalkGesamtHsw + nachkalkGesamtMueller;
+  const nachkalkSubKosten = parseNumberInput(nachkalkulation.subKosten);
+  const nachkalkGesamtBrutto = nachkalkGesamtHsw + nachkalkGesamtMueller;
+  const nachkalkGesamt = nachkalkGesamtBrutto - nachkalkSubKosten;
   const stundenlohnKombiniert = nachkalkStunden > 0 ? nachkalkGesamt / nachkalkStunden : 0;
   const stundenlohnDiffMin = stundenlohnKombiniert - MIN_HOURLY_RATE;
   const stundenlohnDiffNormal = stundenlohnKombiniert - NORMAL_HOURLY_RATE;
@@ -1734,17 +1740,19 @@ const createProject = async () => {
 
     if (Array.isArray(parsed)) {
       const actionCounts = countMastActions(parsed);
-      return { stunden: 0, gesamtHsw: 0, gesamtMueller: 0, gesamt: 0, hourlyRate: 0, ...actionCounts };
+      return { stunden: 0, gesamtHsw: 0, gesamtMueller: 0, subKosten: 0, gesamtBrutto: 0, gesamt: 0, hourlyRate: 0, ...actionCounts };
     }
 
     const nachkalk = parsed?.allgemein?.nachkalkulation || {};
     const stunden = parseNumberInput(nachkalk.stunden);
     const sumHsw = parseNumberInput(nachkalk.gesamtHsw || nachkalk.summeHsw || parsed?.allgemein?.summeHsw);
     const sumMueller = parseNumberInput(nachkalk.gesamtMueller || nachkalk.summeMueller || parsed?.allgemein?.summeMueller);
-    const gesamt = sumHsw + sumMueller;
+    const subKosten = parseNumberInput(nachkalk.subKosten || nachkalk.fremdkosten || parsed?.allgemein?.subKosten || parsed?.allgemein?.fremdkosten);
+    const gesamtBrutto = sumHsw + sumMueller;
+    const gesamt = gesamtBrutto - subKosten;
     const hourlyRate = stunden > 0 ? gesamt / stunden : 0;
     const actionCounts = countMastActions(parsed?.masten || []);
-    return { stunden, gesamtHsw: sumHsw, gesamtMueller: sumMueller, gesamt, hourlyRate, ...actionCounts };
+    return { stunden, gesamtHsw: sumHsw, gesamtMueller: sumMueller, subKosten, gesamtBrutto, gesamt, hourlyRate, ...actionCounts };
   };
 
   const analyticsRowsAllTypesBase = projects.map((p) => {
@@ -2039,7 +2047,9 @@ const createProject = async () => {
       Stunden: Number(item.stunden.toFixed(2)),
       HSW_EUR: Number(item.gesamtHsw.toFixed(2)),
       Mueller_EUR: Number(item.gesamtMueller.toFixed(2)),
-      Gesamt_EUR: Number(item.gesamt.toFixed(2)),
+      Subkosten_EUR: Number((item.subKosten || 0).toFixed(2)),
+      Gesamt_Brutto_EUR: Number(((item.gesamtBrutto ?? (item.gesamtHsw + item.gesamtMueller)) || 0).toFixed(2)),
+      Gesamt_Netto_EUR: Number(item.gesamt.toFixed(2)),
       Stundenlohn_EUR_h: Number(item.hourlyRate.toFixed(2)),
       Masten_Montage: item.montageCount || 0,
       Masten_Demontage: item.demontageCount || 0
@@ -2048,8 +2058,8 @@ const createProject = async () => {
     const dataSheet = XLSX.utils.json_to_sheet(exportRows);
     dataSheet['!cols'] = [
       { wch: 34 }, { wch: 16 }, { wch: 14 }, { wch: 12 },
-      { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 14 }, { wch: 16 }, { wch: 18 }
+      { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 18 }
     ];
     XLSX.utils.book_append_sheet(workbook, dataSheet, 'Baustellen');
 
@@ -3498,15 +3508,31 @@ const createProject = async () => {
             style={{ width: '100%' }}
           />
         </div>
+        <div>
+          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Sub-/Fremdkosten</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            className="mast-input-base"
+            value={nachkalkulation.subKosten || ''}
+            onChange={(e) => updateNachkalkulation('subKosten', e.target.value)}
+            placeholder="z. B. 1800"
+            style={{ width: '100%' }}
+          />
+        </div>
       </div>
 
       <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
         <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Kombinierte Gesamtsumme</div>
+          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Kombinierte Gesamtsumme (brutto)</div>
+          <strong style={{ color: '#e2e8f0', fontSize: '14px' }}>{formatEuro(nachkalkGesamtBrutto)}</strong>
+        </div>
+        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gesamtsumme nach Subkosten (netto)</div>
           <strong style={{ color: '#e2e8f0', fontSize: '14px' }}>{formatEuro(nachkalkGesamt)}</strong>
         </div>
         <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Dein Stundenlohn (gesamt / Stunden)</div>
+          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Dein Stundenlohn (netto / Stunden)</div>
           <strong style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{stundenlohnKombiniert.toFixed(2)} EUR/h</strong>
         </div>
         <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
@@ -3522,8 +3548,8 @@ const createProject = async () => {
       </div>
 
       <div style={{ marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#cbd5e1', fontSize: '11px' }}>
-        <span>Differenz Gesamtsumme zu Minimum: <strong style={{ color: gesamtDiffToMin >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMin >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMin)}</strong></span>
-        <span>Differenz Gesamtsumme zu Maximum: <strong style={{ color: gesamtDiffToMax >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMax >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMax)}</strong></span>
+        <span>Differenz Netto-Gesamtsumme zu Minimum: <strong style={{ color: gesamtDiffToMin >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMin >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMin)}</strong></span>
+        <span>Differenz Netto-Gesamtsumme zu Maximum: <strong style={{ color: gesamtDiffToMax >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMax >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMax)}</strong></span>
       </div>
 
     </div>
