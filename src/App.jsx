@@ -177,6 +177,10 @@ const DEFAULT_AUFMASS = {
 const MIN_HOURLY_RATE = 56;
 const NORMAL_HOURLY_RATE = 59;
 const VERY_GOOD_HOURLY_RATE = 68.9;
+const EXCLUDED_NACHKALK_TYPES = new Set(["störung"]);
+
+const normalizeProjectType = (value) => String(value || "").trim().toLowerCase();
+const isExcludedFromNachkalk = (type) => EXCLUDED_NACHKALK_TYPES.has(normalizeProjectType(type));
 
 const parseNumberInput = (value) => {
   const num = Number(String(value || "").replace(',', '.').trim());
@@ -1743,7 +1747,7 @@ const createProject = async () => {
     return { stunden, gesamtHsw: sumHsw, gesamtMueller: sumMueller, gesamt, hourlyRate, ...actionCounts };
   };
 
-  const analyticsRowsBase = projects.map((p) => {
+  const analyticsRowsAllTypesBase = projects.map((p) => {
     const stats = parseProjectAufmassStats(p);
     const createdAt = p.created ? new Date(p.created) : null;
     return {
@@ -1756,6 +1760,9 @@ const createProject = async () => {
       ...stats
     };
   }).filter((row) => row.stunden > 0);
+
+  const analyticsRowsBase = analyticsRowsAllTypesBase
+    .filter((row) => !isExcludedFromNachkalk(row.type));
 
   const normalizeDateFilterInputToISO = (value) => {
     const raw = String(value || "").trim();
@@ -1793,6 +1800,11 @@ const createProject = async () => {
       return bMs - aMs;
     });
 
+  const analyticsRowsByTypeChart = analyticsRowsAllTypesBase
+    .filter((row) => settingsTypeFilter === "Alle" || row.type === settingsTypeFilter)
+    .filter((row) => !settingsDateFromISO || (row.createdDate && row.createdDate >= settingsDateFromISO))
+    .filter((row) => !settingsDateToISO || (row.createdDate && row.createdDate <= settingsDateToISO));
+
   const overviewAverageRate = analyticsRows.length > 0
     ? analyticsRows.reduce((sum, item) => sum + item.hourlyRate, 0) / analyticsRows.length
     : 0;
@@ -1801,11 +1813,22 @@ const createProject = async () => {
   const totalMontageCount = analyticsRows.reduce((sum, item) => sum + (item.montageCount || 0), 0);
   const totalDemontageCount = analyticsRows.reduce((sum, item) => sum + (item.demontageCount || 0), 0);
   const overviewMaxRate = Math.max(1, ...analyticsRows.map((item) => item.hourlyRate));
-  const defaultTypeOptions = ["Konzept", "Anfahrschaden", "Störung", "LK-Tausch", "Sonstiges"];
+  const defaultTypeOptions = ["Konzept", "Anfahrschaden", "LK-Tausch", "Sonstiges"];
   const analyticsTypeOptions = [
     "Alle",
-    ...Array.from(new Set([...defaultTypeOptions, ...projects.map((p) => p.type).filter(Boolean)]))
+    ...Array.from(
+      new Set([
+        ...defaultTypeOptions,
+        ...projects.map((p) => p.type).filter((type) => type && !isExcludedFromNachkalk(type))
+      ])
+    )
   ];
+
+  useEffect(() => {
+    if (isExcludedFromNachkalk(settingsTypeFilter)) {
+      setSettingsTypeFilter("Alle");
+    }
+  }, [settingsTypeFilter]);
 
   const parseLogDateTime = (value) => {
     if (!value) return null;
@@ -2073,7 +2096,7 @@ const createProject = async () => {
   });
 
   const typeData = Object.values(
-    analyticsRows.reduce((acc, row) => {
+    analyticsRowsByTypeChart.reduce((acc, row) => {
       if (!acc[row.type]) acc[row.type] = { type: row.type, sumRate: 0, count: 0 };
       acc[row.type].sumRate += row.hourlyRate;
       acc[row.type].count += 1;
@@ -2110,7 +2133,7 @@ const createProject = async () => {
   ];
 
   const monthlyVolumeData = Object.values(
-    analyticsRows.reduce((acc, row) => {
+    analyticsRowsByTypeChart.reduce((acc, row) => {
       if (!row.createdDate) return acc;
       const monthKey = row.createdDate.slice(0, 7);
       if (!acc[monthKey]) acc[monthKey] = { key: monthKey, totalHours: 0, count: 0 };
