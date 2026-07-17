@@ -3727,6 +3727,8 @@ const createProject = async () => {
       const buildData = () => ({
         surfaces: {},
         linear: {},
+        stoerungseinsatzGefahrImVerzug: { title: "Störungseinsatz Gefahr im Verzug", total: 0, items: [] },
+        mitarbeiterUndGeraete: { title: "Mitarbeiter und Geräte", total: 0, items: [] },
         kabel: { title: "Kabel An-/Abklemmen (Stk)", total: 0, items: [] },
         muffenMontierenUeber1m: { title: "Muffen montieren ANS(Stk)", total: 0, items: [] },
         muffenMontierenTausch: { title: "Muffen montieren ÄND(Stk)", total: 0, items: [] },
@@ -3752,6 +3754,13 @@ const createProject = async () => {
 
       const dataHsw = buildData();
       const dataMueller = buildData();
+
+      if (normalizeProjectType(form.type) === "anfahrschaden") {
+        dataHsw.stoerungseinsatzGefahrImVerzug.total = 1;
+        dataHsw.stoerungseinsatzGefahrImVerzug.items.push({ label: form.name || "Projekt", val: 1 });
+        dataHsw.mitarbeiterUndGeraete.total = 1;
+        dataHsw.mitarbeiterUndGeraete.items.push({ label: form.name || "Projekt", val: 1 });
+      }
 
       if (form.aufmass?.masten) {
         form.aufmass.masten.forEach((m, mastIdx) => {
@@ -3910,6 +3919,8 @@ const createProject = async () => {
         const list = [
           ...Object.values(dataObj.surfaces),
           ...Object.values(dataObj.linear),
+          ...(dataObj.stoerungseinsatzGefahrImVerzug.total > 0 ? [dataObj.stoerungseinsatzGefahrImVerzug] : []),
+          ...(dataObj.mitarbeiterUndGeraete.total > 0 ? [dataObj.mitarbeiterUndGeraete] : []),
           ...(dataObj.grabenAns.total > 0 ? [dataObj.grabenAns] : []),
           ...(dataObj.grabenAend.total > 0 ? [dataObj.grabenAend] : []),
           ...(dataObj.grabenAbr.total > 0 ? [dataObj.grabenAbr] : []),
