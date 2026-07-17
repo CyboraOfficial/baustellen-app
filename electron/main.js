@@ -373,11 +373,6 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-ipcMain.on('open-external-file', (event, url) => {
-  console.log("Öffne externe URL:", url);
-  shell.openExternal(url); 
-});
-
 ipcMain.handle("projects:create", async (_, project) => {
   const result = saveProject(project);
   setupWatcher();

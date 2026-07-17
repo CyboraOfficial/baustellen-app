@@ -54,7 +54,7 @@ contextBridge.exposeInMainWorld("desktopAPI", {
 
   send: (channel, data) => {
     // WICHTIG: Prüfe, ob 'install-update' hier wirklich EXAKT so drin steht!
-    let validChannels = ['open-external-file', 'check-updates', 'start-download', 'install-update']; 
+    let validChannels = ['check-updates', 'start-download', 'install-update']; 
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     } else {
