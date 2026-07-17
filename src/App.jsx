@@ -447,31 +447,106 @@ const updateMast = (index, field, value) => {
   });
 };
 
-const parseMastNumber = (label) => {
-  const num = Number(String(label || "").replace(/\D/g, ""));
-  return Number.isFinite(num) && num > 0 ? num : null;
+const parseMastLabel = (label) => {
+  const normalizedLabel = String(label || "").trim();
+  const match = normalizedLabel.match(/^(?:Mast\s*)?(\d+)([a-z]*)$/i);
+
+  if (!match) {
+    return { number: null, suffix: "" };
+  }
+
+  return {
+    number: Number(match[1]),
+    suffix: (match[2] || "").toLowerCase()
+  };
+};
+
+const mastSuffixToIndex = (suffix) => {
+  if (!suffix) return 0;
+
+  return suffix.split("").reduce((acc, char) => {
+    const charIndex = char.toLowerCase().charCodeAt(0) - 96;
+    if (charIndex < 1 || charIndex > 26) return acc;
+    return acc * 26 + charIndex;
+  }, 0);
+};
+
+const mastIndexToSuffix = (index) => {
+  if (index <= 0) return "";
+
+  let remaining = index;
+  let suffix = "";
+
+  while (remaining > 0) {
+    remaining -= 1;
+    suffix = String.fromCharCode(97 + (remaining % 26)) + suffix;
+    remaining = Math.floor(remaining / 26);
+  }
+
+  return suffix;
+};
+
+const getMastSortKey = (label, fallbackIndex = 0) => {
+  const parsed = parseMastLabel(label);
+
+  return {
+    number: parsed.number ?? fallbackIndex,
+    suffixIndex: mastSuffixToIndex(parsed.suffix)
+  };
 };
 
 const normalizeMastLabels = (masten = []) => {
-  const usedNumbers = new Set();
-
-  return masten.map((m, index) => {
-    const existingNumber = parseMastNumber(m?.mastLabel);
-    let finalNumber = existingNumber;
-
-    // Bei fehlender/duplizierter Nummer fortlaufend neu vergeben.
-    if (!finalNumber || usedNumbers.has(finalNumber)) {
-      finalNumber = index + 1;
-      while (usedNumbers.has(finalNumber)) finalNumber += 1;
-    }
-
-    usedNumbers.add(finalNumber);
+  const entries = masten.map((m, index) => {
+    const parsed = parseMastLabel(m?.mastLabel);
 
     return {
-      ...m,
-      mastLabel: `Mast ${finalNumber}`
+      mast: m,
+      originalIndex: index,
+      number: parsed.number,
+      suffix: parsed.suffix
     };
   });
+
+  const usedNumbers = new Set(entries.map((entry) => entry.number).filter((number) => Number.isFinite(number) && number > 0));
+  let nextNumber = 1;
+
+  const allocateNumber = () => {
+    while (usedNumbers.has(nextNumber)) {
+      nextNumber += 1;
+    }
+
+    const allocated = nextNumber;
+    usedNumbers.add(allocated);
+    nextNumber += 1;
+    return allocated;
+  };
+
+  const groupedEntries = new Map();
+
+  entries.forEach((entry) => {
+    const baseNumber = entry.number && entry.number > 0 ? entry.number : allocateNumber();
+
+    if (!groupedEntries.has(baseNumber)) {
+      groupedEntries.set(baseNumber, []);
+    }
+
+    groupedEntries.get(baseNumber).push({ ...entry, baseNumber });
+  });
+
+  return Array.from(groupedEntries.entries())
+    .sort(([numberA], [numberB]) => numberA - numberB)
+    .flatMap(([baseNumber, group]) => {
+      const sortedGroup = [...group].sort((a, b) => a.originalIndex - b.originalIndex);
+
+      return sortedGroup.map((entry, index) => {
+        const suffix = sortedGroup.length === 1 ? entry.suffix : mastIndexToSuffix(index);
+
+        return {
+          ...entry.mast,
+          mastLabel: suffix ? `Mast ${baseNumber}${suffix}` : `Mast ${baseNumber}`
+        };
+      });
+    });
 };
 
 const findOriginalIndexByMast = (list = [], mast) => {
@@ -2673,7 +2748,7 @@ const createProject = async () => {
   
   <div className="field-group">
     <span className="field-label" style={{color: '#cbd5e1'}}>Mast Nr. (z.B. 1, 2, 5-8)</span>
-    <input type="text" id="batch-ids" defaultValue="1" placeholder="1, 2, 5-8" className="mast-input-base" style={{width: '120px'}} />
+    <input type="text" id="batch-ids" defaultValue="" placeholder="1, 2, 5-8" className="mast-input-base" style={{width: '120px'}} />
   </div>
 
   <div className="field-group">
@@ -2747,7 +2822,13 @@ const createProject = async () => {
   <button 
     style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', height: '32px', padding: '0 15px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', marginLeft: 'auto' }}
     onClick={() => {
-      const rawInput = document.getElementById('batch-ids')?.value || "1";
+      const batchIdsInput = document.getElementById('batch-ids');
+      const rawInput = batchIdsInput?.value || "";
+
+      if (!rawInput.trim()) {
+        setAlertToast({ show: true, message: "Bitte Mastnummern eingeben!" });
+        return;
+      }
       
       // Parser-Funktion für Nummern und Bereiche
       const parseMastInput = (str) => {
@@ -2764,6 +2845,27 @@ const createProject = async () => {
       };
 
       const mastNumbers = parseMastInput(rawInput);
+
+      const existingMastNumbers = new Set(
+        (form.masten || [])
+          .map((mast) => parseMastLabel(mast?.mastLabel).number)
+          .filter((number) => Number.isFinite(number) && number > 0)
+      );
+
+      const duplicateMastNumbers = Array.from(new Set(
+        mastNumbers.filter((number) => existingMastNumbers.has(number))
+      )).sort((a, b) => a - b);
+
+      if (duplicateMastNumbers.length > 0) {
+        const duplicateList = duplicateMastNumbers.join(", ");
+        const confirmMessage = duplicateMastNumbers.length === 1
+          ? `Für Mast ${duplicateList} existiert bereits ein Eintrag. Möchtest du ihn trotzdem hinzufügen? Er wird dann als ${duplicateList}a, ${duplicateList}b usw. angelegt.`
+          : `Für die Masten ${duplicateList} existieren bereits Einträge. Möchtest du sie trotzdem hinzufügen? Sie werden dann mit a/b-Suffixen angelegt.`;
+
+        if (!window.confirm(confirmMessage)) {
+          return;
+        }
+      }
       
       let selectedLeuchte = "";
       if (batchAktion !== "Demontage") {
@@ -2787,7 +2889,11 @@ const createProject = async () => {
         leuchten: batchAktion !== "Demontage" ? [{ typ: selectedLeuchte, lumen: document.getElementById('batch-lumen-neu').value }] : []
       }));
       
-      setForm(prev => ({ ...prev, masten: [...(prev.masten || []), ...neueMasten] }));
+      setForm(prev => ({ ...prev, masten: normalizeMastLabels([...(prev.masten || []), ...neueMasten]) }));
+
+      if (batchIdsInput) {
+        batchIdsInput.value = "";
+      }
     }}
   >
     + Hinzufügen
@@ -2799,16 +2905,22 @@ const createProject = async () => {
             {/* Wir sortieren hier das Array für die Anzeige */}
             {[...form.masten]
               .sort((a, b) => {
-                const numA = parseInt((a.mastLabel || "").replace(/\D/g, '')) || 0;
-                const numB = parseInt((b.mastLabel || "").replace(/\D/g, '')) || 0;
-                return numA - numB;
+                const sortA = getMastSortKey(a.mastLabel);
+                const sortB = getMastSortKey(b.mastLabel);
+
+                if (sortA.number !== sortB.number) return sortA.number - sortB.number;
+                return sortA.suffixIndex - sortB.suffixIndex;
               })
               .map((m, index) => {
                 // WICHTIG: Wir suchen den echten Index im Original-Array, 
                 // damit updateMast den richtigen Datensatz ändert!
                 const originalIndex = findOriginalIndexByMast(form.masten, m);
                 
-                const displayNum = (m.mastLabel || "").replace(/\D/g, '');
+                const displayNum = (() => {
+                  const parsed = parseMastLabel(m.mastLabel);
+                  if (parsed.number) return `${parsed.number}${parsed.suffix || ""}`;
+                  return String(m.mastLabel || "").replace(/^Mast\s*/i, "").trim();
+                })();
                 const currentTyp = m.leuchten && m.leuchten[0] ? m.leuchten[0].typ : "";
                 const isCustomLeuchte = currentTyp && !LEUCHTEN_DATA[currentTyp] && currentTyp !== "";
 
@@ -3089,12 +3201,19 @@ const createProject = async () => {
     {Array.isArray(form.aufmass?.masten) && form.aufmass.masten.length > 0 ? (
       [...form.aufmass.masten]
         .sort((a, b) => {
-          const numA = parseInt((a.mastLabel || "").replace(/\D/g, '')) || 0;
-          const numB = parseInt((b.mastLabel || "").replace(/\D/g, '')) || 0;
-          return numA - numB;
+          const sortA = getMastSortKey(a.mastLabel);
+          const sortB = getMastSortKey(b.mastLabel);
+
+          if (sortA.number !== sortB.number) return sortA.number - sortB.number;
+          return sortA.suffixIndex - sortB.suffixIndex;
         })
         .map((m, index) => {
           const originalIndex = findOriginalIndexByMast(form.aufmass.masten, m);
+          const displayNum = (() => {
+            const parsed = parseMastLabel(m.mastLabel);
+            if (parsed.number) return `${parsed.number}${parsed.suffix || ""}`;
+            return String(m.mastLabel || "").replace(/^Mast\s*/i, "").trim();
+          })();
 
           return (
             <div key={m.id || `aufmass-mast-${index + 1}`} className="aufmass-mast-card">
@@ -3102,7 +3221,7 @@ const createProject = async () => {
                 
                 <div className="aufmass-badge-container" style={{ flexShrink: 0 }}>
                   <span className="aufmass-badge-label">MAST</span>
-                  <div className="aufmass-badge-num">{(m.mastLabel || "").replace(/\D/g, '') || String(index + 1)}</div>
+                  <div className="aufmass-badge-num">{displayNum || String(index + 1)}</div>
                 </div>
 
                 <div style={{ width: '110px', minWidth: '110px', flexShrink: 0 }}>
@@ -3366,7 +3485,7 @@ const createProject = async () => {
                       )}
 
                       {Number(m.netzanschlussDemoAnzahl) > 0 && (
-                      <details className="aufmass-demo-block" style={{ marginTop: '6px' }} open>
+                      <details className="aufmass-demo-block" style={{ marginTop: '6px' }}>
                         <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#fda4af' }}>📦 Positionen ABR</summary>
                         <div className="aufmass-demo-block" style={{ marginTop: '4px' }}>
                           <span>↳ Graben ABR (m):</span>
@@ -3403,7 +3522,7 @@ const createProject = async () => {
                       )}
 
                       {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
-                      <details className="aufmass-tausch-block" style={{ marginTop: '6px' }} open>
+                      <details className="aufmass-tausch-block" style={{ marginTop: '6px' }}>
                         <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#d8b4fe' }}>📦 Positionen ÄND</summary>
                         <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
                           <span>↳ Graben ÄND (m):</span>
