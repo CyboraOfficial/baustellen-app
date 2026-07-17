@@ -91,12 +91,10 @@ function FitBounds({ projects, enabled, mode }) {
 
     // 2. Die Bedingung prüfen
     if (!enabled) {
-      console.log("Abbruch: Komponente ist nicht 'enabled'");
       return;
     }
 
     if (validProjects.length === 0) {
-      console.log("Abbruch: Keine gültigen Projekte zum Zoomen gefunden");
       return;
     }
     
@@ -347,136 +345,23 @@ const getFileExtension = (fileName = "") => {
   return parts.length > 1 ? parts.pop() : '';
 };
 
-const FILE_ENCRYPTION_MAGIC = "BAPPENC1";
-const LEGACY_FILE_AUTO_MIGRATION_VERSION = "v1";
-const MANAGED_FILE_ENCRYPTION_KEY_VERSION = "v1";
-let cachedEncryptionKeyPromise = null;
-let cachedManagedPassphrase = null;
-
-const getManagedEncryptionStorageKey = () => `managed_file_encryption_key_${MANAGED_FILE_ENCRYPTION_KEY_VERSION}`;
-
-const generateManagedEncryptionPassphrase = () => {
-  const random = crypto.getRandomValues(new Uint8Array(32));
-  let binary = "";
-  random.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-};
-
-const getEncryptionPassphrase = () => {
-  const envPassphrase = String(import.meta.env.VITE_FILE_ENCRYPTION_KEY || "").trim();
-  if (envPassphrase) return envPassphrase;
-
-  if (cachedManagedPassphrase) return cachedManagedPassphrase;
-  if (typeof window === "undefined" || !window.localStorage) return "";
-
-  const storageKey = getManagedEncryptionStorageKey();
-  const existing = String(localStorage.getItem(storageKey) || "").trim();
-  if (existing) {
-    cachedManagedPassphrase = existing;
-    return existing;
-  }
-
-  const generated = generateManagedEncryptionPassphrase();
-  localStorage.setItem(storageKey, generated);
-  cachedManagedPassphrase = generated;
-  return generated;
-};
-
-const getFileEncryptionKey = async () => {
-  const passphrase = getEncryptionPassphrase();
-  if (!passphrase) return null;
-
-  if (!cachedEncryptionKeyPromise) {
-    cachedEncryptionKeyPromise = (async () => {
-      const raw = new TextEncoder().encode(passphrase);
-      const digest = await crypto.subtle.digest("SHA-256", raw);
-      return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
-    })();
-  }
-
-  return cachedEncryptionKeyPromise;
-};
-
-const maybeEncryptFileForStorage = async (file) => {
-  const key = await getFileEncryptionKey();
-  if (!key) return file;
-
-  const originalName = String(file?.name || "datei");
-  const plain = new Uint8Array(await file.arrayBuffer());
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain));
-  const nameBytes = new TextEncoder().encode(originalName);
-  const magicBytes = new TextEncoder().encode(FILE_ENCRYPTION_MAGIC);
-
-  const header = new Uint8Array(magicBytes.length + 2 + 1 + nameBytes.length + iv.length);
-  let offset = 0;
-  header.set(magicBytes, offset); offset += magicBytes.length;
-  header[offset] = (nameBytes.length >> 8) & 0xff; offset += 1;
-  header[offset] = nameBytes.length & 0xff; offset += 1;
-  header[offset] = iv.length; offset += 1;
-  header.set(nameBytes, offset); offset += nameBytes.length;
-  header.set(iv, offset);
-
-  const payload = new Uint8Array(header.length + encrypted.length);
-  payload.set(header, 0);
-  payload.set(encrypted, header.length);
-
-  return new File([payload], `${originalName}.enc`, {
-    type: "application/octet-stream",
-    lastModified: file.lastModified || Date.now()
-  });
-};
-
-const maybeDecryptDownloadedBlob = async (blob, fileName = "") => {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const magicBytes = new TextEncoder().encode(FILE_ENCRYPTION_MAGIC);
-  const hasMagic = bytes.length > magicBytes.length && magicBytes.every((m, i) => bytes[i] === m);
-
-  if (!hasMagic) {
-    return {
-      blob,
-      fileName,
-      encrypted: false
-    };
-  }
-
-  const key = await getFileEncryptionKey();
-  if (!key) {
-    throw new Error("Verschluesselter Inhalt erkannt, aber kein Entschluesselungsschluessel verfuegbar");
-  }
-
-  let offset = magicBytes.length;
-  const nameLength = (bytes[offset] << 8) + bytes[offset + 1];
-  offset += 2;
-  const ivLength = bytes[offset];
-  offset += 1;
-
-  const nameBytes = bytes.slice(offset, offset + nameLength);
-  offset += nameLength;
-  const iv = bytes.slice(offset, offset + ivLength);
-  offset += ivLength;
-  const cipher = bytes.slice(offset);
-
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
-  const restoredFileName = new TextDecoder().decode(nameBytes) || fileName.replace(/\.enc$/i, "");
-
-  return {
-    blob: new Blob([decrypted]),
-    fileName: restoredFileName,
-    encrypted: true
+const getMimeTypeByFileName = (fileName = "") => {
+  const ext = getFileExtension(fileName);
+  const mimeByExt = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    bmp: "image/bmp",
+    svg: "image/svg+xml"
   };
+
+  return mimeByExt[ext] || "application/octet-stream";
 };
 
-const getDisplayFileName = (fileName = "") => String(fileName || "").replace(/\.enc$/i, "");
-const isEncryptedFileName = (fileName = "") => /\.enc$/i.test(String(fileName || ""));
-
-const blobHasEncryptionMagic = async (blob) => {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const magicBytes = new TextEncoder().encode(FILE_ENCRYPTION_MAGIC);
-  return bytes.length > magicBytes.length && magicBytes.every((m, i) => bytes[i] === m);
-};
+const getDisplayFileName = (fileName = "") => String(fileName || "");
 
 const isInlineViewableFile = (fileName = "") => {
   const ext = getFileExtension(fileName);
@@ -557,8 +442,6 @@ export default function App() {
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
-  const [isMigratingLegacyFiles, setIsMigratingLegacyFiles] = useState(false);
-  const [legacyAutoMigrationDone, setLegacyAutoMigrationDone] = useState(false);
 
   /* 🔍 FILTER */
   const [search, setSearch] = useState("");
@@ -986,184 +869,34 @@ const getClientFingerprint = () => {
   return btoa(unescape(encodeURIComponent(seed))).slice(0, 120);
 };
 
-const getLegacyAutoMigrationStorageKey = () => {
-  const userId = user?.id || "anonymous";
-  return `legacy_file_auto_migration_${LEGACY_FILE_AUTO_MIGRATION_VERSION}_${userId}`;
+const getErrorMessage = (error) => {
+  if (!error) return "Unbekannter Fehler";
+  if (error instanceof Error && error.message) return error.message;
+  return String(error?.message || error?.error || error || "Unbekannter Fehler");
 };
-
-const markLegacyAutoMigrationDone = () => {
-  const key = getLegacyAutoMigrationStorageKey();
-  localStorage.setItem(key, "1");
-  setLegacyAutoMigrationDone(true);
-};
-
-const getSecureRequestHeaders = () => ({
-  Authorization: `Bearer ${pb.authStore.token}`,
-  'X-Client-Fingerprint': getClientFingerprint()
-});
 
 const fetchProtectedFileBlob = async (project, fileName, { download = false } = {}) => {
   const secureUrl = await getSecureFileUrl(project, fileName, { download });
   const response = await fetch(secureUrl, {
     method: 'GET',
-    headers: getSecureRequestHeaders(),
-    cache: 'no-store'
+    cache: 'no-store',
+    credentials: 'omit'
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    const responseText = await response.text().catch(() => "");
+    throw new Error(`HTTP ${response.status}${responseText ? `: ${responseText.slice(0, 160)}` : ""}`);
   }
 
   return response.blob();
-};
-
-const migrateLegacyFilesInProject = async (project, { silent = false } = {}) => {
-  if (!project?.id) {
-    return { migrated: 0, removed: 0, skipped: 0, failed: 0, project: project || null };
-  }
-
-  let workingProject = project;
-  let migrated = 0;
-  let removed = 0;
-  let skipped = 0;
-  let failed = 0;
-
-  const candidateFiles = (workingProject.files || []).filter((name) => !isEncryptedFileName(name));
-
-  for (const oldFileName of candidateFiles) {
-    try {
-      const currentFiles = Array.isArray(workingProject.files) ? workingProject.files : [];
-      if (!currentFiles.includes(oldFileName)) {
-        skipped += 1;
-        continue;
-      }
-
-      const encryptedName = `${oldFileName}.enc`;
-      if (currentFiles.includes(encryptedName)) {
-        workingProject = await pb.collection('projects').update(workingProject.id, { "files-": [oldFileName] });
-        removed += 1;
-        continue;
-      }
-
-      const sourceBlob = await fetchProtectedFileBlob(workingProject, oldFileName);
-      if (await blobHasEncryptionMagic(sourceBlob)) {
-        skipped += 1;
-        continue;
-      }
-
-      const sourceFile = new File([sourceBlob], oldFileName, {
-        type: sourceBlob.type || "application/octet-stream",
-        lastModified: Date.now()
-      });
-
-      const encryptedFile = await maybeEncryptFileForStorage(sourceFile);
-      if (encryptedFile.name === oldFileName) {
-        throw new Error("Verschluesselung ist nicht aktiv (VITE_FILE_ENCRYPTION_KEY fehlt)");
-      }
-
-      const formData = new FormData();
-      formData.append('files+', encryptedFile);
-      workingProject = await pb.collection('projects').update(workingProject.id, formData);
-      workingProject = await pb.collection('projects').update(workingProject.id, { "files-": [oldFileName] });
-      migrated += 1;
-    } catch (error) {
-      failed += 1;
-      console.error(`Migration fehlgeschlagen fuer ${oldFileName}:`, error);
-    }
-  }
-
-  setProjects((prev) => prev.map((p) => (p.id === workingProject.id ? workingProject : p)));
-  if (selectedProject?.id === workingProject.id) {
-    setSelectedProject(workingProject);
-    setForm(workingProject);
-  }
-
-  if (!silent) {
-    await addFileAuditLog(
-      workingProject,
-      createFileAuditEntry(
-        "Migration",
-        `${migrated} verschluesselt / ${removed} entfernt / ${failed} Fehler`,
-        failed === 0,
-        "Altdateien"
-      )
-    );
-  }
-
-  return { migrated, removed, skipped, failed, project: workingProject };
-};
-
-const handleMigrateLegacyFilesCurrentProject = async () => {
-  if (!selectedProject?.id || isMigratingLegacyFiles) return;
-
-  if (!window.confirm("Alte, unverschluesselte Dateien dieses Projekts jetzt migrieren?")) return;
-
-  setIsMigratingLegacyFiles(true);
-  setToast("⏳ Migration der Altdateien gestartet...");
-
-  try {
-    await ensureAuthSession();
-    const result = await migrateLegacyFilesInProject(selectedProject);
-    setToast(`✅ Migration beendet: ${result.migrated} verschluesselt, ${result.removed} entfernt, ${result.failed} Fehler`);
-    setTimeout(() => setToast(null), 5000);
-  } catch (error) {
-    console.error("Migration fehlgeschlagen:", error);
-    setToast("❌ Migration konnte nicht abgeschlossen werden");
-    setTimeout(() => setToast(null), 4000);
-  } finally {
-    setIsMigratingLegacyFiles(false);
-  }
-};
-
-const handleMigrateLegacyFilesAllProjects = async () => {
-  if (isMigratingLegacyFiles) return;
-
-  if (!window.confirm("Alle alten, unverschluesselten Dateien in allen Projekten migrieren?")) return;
-
-  setIsMigratingLegacyFiles(true);
-  setToast("⏳ Gesamtmigration gestartet...");
-
-  try {
-    await ensureAuthSession();
-
-    let totalMigrated = 0;
-    let totalRemoved = 0;
-    let totalFailed = 0;
-
-    const snapshot = [...projects];
-    for (const project of snapshot) {
-      const result = await migrateLegacyFilesInProject(project, { silent: true });
-      totalMigrated += result.migrated;
-      totalRemoved += result.removed;
-      totalFailed += result.failed;
-    }
-
-    if (selectedProject?.id) {
-      const refreshed = await pb.collection('projects').getOne(selectedProject.id, { requestKey: null });
-      setSelectedProject(refreshed);
-      setForm(refreshed);
-    }
-
-    setToast(`✅ Gesamtmigration fertig: ${totalMigrated} verschluesselt, ${totalRemoved} entfernt, ${totalFailed} Fehler`);
-    setTimeout(() => setToast(null), 6000);
-    markLegacyAutoMigrationDone();
-  } catch (error) {
-    console.error("Gesamtmigration fehlgeschlagen:", error);
-    setToast("❌ Gesamtmigration fehlgeschlagen");
-    setTimeout(() => setToast(null), 4500);
-  } finally {
-    setIsMigratingLegacyFiles(false);
-  }
 };
 
 const openOrDownloadSecureFile = async (project, fileName, { download = false } = {}) => {
   try {
     await ensureAuthSession();
     const fetchedBlob = await fetchProtectedFileBlob(project, fileName, { download });
-    const decrypted = await maybeDecryptDownloadedBlob(fetchedBlob, fileName);
-    const finalBlob = decrypted.blob;
-    const resolvedFileName = decrypted.fileName || fileName;
-    const blobUrl = URL.createObjectURL(finalBlob);
+    const blobUrl = URL.createObjectURL(fetchedBlob);
+    const resolvedFileName = fileName;
 
     if (download || !isInlineViewableFile(resolvedFileName)) {
       const a = document.createElement("a");
@@ -1177,12 +910,13 @@ const openOrDownloadSecureFile = async (project, fileName, { download = false } 
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     }
 
-    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", resolvedFileName, true, decrypted.encrypted ? "Session geprüft, entschlüsselt" : "Session geprüft"));
+    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", resolvedFileName, true, "Session geprüft"));
   } catch (error) {
     console.error("Dateizugriff blockiert:", error);
-    setToast("⛔ Zugriff auf Datei verweigert oder Session ungültig");
+    const reason = getErrorMessage(error);
+    setToast(`⛔ Dateizugriff blockiert: ${reason}`);
     setTimeout(() => setToast(null), 3000);
-    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", fileName, false, error?.message || "Unbekannter Fehler"));
+    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", fileName, false, reason));
   }
 };
 
@@ -1298,7 +1032,14 @@ Weitere Infos: ${form.notes || ""}
     setProjects(records);
   } catch (error) {
     console.error("Fehler beim Laden:", error);
-    setToast("Serververbindung fehlgeschlagen");
+    if (String(error?.message || "").includes("Session abgelaufen") || !pb.authStore.token) {
+      pb.authStore.clear();
+      setUser(null);
+      setProjects([]);
+      setToast("Session abgelaufen - bitte neu einloggen");
+    } else {
+      setToast("Serververbindung fehlgeschlagen");
+    }
   } finally {
     setProjectsLoaded(true);
   }
@@ -1309,84 +1050,6 @@ Weitere Infos: ${form.notes || ""}
       loadProjects();
     }
   }, [user]);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setLegacyAutoMigrationDone(false);
-      return;
-    }
-
-    const key = getLegacyAutoMigrationStorageKey();
-    const done = localStorage.getItem(key) === "1";
-    setLegacyAutoMigrationDone(done);
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    if (!projectsLoaded) return;
-    if (legacyAutoMigrationDone) return;
-    if (isMigratingLegacyFiles) return;
-
-    const hasLegacyFiles = projects.some((project) =>
-      (project.files || []).some((fileName) => !isEncryptedFileName(fileName))
-    );
-
-    if (!hasLegacyFiles) {
-      markLegacyAutoMigrationDone();
-      return;
-    }
-
-    let cancelled = false;
-
-    const runAutoMigration = async () => {
-      setIsMigratingLegacyFiles(true);
-      setToast("⏳ Automatische Altdatei-Migration gestartet...");
-
-      try {
-        await ensureAuthSession();
-
-        let totalMigrated = 0;
-        let totalRemoved = 0;
-        let totalFailed = 0;
-
-        const snapshot = [...projects];
-        for (const project of snapshot) {
-          const result = await migrateLegacyFilesInProject(project, { silent: true });
-          totalMigrated += result.migrated;
-          totalRemoved += result.removed;
-          totalFailed += result.failed;
-        }
-
-        if (!cancelled) {
-          if (selectedProject?.id) {
-            const refreshed = await pb.collection('projects').getOne(selectedProject.id, { requestKey: null });
-            setSelectedProject(refreshed);
-            setForm(refreshed);
-          }
-
-          setToast(`✅ Auto-Migration fertig: ${totalMigrated} verschluesselt, ${totalRemoved} entfernt, ${totalFailed} Fehler`);
-          setTimeout(() => setToast(null), 6000);
-          markLegacyAutoMigrationDone();
-        }
-      } catch (error) {
-        console.error("Automatische Migration fehlgeschlagen:", error);
-        if (!cancelled) {
-          setToast("❌ Automatische Altdatei-Migration fehlgeschlagen");
-          setTimeout(() => setToast(null), 4500);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsMigratingLegacyFiles(false);
-        }
-      }
-    };
-
-    runAutoMigration();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, projectsLoaded, projects, legacyAutoMigrationDone, isMigratingLegacyFiles]);
 
   const filteredProjects = projects.filter((p) => {
     const text = search.toLowerCase();
@@ -4869,40 +4532,6 @@ const createProject = async () => {
       <h4 style={{ margin: 0 }}>Projektdateien</h4>
       {mode !== "create" && selectedProject && (
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button
-            onClick={handleMigrateLegacyFilesCurrentProject}
-            disabled={isMigratingLegacyFiles}
-            style={{
-              padding: "4px 10px",
-              cursor: isMigratingLegacyFiles ? "not-allowed" : "pointer",
-              backgroundColor: "#7c3aed",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              fontSize: "12px",
-              opacity: isMigratingLegacyFiles ? 0.6 : 1
-            }}
-            title="Alte Dateien dieses Projekts verschlüsseln"
-          >
-            Altdateien Projekt
-          </button>
-          <button
-            onClick={handleMigrateLegacyFilesAllProjects}
-            disabled={isMigratingLegacyFiles}
-            style={{
-              padding: "4px 10px",
-              cursor: isMigratingLegacyFiles ? "not-allowed" : "pointer",
-              backgroundColor: "#0369a1",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              fontSize: "12px",
-              opacity: isMigratingLegacyFiles ? 0.6 : 1
-            }}
-            title="Alte Dateien in allen Projekten verschlüsseln"
-          >
-            Altdateien Alle
-          </button>
           <button 
             onClick={() => window.desktopAPI.openProjectFolder(selectedProject.name)}
             style={{ 
@@ -4943,7 +4572,7 @@ const createProject = async () => {
     return file;
   }));
 
-  const protectedFiles = await Promise.all(processedFiles.map((file) => maybeEncryptFileForStorage(file)));
+  const protectedFiles = processedFiles;
 
   // FALL A: Neues Projekt wird gerade erst erstellt (Lokal speichern)
   if (mode === "create") {

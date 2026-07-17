@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   openFile: (filePath) => ipcRenderer.invoke("open-file", filePath),
   deleteFile: (data) => ipcRenderer.invoke('delete-file', data),
   openProjectFolder: (name) => ipcRenderer.invoke('open-project-folder', name),
+  getManagedEncryptionPassphrase: () => ipcRenderer.invoke('security:getManagedEncryptionPassphrase'),
+  setManagedEncryptionPassphrase: (passphrase) => ipcRenderer.invoke('security:setManagedEncryptionPassphrase', passphrase),
   
   // --- UPDATER EVENTS ---
   onUpdateAvailable: (callback) => {

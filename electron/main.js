@@ -4,6 +4,7 @@ const { app, BrowserWindow, session, ipcMain, dialog, shell } = require('electro
 const path = require('path'); // Pfad separat importieren, damit .join() sicher definiert ist
 const fs = require("fs");
 const os = require('os');
+const crypto = require('crypto');
 const userDataPath = path.join(os.homedir(), 'Desktop', 'Baustellen');
 const { autoUpdater } = require("electron-updater");
 
@@ -181,6 +182,25 @@ function getConfig() {
 function saveConfig(config) {
   ensureDir(path.dirname(configPath));
   writeJsonSafe(configPath, config);
+}
+
+function getOrCreateManagedEncryptionPassphrase() {
+  const config = getConfig();
+  const existing = String(config.managedEncryptionPassphrase || "").trim();
+  if (existing) return existing;
+
+  const generated = crypto.randomBytes(32).toString('base64');
+  saveConfig({ ...config, managedEncryptionPassphrase: generated });
+  return generated;
+}
+
+function setManagedEncryptionPassphrase(passphrase) {
+  const cleanPassphrase = String(passphrase || "").trim();
+  if (!cleanPassphrase) return false;
+
+  const config = getConfig();
+  saveConfig({ ...config, managedEncryptionPassphrase: cleanPassphrase });
+  return true;
 }
 
 async function chooseBaseFolder(force = false) {
@@ -377,6 +397,24 @@ ipcMain.handle("projects:create", async (_, project) => {
   const result = saveProject(project);
   setupWatcher();
   return result;
+});
+
+ipcMain.handle('security:getManagedEncryptionPassphrase', async () => {
+  try {
+    const passphrase = getOrCreateManagedEncryptionPassphrase();
+    return { ok: true, passphrase };
+  } catch (error) {
+    return { ok: false, passphrase: "", error: error?.message || "Unbekannter Fehler" };
+  }
+});
+
+ipcMain.handle('security:setManagedEncryptionPassphrase', async (_, passphrase) => {
+  try {
+    const ok = setManagedEncryptionPassphrase(passphrase);
+    return { ok };
+  } catch (error) {
+    return { ok: false, error: error?.message || "Unbekannter Fehler" };
+  }
 });
 
 if (!fs.existsSync(userDataPath)) {
