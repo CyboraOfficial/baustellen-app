@@ -179,6 +179,12 @@ const MIN_HOURLY_RATE = 56;
 const NORMAL_HOURLY_RATE = 59;
 const VERY_GOOD_HOURLY_RATE = 68.9;
 const EXCLUDED_NACHKALK_TYPES = new Set(["störung"]);
+const WORK_DAYS_PER_WEEK = 5;
+const MAST_OUTPUT_PER_DAY = {
+  montage: 1.8,
+  tausch: 1.2,
+  demontage: 3.7
+};
 
 const normalizeProjectType = (value) => String(value || "").trim().toLowerCase();
 const isExcludedFromNachkalk = (type) => EXCLUDED_NACHKALK_TYPES.has(normalizeProjectType(type));
@@ -2714,6 +2720,14 @@ const createProject = async () => {
       const countMontage = form.masten.filter(m => m.aktion === "Montage").length;
       const countDemontage = form.masten.filter(m => m.aktion === "Demontage").length;
       const countTausch = form.masten.filter(m => m.aktion === "Tausch").length;
+      const estimatedDaysRaw =
+        (countMontage / MAST_OUTPUT_PER_DAY.montage) +
+        (countTausch / MAST_OUTPUT_PER_DAY.tausch) +
+        (countDemontage / MAST_OUTPUT_PER_DAY.demontage);
+      const estimatedFullDays = Math.ceil(estimatedDaysRaw);
+      const estimatedWeeks = Math.floor(estimatedFullDays / WORK_DAYS_PER_WEEK);
+      const estimatedRemainingDays = estimatedFullDays % WORK_DAYS_PER_WEEK;
+      const estimatedDurationLabel = `${estimatedWeeks}W ${estimatedRemainingDays}T`;
       const LEUCHTEN_DATA = {
         "Trilux Cuvia 40": 2600,
         "Trilux Cuvia 60": 2600,
@@ -2740,6 +2754,10 @@ const createProject = async () => {
             <div className="stat-card stat-demontage">
               <span className="stat-value" style={{color: '#ef4444'}}>{countDemontage}</span>
               <span className="stat-label">Demontage</span>
+            </div>
+            <div className="stat-card stat-time" title="Berechnet aus Montage 1,8/Tag, Tausch 1,2/Tag, Demontage 3,7/Tag (auf volle Tage aufgerundet)">
+              <span className="stat-value" style={{color: '#fbbf24'}}>{estimatedDurationLabel}</span>
+              <span className="stat-label">Zeitbedarf</span>
             </div>
           </div>
 

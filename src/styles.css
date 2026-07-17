@@ -668,12 +668,13 @@ hr {
 }
 
 .stats-container {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
 .stat-card {
-  flex: 1;
+  min-width: 0;
   padding: 7px;
   border-radius: 8px;
   background: white;
@@ -696,6 +697,26 @@ hr {
   color: #94a3b8;
   text-transform: uppercase;
   margin-top: 2px;
+}
+
+.stat-time {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  border-left: 4px solid #fbbf24;
+}
+
+.stat-time .stat-label {
+  margin-top: 0;
+  font-size: 11px;
+}
+
+@media (max-width: 460px) {
+  .stats-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Farbakzente für die verschiedenen Status */
