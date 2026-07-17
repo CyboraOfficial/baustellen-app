@@ -185,6 +185,20 @@ const MAST_OUTPUT_PER_DAY = {
   tausch: 1.2,
   demontage: 3.7
 };
+const LK_SIKA_TAUSCH_ACTION = "LK / SiKa Tausch";
+const LK_SIKA_HSW_FIELDS = [
+  { key: 'lkMontieren', title: 'LK montieren (Stk)' },
+  { key: 'lkDemontieren', title: 'LK demontieren (Stk)' },
+  { key: 'lkTauschen', title: 'LK tauschen (Stk)' },
+  { key: 'sikaMontieren', title: 'SiKa montieren (Stk)' },
+  { key: 'sikaDemontieren', title: 'SiKa demontieren (Stk)' },
+  { key: 'sikaTauschen', title: 'SiKa tauschen (Stk)' },
+  { key: 'auslegerMontieren', title: 'Ausleger montieren (Stk)' },
+  { key: 'auslegerDemontieren', title: 'Ausleger demontieren (Stk)' },
+  { key: 'auslegerTauschen', title: 'Ausleger tauschen (Stk)' },
+  { key: 'steckdosenanschlussMontieren', title: 'Steckdosenanschluss montieren (Stk)' },
+  { key: 'steckdosenanschlussDemontieren', title: 'Steckdosenanschluss demontieren (Stk)' }
+];
 
 const ORDER_EXPORT_FIELD_OPTIONS = [
   { key: "name", label: "Projektname", width: 34 },
@@ -654,7 +668,18 @@ const generiereAufmassDaten = (masten) => {
       oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten"),
       grabenTiefeBreiteTausch: m.grabenTiefeBreiteTausch || "",
       grabenKabelverlegenTausch: m.grabenKabelverlegenTausch || "",
-      oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")
+      oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten"),
+      lkMontieren: m.lkMontieren || "",
+      lkDemontieren: m.lkDemontieren || "",
+      lkTauschen: m.lkTauschen || "",
+      sikaMontieren: m.sikaMontieren || "",
+      sikaDemontieren: m.sikaDemontieren || "",
+      sikaTauschen: m.sikaTauschen || "",
+      auslegerMontieren: m.auslegerMontieren || "",
+      auslegerDemontieren: m.auslegerDemontieren || "",
+      auslegerTauschen: m.auslegerTauschen || "",
+      steckdosenanschlussMontieren: m.steckdosenanschlussMontieren || "",
+      steckdosenanschlussDemontieren: m.steckdosenanschlussDemontieren || ""
     };
   });
 };
@@ -1124,7 +1149,18 @@ const handleInitialisiereAufmass = () => {
     grabenTiefeBreiteDemo: "",
     grabenKabelverlegenDemo: "",
     grabenTiefeBreiteTausch: "",
-    grabenKabelverlegenTausch: ""
+    grabenKabelverlegenTausch: "",
+    lkMontieren: "",
+    lkDemontieren: "",
+    lkTauschen: "",
+    sikaMontieren: "",
+    sikaDemontieren: "",
+    sikaTauschen: "",
+    auslegerMontieren: "",
+    auslegerDemontieren: "",
+    auslegerTauschen: "",
+    steckdosenanschlussMontieren: "",
+    steckdosenanschlussDemontieren: ""
   }));
 
   setForm(prev => ({
@@ -1215,7 +1251,18 @@ const openProject = (p) => {
     oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten"),
     grabenTiefeBreiteTausch: m.grabenTiefeBreiteTausch || "",
     grabenKabelverlegenTausch: m.grabenKabelverlegenTausch || "",
-    oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")
+    oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten"),
+    lkMontieren: m.lkMontieren || "",
+    lkDemontieren: m.lkDemontieren || "",
+    lkTauschen: m.lkTauschen || "",
+    sikaMontieren: m.sikaMontieren || "",
+    sikaDemontieren: m.sikaDemontieren || "",
+    sikaTauschen: m.sikaTauschen || "",
+    auslegerMontieren: m.auslegerMontieren || "",
+    auslegerDemontieren: m.auslegerDemontieren || "",
+    auslegerTauschen: m.auslegerTauschen || "",
+    steckdosenanschlussMontieren: m.steckdosenanschlussMontieren || "",
+    steckdosenanschlussDemontieren: m.steckdosenanschlussDemontieren || ""
   }));
 
   // 🔥 DAS VOLLSTÄNDIGE FORM-OBJEKT EINMAL VORBEREITEN
@@ -2986,6 +3033,7 @@ const createProject = async () => {
       <option value="Tausch">Tausch</option>
       <option value="Montage">Montage</option>
       <option value="Demontage">Demontage</option>
+      <option value={LK_SIKA_TAUSCH_ACTION}>{LK_SIKA_TAUSCH_ACTION}</option>
     </select>
   </div>
 
@@ -3007,15 +3055,17 @@ const createProject = async () => {
   )}
 
   {/* NEU-FELDER */}
-  {(batchAktion === "Tausch" || batchAktion === "Montage") && (
+  {(batchAktion === "Tausch" || batchAktion === "Montage" || batchAktion === LK_SIKA_TAUSCH_ACTION) && (
     <div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1, minWidth: '200px', flexWrap: 'wrap'}}>
-      <div className="field-group">
-        <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
-        <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
-          <option value="Gerade">Gerade</option>
-          <option value="Gebogen">Gebogen</option>
-        </select>
-      </div>
+      {batchAktion !== LK_SIKA_TAUSCH_ACTION && (
+        <div className="field-group">
+          <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
+          <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
+            <option value="Gerade">Gerade</option>
+            <option value="Gebogen">Gebogen</option>
+          </select>
+        </div>
+      )}
       <div className="field-group" style={{flex: 1, minWidth: '180px'}}>
         <span className="field-label" style={{color: '#3b82f6'}}>Leuchte *</span>
         <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
@@ -3037,10 +3087,12 @@ const createProject = async () => {
         </select>
         <input type="text" id="batch-neu-custom" placeholder="Eigene Leuchte..." className="mast-input-base" style={{width: '100%', marginTop: '5px', display: 'none'}} />
       </div>
-      <div className="field-group">
-        <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
-        <input id="batch-lph-neu" defaultValue="6" className="mast-input-base" style={{width: '50px'}} />
-      </div>
+      {batchAktion !== LK_SIKA_TAUSCH_ACTION && (
+        <div className="field-group">
+          <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
+          <input id="batch-lph-neu" defaultValue="6" className="mast-input-base" style={{width: '50px'}} />
+        </div>
+      )}
       <div className="field-group">
         <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
         <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
@@ -3173,6 +3225,7 @@ const createProject = async () => {
                           <option value="Tausch">Tausch</option>
                           <option value="Montage">Montage</option>
                           <option value="Demontage">Demontage</option>
+                          <option value={LK_SIKA_TAUSCH_ACTION}>{LK_SIKA_TAUSCH_ACTION}</option>
                         </select>
                       </div>
 
@@ -3208,10 +3261,11 @@ const createProject = async () => {
                 )}
 
                 {/* PLANUNG (NEU) */}
-                {(m.aktion === "Tausch" || m.aktion === "Montage") && (
+                {(m.aktion === "Tausch" || m.aktion === "Montage" || m.aktion === LK_SIKA_TAUSCH_ACTION) && (
                   <div className="neu-section">
                     <span style={{fontSize: '10px', fontWeight: '800', color: '#2b6cb0', display: 'block', marginBottom: '8px'}}>NEUE INSTALLATION (NEU)</span>
                     <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+                      {m.aktion !== LK_SIKA_TAUSCH_ACTION && (
                        <div className="field-group" style={{width: '120px'}}>
                 <span className="field-label">Neuer Masttyp</span>
                 <select 
@@ -3223,6 +3277,7 @@ const createProject = async () => {
                   <option value="Gebogen">Gebogen</option>
                 </select>
               </div>
+                      )}
                       <div className="field-group" style={{flex: 1, minWidth: '150px'}}>
                 <span className="field-label">Leuchte</span>
                 <select 
@@ -3261,7 +3316,7 @@ const createProject = async () => {
                   />
                 )}
               </div>
-                      <div className="field-group">
+                      {m.aktion !== LK_SIKA_TAUSCH_ACTION && <div className="field-group">
                 <span className="field-label">LPH Neu</span>
                 <input 
                   className="mast-input-base" 
@@ -3269,7 +3324,7 @@ const createProject = async () => {
                   value={m.lphNeu} 
                   onChange={(e) => updateMast(originalIndex, 'lphNeu', e.target.value)} 
                 />
-              </div>
+              </div>}
                       <div className="field-group">
                 <span className="field-label">Lumen</span>
                 <input 
@@ -3463,11 +3518,12 @@ const createProject = async () => {
                     <option value="Montage">Montage</option>
                     <option value="Demontage">Demontage</option>
                     <option value="Tausch">Tausch</option>
+                    <option value={LK_SIKA_TAUSCH_ACTION}>{LK_SIKA_TAUSCH_ACTION}</option>
                   </select>
                 </div>
 
                 {/* --- REGULÄR: MONTAGE / DEMONTAGE --- */}
-                {m.aktion !== "Tausch" && (
+                {m.aktion !== "Tausch" && m.aktion !== LK_SIKA_TAUSCH_ACTION && (
                   <div className="aufmass-flex-center" style={{ gap: '6px' }}>
                     <input 
                       type="text" 
@@ -3771,6 +3827,57 @@ const createProject = async () => {
                       )}
                     </>
                   )}
+
+                  {m.aktion === LK_SIKA_TAUSCH_ACTION && (
+                    <div className="aufmass-flex-center" style={{ gap: '8px', borderLeft: '1px solid #334155', paddingLeft: '12px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '11px', color: '#93c5fd', fontWeight: 700 }}>LK / SiKa Tausch</span>
+                    </div>
+                  )}
+
+                  {m.aktion === LK_SIKA_TAUSCH_ACTION && (
+                    <>
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#38bdf8' }}>LK montieren (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.lkMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'lkMontieren', e.target.value)} />
+                      </div>
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#38bdf8' }}>LK demontieren (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.lkDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'lkDemontieren', e.target.value)} />
+                      </div>
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#38bdf8' }}>LK tauschen (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.lkTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'lkTauschen', e.target.value)} />
+                      </div>
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#38bdf8' }}>SiKa montieren (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.sikaMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaMontieren', e.target.value)} />
+                      </div>
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#38bdf8' }}>SiKa demontieren (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.sikaDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaDemontieren', e.target.value)} />
+                      </div>
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#38bdf8' }}>SiKa tauschen (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.sikaTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaTauschen', e.target.value)} />
+                      </div>
+
+                      <details className="aufmass-tausch-block" style={{ marginTop: '6px' }}>
+                        <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#93c5fd' }}>📦 Untermenü</summary>
+                        <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
+                          <span>Ausleger montieren (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.auslegerMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerMontieren', e.target.value)} />
+                          <span>Ausleger demontieren (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.auslegerDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerDemontieren', e.target.value)} />
+                          <span>Ausleger tauschen (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.auslegerTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerTauschen', e.target.value)} />
+                          <span>Steckdosenanschluss montieren (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.steckdosenanschlussMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'steckdosenanschlussMontieren', e.target.value)} />
+                          <span>Steckdosenanschluss demontieren (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.steckdosenanschlussDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'steckdosenanschlussDemontieren', e.target.value)} />
+                        </div>
+                      </details>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -3953,6 +4060,11 @@ const createProject = async () => {
     {(() => {
       const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
 
+      const createLkSikaBuckets = () => LK_SIKA_HSW_FIELDS.reduce((acc, field) => {
+        acc[field.key] = { title: field.title, total: 0, items: [] };
+        return acc;
+      }, {});
+
       const buildData = () => ({
         surfaces: {},
         linear: {},
@@ -3978,7 +4090,8 @@ const createProject = async () => {
         montagegrubeAend: { title: "Montagegrube ÄND (Stk)", total: 0, items: [] },
         montagegrubeAbr: { title: "Montagegrube ABR (Stk)", total: 0, items: [] },
         handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] },
-        transport: { title: "Transport (Std)", total: 0, items: [] }
+        transport: { title: "Transport (Std)", total: 0, items: [] },
+        ...createLkSikaBuckets()
       });
 
       const dataHsw = buildData();
@@ -4031,6 +4144,13 @@ const createProject = async () => {
             dataHsw.handarbeitStd.total += num(m.handarbeitStd);
             dataHsw.handarbeitStd.items.push({ label: mastLabel, val: num(m.handarbeitStd) });
           }
+
+          LK_SIKA_HSW_FIELDS.forEach((field) => {
+            const val = num(m[field.key]);
+            if (val <= 0) return;
+            dataHsw[field.key].total += val;
+            dataHsw[field.key].items.push({ label: mastLabel, val });
+          });
 
           // --- 2. MÜLLER POSITIONEN ---
           const addMuellerSurface = (surfaceType, area, labelSuffix) => {
@@ -4170,6 +4290,7 @@ const createProject = async () => {
           ...(dataObj.muffenDemoTausch.total > 0 ? [dataObj.muffenDemoTausch] : []),
           ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
           ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : []),
+          ...LK_SIKA_HSW_FIELDS.flatMap((field) => (dataObj[field.key]?.total > 0 ? [dataObj[field.key]] : [])),
           ...(dataObj.transport.total > 0 ? [dataObj.transport] : [])
         ];
 
