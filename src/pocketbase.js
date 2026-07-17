@@ -75,12 +75,17 @@ const getFileTokenSafe = async () => {
 };
 
 export const getSecureFileUrl = async (record, fileName, { download = false } = {}) => {
-  await ensureAuthSession();
-
-  const fileToken = await getFileTokenSafe();
   const options = {
-    token: fileToken,
   };
+
+  try {
+    const fileToken = await getFileTokenSafe();
+    if (fileToken) {
+      options.token = fileToken;
+    }
+  } catch {
+    // Wenn kein Token verfügbar ist, versuchen wir die öffentliche URL.
+  }
 
   if (download) {
     options.download = 1;

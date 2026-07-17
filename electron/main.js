@@ -236,6 +236,21 @@ function getFileType(ext) {
   return "other";
 }
 
+function getExtensionFromMimeType(mimeType) {
+  const normalized = String(mimeType || "").toLowerCase().split(";")[0].trim();
+  const map = {
+    "application/pdf": ".pdf",
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/bmp": ".bmp",
+    "image/svg+xml": ".svg"
+  };
+
+  return map[normalized] || "";
+}
+
 function readProjects() {
   if (!basePath || !fs.existsSync(basePath)) return [];
 
@@ -517,6 +532,10 @@ ipcMain.handle("shell:openPath", async (_, filePath) => {
   return shell.openPath(filePath);
 });
 
+ipcMain.handle("shell:openExternal", async (_, url) => {
+  return shell.openExternal(String(url || ""));
+});
+
 ipcMain.handle("shell:showItemInFolder", async (_, filePath) => {
   shell.showItemInFolder(filePath);
   return { ok: true };
@@ -554,6 +573,24 @@ ipcMain.handle('open-file', async (event, relativePath) => {
     return true;
   }
   return false;
+});
+
+ipcMain.handle('open-temp-file', async (_, { fileName, mimeType, bytes }) => {
+  try {
+    const tempDir = path.join(app.getPath('temp'), 'baustellen-app-preview');
+    ensureDir(tempDir);
+
+    const baseName = path.basename(String(fileName || 'datei')).replace(/\.[^.]+$/, '');
+    const ext = path.extname(String(fileName || '')) || getExtensionFromMimeType(mimeType);
+    const finalName = `${baseName || 'datei'}${ext || ''}`;
+    const tempPath = path.join(tempDir, `${Date.now()}_${finalName}`);
+
+    fs.writeFileSync(tempPath, Buffer.from(bytes));
+    await shell.openPath(tempPath);
+    return { ok: true, path: tempPath };
+  } catch (error) {
+    return { ok: false, error: error?.message || 'Unbekannter Fehler' };
+  }
 });
 
 // 1. Eine einzelne Datei aus einem Projektordner löschen

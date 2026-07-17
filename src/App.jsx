@@ -361,12 +361,149 @@ const getMimeTypeByFileName = (fileName = "") => {
   return mimeByExt[ext] || "application/octet-stream";
 };
 
+const getFileExtensionFromMimeType = (mimeType = "") => {
+  const normalized = String(mimeType || "").toLowerCase().split(";")[0].trim();
+  const extByMime = {
+    "application/pdf": "pdf",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "image/svg+xml": "svg"
+  };
+
+  return extByMime[normalized] || "";
+};
+
+const ensureFileNameHasExtension = (fileName = "", mimeType = "") => {
+  const name = String(fileName || "");
+  if (getFileExtension(name)) return name;
+
+  const ext = getFileExtensionFromMimeType(mimeType);
+  return ext ? `${name}.${ext}` : name;
+};
+
 const getDisplayFileName = (fileName = "") => String(fileName || "");
+
+const getPreferredMimeType = (fileName = "", mimeType = "") => {
+  const normalizedMime = String(mimeType || "").toLowerCase().split(";")[0].trim();
+  if (normalizedMime && normalizedMime !== "application/octet-stream") {
+    return normalizedMime;
+  }
+
+  return getMimeTypeByFileName(fileName);
+};
+
+const FILE_ENCRYPTION_MAGIC = "BAPPENC1";
+const MANAGED_FILE_ENCRYPTION_KEY_VERSION = "v1";
+const cachedDecryptKeyPromises = new Map();
+
+const getManagedEncryptionStorageKey = () => `managed_file_encryption_key_${MANAGED_FILE_ENCRYPTION_KEY_VERSION}`;
+
+const getDesktopManagedEncryptionPassphrase = async () => {
+  if (typeof window === "undefined" || !window.desktopAPI?.getManagedEncryptionPassphrase) return "";
+
+  try {
+    const response = await window.desktopAPI.getManagedEncryptionPassphrase();
+    return response?.ok ? String(response.passphrase || "").trim() : "";
+  } catch {
+    return "";
+  }
+};
+
+const getLocalManagedEncryptionPassphrase = () => {
+  if (typeof window === "undefined" || !window.localStorage) return "";
+  return String(localStorage.getItem(getManagedEncryptionStorageKey()) || "").trim();
+};
+
+const getEncryptionPassphraseCandidates = async () => {
+  const candidates = [
+    String(import.meta.env.VITE_FILE_ENCRYPTION_KEY || "").trim(),
+    await getDesktopManagedEncryptionPassphrase(),
+    getLocalManagedEncryptionPassphrase()
+  ].filter(Boolean);
+
+  return [...new Set(candidates)];
+};
+
+const getDecryptKeyForPassphrase = async (passphrase) => {
+  const cleanPassphrase = String(passphrase || "").trim();
+  if (!cleanPassphrase) return null;
+
+  if (!cachedDecryptKeyPromises.has(cleanPassphrase)) {
+    cachedDecryptKeyPromises.set(cleanPassphrase, (async () => {
+      const raw = new TextEncoder().encode(cleanPassphrase);
+      const digest = await crypto.subtle.digest("SHA-256", raw);
+      return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt"]);
+    })());
+  }
+
+  return cachedDecryptKeyPromises.get(cleanPassphrase);
+};
+
+const maybeDecryptDownloadedBlob = async (blob, fileName = "") => {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const magicBytes = new TextEncoder().encode(FILE_ENCRYPTION_MAGIC);
+  const hasMagic = bytes.length > magicBytes.length && magicBytes.every((m, i) => bytes[i] === m);
+
+  if (!hasMagic) {
+    return {
+      blob,
+      fileName,
+      encrypted: false
+    };
+  }
+
+  const passphrases = await getEncryptionPassphraseCandidates();
+  if (passphrases.length === 0) {
+    throw new Error("Verschluesselter Inhalt erkannt, aber kein Entschluesselungsschluessel verfuegbar");
+  }
+
+  let offset = magicBytes.length;
+  const nameLength = (bytes[offset] << 8) + bytes[offset + 1];
+  offset += 2;
+  const ivLength = bytes[offset];
+  offset += 1;
+
+  const nameBytes = bytes.slice(offset, offset + nameLength);
+  offset += nameLength;
+  const iv = bytes.slice(offset, offset + ivLength);
+  offset += ivLength;
+  const cipher = bytes.slice(offset);
+  const restoredFileName = new TextDecoder().decode(nameBytes) || fileName.replace(/\.enc$/i, "");
+  const inferredMimeType = getPreferredMimeType(restoredFileName, blob.type);
+
+  let lastError = null;
+  for (const passphrase of passphrases) {
+    try {
+      const key = await getDecryptKeyForPassphrase(passphrase);
+      if (!key) continue;
+
+      const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
+      return {
+        blob: new Blob([decrypted], { type: inferredMimeType }),
+        fileName: restoredFileName,
+        encrypted: true
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Entschluesselung fehlgeschlagen");
+};
 
 const isInlineViewableFile = (fileName = "") => {
   const ext = getFileExtension(fileName);
   return ["pdf", "png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(ext);
 };
+
+const isLegacyEncFileName = (fileName = "") => /\.enc$/i.test(String(fileName || ""));
+
+const getOriginalFileNameFromLegacyName = (fileName = "") => String(fileName || "").replace(/\.enc$/i, "");
+
+const getRestoreFilesStorageKey = (projectId) => `restored_file_names_${projectId || "unknown"}`;
 
 const getProfitabilityColor = (hourlyRate, minRate = 35, maxRate = 95) => {
   const rate = Number(hourlyRate) || 0;
@@ -888,35 +1025,110 @@ const fetchProtectedFileBlob = async (project, fileName, { download = false } = 
     throw new Error(`HTTP ${response.status}${responseText ? `: ${responseText.slice(0, 160)}` : ""}`);
   }
 
-  return response.blob();
+  const contentType = response.headers.get("content-type") || "";
+  const blob = await response.blob();
+  const preferredMimeType = getPreferredMimeType(fileName, contentType || blob.type);
+  return {
+    blob: new Blob([await blob.arrayBuffer()], { type: preferredMimeType }),
+    contentType: preferredMimeType
+  };
+};
+
+const restoreProjectFileNames = async (project, { silent = false } = {}) => {
+  if (!project?.id) {
+    return { restored: 0, skipped: 0, failed: 0, project: project || null };
+  }
+
+  const legacyFiles = (project.files || []).filter((fileName) => isLegacyEncFileName(fileName));
+  if (legacyFiles.length === 0) {
+    return { restored: 0, skipped: 0, failed: 0, project };
+  }
+
+  let workingProject = project;
+  let restored = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const legacyName of legacyFiles) {
+    const originalName = getOriginalFileNameFromLegacyName(legacyName);
+
+    try {
+      const currentFiles = Array.isArray(workingProject.files) ? workingProject.files : [];
+      if (currentFiles.includes(originalName)) {
+        workingProject = await pb.collection('projects').update(workingProject.id, { "files-": [legacyName] });
+        skipped += 1;
+        continue;
+      }
+
+      const fetched = await fetchProtectedFileBlob(workingProject, legacyName);
+      const decrypted = await maybeDecryptDownloadedBlob(fetched.blob, legacyName);
+      const restoredName = ensureFileNameHasExtension(
+        getOriginalFileNameFromLegacyName(decrypted.fileName || originalName),
+        decrypted.blob.type || fetched.contentType || getMimeTypeByFileName(originalName)
+      );
+      const restoredFile = new File([decrypted.blob], restoredName, {
+        type: decrypted.blob.type || fetched.contentType || getMimeTypeByFileName(restoredName),
+        lastModified: Date.now()
+      });
+
+      const formData = new FormData();
+      formData.append('files+', restoredFile);
+      formData.append('files-', legacyName);
+      workingProject = await pb.collection('projects').update(workingProject.id, formData);
+      restored += 1;
+    } catch (error) {
+      failed += 1;
+      console.error(`Dateiname-Restore fehlgeschlagen fuer ${legacyName}:`, error);
+    }
+  }
+
+  setProjects((prev) => prev.map((p) => (p.id === workingProject.id ? workingProject : p)));
+  if (selectedProject?.id === workingProject.id) {
+    setSelectedProject(workingProject);
+    setForm(workingProject);
+  }
+
+  if (!silent) {
+    await addFileAuditLog(
+      workingProject,
+      createFileAuditEntry(
+        "Dateinamen-Restore",
+        `${restored} umbenannt / ${skipped} bereits korrekt / ${failed} Fehler`,
+        failed === 0,
+        "Originalnamen wiederhergestellt"
+      )
+    );
+  }
+
+  return { restored, skipped, failed, project: workingProject };
 };
 
 const openOrDownloadSecureFile = async (project, fileName, { download = false } = {}) => {
   try {
-    await ensureAuthSession();
-    const fetchedBlob = await fetchProtectedFileBlob(project, fileName, { download });
-    const blobUrl = URL.createObjectURL(fetchedBlob);
-    const resolvedFileName = fileName;
+    const resolvedFileName = ensureFileNameHasExtension(fileName, getMimeTypeByFileName(fileName));
 
-    if (download || !isInlineViewableFile(resolvedFileName)) {
+    if (download) {
+      const secureUrl = await getSecureFileUrl(project, fileName, { download: true });
       const a = document.createElement("a");
-      a.href = blobUrl;
+      a.href = secureUrl;
       a.download = resolvedFileName;
       a.rel = "noopener noreferrer";
       a.click();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
     } else {
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      const secureUrl = await getSecureFileUrl(project, fileName, { download: false });
+      if (typeof window !== "undefined" && window.desktopAPI?.openExternal) {
+        await window.desktopAPI.openExternal(secureUrl);
+      } else {
+        window.open(secureUrl, '_blank', 'noopener,noreferrer');
+      }
     }
 
-    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", resolvedFileName, true, "Session geprüft"));
+    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", resolvedFileName, true, "best-effort"));
   } catch (error) {
-    console.error("Dateizugriff blockiert:", error);
-    const reason = getErrorMessage(error);
-    setToast(`⛔ Dateizugriff blockiert: ${reason}`);
-    setTimeout(() => setToast(null), 3000);
-    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", fileName, false, reason));
+    console.error("Dateizugriff fehlgeschlagen:", error);
+    setToast(`⛔ Datei konnte nicht geöffnet werden: ${getErrorMessage(error)}`);
+    setTimeout(() => setToast(null), 3500);
+    await addFileAuditLog(project, createFileAuditEntry(download ? "Download" : "Ansicht", fileName, false, getErrorMessage(error)));
   }
 };
 
@@ -1050,6 +1262,47 @@ Weitere Infos: ${form.notes || ""}
       loadProjects();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    if (!projectsLoaded) return;
+
+    const hasLegacyNames = Array.isArray(selectedProject.files)
+      ? selectedProject.files.some((fileName) => isLegacyEncFileName(fileName))
+      : false;
+
+    if (!hasLegacyNames) return;
+
+    const restoreKey = getRestoreFilesStorageKey(selectedProject.id);
+    if (localStorage.getItem(restoreKey) === "1") return;
+
+    let cancelled = false;
+
+    const runRestore = async () => {
+      setToast("⏳ Alte Dateinamen werden einmalig wiederhergestellt...");
+      try {
+        await ensureAuthSession();
+        const result = await restoreProjectFileNames(selectedProject, { silent: true });
+        if (!cancelled) {
+          localStorage.setItem(restoreKey, "1");
+          setToast(`✅ Dateinamen-Restore fertig: ${result.restored} umbenannt, ${result.skipped} übersprungen, ${result.failed} Fehler`);
+          setTimeout(() => setToast(null), 5000);
+        }
+      } catch (error) {
+        console.error("Dateinamen-Restore fehlgeschlagen:", error);
+        if (!cancelled) {
+          setToast(`❌ Restore fehlgeschlagen: ${getErrorMessage(error)}`);
+          setTimeout(() => setToast(null), 5000);
+        }
+      }
+    };
+
+    runRestore();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject?.id, projectsLoaded]);
 
   const filteredProjects = projects.filter((p) => {
     const text = search.toLowerCase();
@@ -4532,6 +4785,36 @@ const createProject = async () => {
       <h4 style={{ margin: 0 }}>Projektdateien</h4>
       {mode !== "create" && selectedProject && (
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {Array.isArray(selectedProject.files) && selectedProject.files.some((fileName) => isLegacyEncFileName(fileName)) && (
+            <button
+              onClick={async () => {
+                try {
+                  setToast("⏳ Dateinamen werden wiederhergestellt...");
+                  await ensureAuthSession();
+                  const result = await restoreProjectFileNames(selectedProject);
+                  localStorage.setItem(getRestoreFilesStorageKey(selectedProject.id), "1");
+                  setToast(`✅ Wiederhergestellt: ${result.restored} umbenannt, ${result.skipped} übersprungen, ${result.failed} Fehler`);
+                  setTimeout(() => setToast(null), 5000);
+                } catch (error) {
+                  console.error("Dateinamen-Restore fehlgeschlagen:", error);
+                  setToast(`❌ Restore fehlgeschlagen: ${getErrorMessage(error)}`);
+                  setTimeout(() => setToast(null), 5000);
+                }
+              }}
+              style={{
+                padding: "4px 10px",
+                cursor: "pointer",
+                backgroundColor: "#7c3aed",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "12px"
+              }}
+              title="Dateiendungen aus .enc wieder auf den Originalnamen setzen"
+            >
+              Dateinamen wiederherstellen
+            </button>
+          )}
           <button 
             onClick={() => window.desktopAPI.openProjectFolder(selectedProject.name)}
             style={{ 
