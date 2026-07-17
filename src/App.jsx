@@ -186,6 +186,36 @@ const MAST_OUTPUT_PER_DAY = {
   demontage: 3.7
 };
 
+const ORDER_EXPORT_FIELD_OPTIONS = [
+  { key: "name", label: "Projektname", width: 34 },
+  { key: "type", label: "Typ", width: 18 },
+  { key: "status", label: "Status", width: 26 },
+  { key: "createdDate", label: "Erstellt am", width: 16 },
+  { key: "updatedDate", label: "Zuletzt geändert", width: 18 },
+  { key: "address", label: "Adresse", width: 44 },
+  { key: "westnetz", label: "Westnetznummer", width: 30 },
+  { key: "pgk", label: "PGK", width: 18 },
+  { key: "ab_hsw", label: "AB HSW", width: 14 },
+  { key: "ab_mueller", label: "AB Müller", width: 14 },
+  { key: "zeitbedarf", label: "Zeitbedarf", width: 14 },
+  { key: "mastenTotal", label: "Masten gesamt", width: 14 },
+  { key: "mastenMontage", label: "Masten Montage", width: 16 },
+  { key: "mastenTausch", label: "Masten Tausch", width: 14 },
+  { key: "mastenDemontage", label: "Masten Demontage", width: 18 },
+  { key: "einmessungWeggeschicktAm", label: "Einmessung weggeschickt am", width: 24 },
+  { key: "materialbuchungErfolgtAm", label: "Materialbuchung erfolgt am", width: 24 },
+  { key: "proformaRechnungWeggeschicktAm", label: "Proforma Rechnung weggeschickt am", width: 30 },
+  { key: "stunden", label: "Nachkalk Stunden", width: 16 },
+  { key: "hourlyRate", label: "Nachkalk EUR/h", width: 16 },
+  { key: "gesamtHsw", label: "Nachkalk HSW EUR", width: 18 },
+  { key: "gesamtMueller", label: "Nachkalk Müller EUR", width: 20 },
+  { key: "subKosten", label: "Sub-/Fremdkosten EUR", width: 20 },
+  { key: "gesamt", label: "Gesamt netto EUR", width: 18 },
+  { key: "notes", label: "Notizen", width: 40 }
+];
+
+const DEFAULT_ORDER_EXPORT_FIELDS = ORDER_EXPORT_FIELD_OPTIONS.map((field) => field.key);
+
 const normalizeProjectType = (value) => String(value || "").trim().toLowerCase();
 const isExcludedFromNachkalk = (type) => EXCLUDED_NACHKALK_TYPES.has(normalizeProjectType(type));
 
@@ -387,9 +417,22 @@ export default function App() {
   const [settingsSortBy, setSettingsSortBy] = useState("date-desc");
   const [settingsDateFrom, setSettingsDateFrom] = useState(() => getCurrentYearStartDateString());
   const [settingsDateTo, setSettingsDateTo] = useState(() => getTodayDateString());
-  const [proformaDateFrom, setProformaDateFrom] = useState(() => getCurrentYearStartDateString());
-  const [proformaDateTo, setProformaDateTo] = useState(() => getTodayDateString());
-  const [proformaExportPopupOpen, setProformaExportPopupOpen] = useState(false);
+  const [chartDetailOpen, setChartDetailOpen] = useState(false);
+  const [chartDetailTitle, setChartDetailTitle] = useState("");
+  const [chartDetailRows, setChartDetailRows] = useState([]);
+  const [chartDetailSearch, setChartDetailSearch] = useState("");
+  const [chartDetailStatusFilter, setChartDetailStatusFilter] = useState("Alle");
+  const [chartDetailTypeFilter, setChartDetailTypeFilter] = useState("Alle");
+  const [chartDetailDateFrom, setChartDetailDateFrom] = useState("");
+  const [chartDetailDateTo, setChartDetailDateTo] = useState("");
+  const [chartDetailSortKey, setChartDetailSortKey] = useState("createdDate");
+  const [chartDetailSortDir, setChartDetailSortDir] = useState("desc");
+  const [ordersExportPopupOpen, setOrdersExportPopupOpen] = useState(false);
+  const [ordersExportTypeFilter, setOrdersExportTypeFilter] = useState("Alle");
+  const [ordersExportStatusFilter, setOrdersExportStatusFilter] = useState("Alle");
+  const [ordersExportDateFrom, setOrdersExportDateFrom] = useState(() => getCurrentYearStartDateString());
+  const [ordersExportDateTo, setOrdersExportDateTo] = useState(() => getTodayDateString());
+  const [ordersExportSelectedFields, setOrdersExportSelectedFields] = useState(() => [...DEFAULT_ORDER_EXPORT_FIELDS]);
   const [proformaReminderDays, setProformaReminderDays] = useState(() => {
     const saved = Number(localStorage.getItem('proforma_reminder_days'));
     return Number.isFinite(saved) && saved > 0 ? saved : 14;
@@ -1843,7 +1886,10 @@ const createProject = async () => {
       id: p.id,
       name: p.name || "Unbenannt",
       type: p.type || "Unbekannt",
+      status: p.status || "",
       city: detectCityFromAddress(p.address),
+      abHsw: String(p.ab_hsw || "").trim() || "-",
+      abMueller: String(p.ab_mueller || "").trim() || "-",
       createdAt,
       createdDate: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "",
       ...stats
@@ -1941,20 +1987,6 @@ const createProject = async () => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   };
 
-  const parseProjectLog = (project) => {
-    const rawLog = project?.log;
-    if (Array.isArray(rawLog)) return rawLog;
-    if (typeof rawLog === 'string') {
-      try {
-        const parsed = JSON.parse(rawLog);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) {
-        return [];
-      }
-    }
-    return [];
-  };
-
   const PROFORMA_STATUS = "Proformarechnung weggeschickt";
   const isProformaStatus = (value) => {
     const text = String(value || "").toLowerCase();
@@ -1965,40 +1997,6 @@ const createProject = async () => {
     const normalized = normalizeDateValue(value);
     const parsed = parseLogDateTime(normalized);
     return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : "";
-  };
-
-  const getProformaSetTimestamp = (project) => {
-    const logEntries = parseProjectLog(project);
-    let matched = null;
-
-    logEntries.forEach((entry) => {
-      const entryDate = parseLogDateTime(entry?.date);
-      if (!entryDate) return;
-
-      const changes = Array.isArray(entry?.changes) ? entry.changes : [];
-      const hasExplicitStatusSet = changes.some((c) => {
-        const fieldText = String(c?.field || "").toLowerCase();
-        const newText = String(c?.new || "");
-        return fieldText.includes("status") && isProformaStatus(newText);
-      });
-
-      if (hasExplicitStatusSet) {
-        if (!matched || entryDate > matched) matched = entryDate;
-      }
-    });
-
-    // Fallback fuer aeltere Logs ohne changes-Details.
-    if (!matched && isProformaStatus(project?.status)) {
-      logEntries.forEach((entry) => {
-        const entryDate = parseLogDateTime(entry?.date);
-        if (!entryDate) return;
-        if (String(entry?.action || "").toLowerCase().includes("status geändert")) {
-          if (!matched || entryDate > matched) matched = entryDate;
-        }
-      });
-    }
-
-    return matched;
   };
 
   const getProformaSentTimestampFromAufmass = (project) => {
@@ -2015,65 +2013,202 @@ const createProject = async () => {
     return parseLogDateTime(value);
   };
 
-  const proformaFilterFrom = normalizeDateForFilter(proformaDateFrom);
-  const proformaFilterTo = normalizeDateForFilter(proformaDateTo);
+  const ordersExportDateFromISO = normalizeDateForFilter(ordersExportDateFrom);
+  const ordersExportDateToISO = normalizeDateForFilter(ordersExportDateTo);
 
-  const proformaExportRows = projects
-    .map((p) => {
-      const proformaSetAt = getProformaSentTimestampFromAufmass(p) || getProformaSetTimestamp(p);
-      const proformaDate = proformaSetAt && !Number.isNaN(proformaSetAt.getTime())
-        ? proformaSetAt.toISOString().slice(0, 10)
-        : "";
+  const orderExportTypeOptions = [
+    "Alle",
+    ...Array.from(new Set([
+      "Konzept",
+      "Anfahrschaden",
+      "Störung",
+      "LK-Tausch",
+      "Sonstiges",
+      ...projects.map((p) => p.type).filter(Boolean)
+    ]))
+  ];
+
+  const orderExportStatusOptions = [
+    "Alle",
+    ...Array.from(new Set([
+      "Offen",
+      "Klärung",
+      "Westnetznummer fehlt",
+      "In Bearbeitung",
+      "Fertig für Abrechnung",
+      "Proformarechnung weggeschickt",
+      "Abgerechnet",
+      ...projects.map((p) => p.status).filter(Boolean)
+    ]))
+  ];
+
+  const parseProjectMasten = (project) => {
+    const raw = project?.masten;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const parseProjectAufmassAllgemein = (project) => {
+    let rawAufmass = project?.aufmass;
+
+    if (typeof rawAufmass === 'string') {
+      try {
+        rawAufmass = JSON.parse(rawAufmass);
+      } catch (e) {
+        rawAufmass = null;
+      }
+    }
+
+    if (!rawAufmass || Array.isArray(rawAufmass) || typeof rawAufmass !== 'object') {
+      return {};
+    }
+
+    return rawAufmass?.allgemein || {};
+  };
+
+  const countProjectMastActionsDetailed = (masten = []) => {
+    let mastenMontage = 0;
+    let mastenTausch = 0;
+    let mastenDemontage = 0;
+
+    masten.forEach((mast) => {
+      const action = String(mast?.aktion || mast?.typ || "").toLowerCase();
+
+      if (action.includes("tausch")) {
+        mastenTausch += 1;
+      } else if (action.includes("demont")) {
+        mastenDemontage += 1;
+      } else if (action.includes("montage")) {
+        mastenMontage += 1;
+      }
+    });
+
+    return { mastenMontage, mastenTausch, mastenDemontage };
+  };
+
+  const ordersExportRows = projects
+    .map((project) => {
+      const masten = parseProjectMasten(project);
+      const { mastenMontage, mastenTausch, mastenDemontage } = countProjectMastActionsDetailed(masten);
+      const aufmassStats = parseProjectAufmassStats(project);
+      const aufmassAllgemein = parseProjectAufmassAllgemein(project);
+      const createdAt = project?.created ? new Date(project.created) : null;
+      const updatedAt = project?.updated ? new Date(project.updated) : null;
+      const createdDateISO = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "";
+      const estimatedDaysRaw =
+        (mastenMontage / MAST_OUTPUT_PER_DAY.montage) +
+        (mastenTausch / MAST_OUTPUT_PER_DAY.tausch) +
+        (mastenDemontage / MAST_OUTPUT_PER_DAY.demontage);
+      const estimatedFullDays = Math.ceil(estimatedDaysRaw);
+      const relevantMastenCount = mastenMontage + mastenTausch + mastenDemontage;
+      const estimatedWeeks = Number((estimatedFullDays / WORK_DAYS_PER_WEEK).toFixed(2));
+
       return {
-        id: p.id,
-        beschreibung: p.name || p.notes || "",
-        abMueller: p.ab_mueller || "",
-        typ: p.type || "",
-        westnetznummer: p.westnetz || "",
-        proformaSetAt,
-        proformaDate,
-        status: p.status || ""
+        id: project?.id,
+        name: project?.name || "",
+        type: project?.type || "",
+        status: project?.status || "",
+        createdDateISO,
+        createdDate: createdAt && !Number.isNaN(createdAt.getTime()) ? formatDateToDDMMYYYY(createdAt) : "",
+        updatedDate: updatedAt && !Number.isNaN(updatedAt.getTime()) ? formatDateToDDMMYYYY(updatedAt) : "",
+        address: project?.address || "",
+        westnetz: project?.westnetz || "",
+        pgk: project?.pgk || "",
+        ab_hsw: project?.ab_hsw || "",
+        ab_mueller: project?.ab_mueller || "",
+        zeitbedarf: relevantMastenCount > 0 ? estimatedWeeks : "",
+        mastenTotal: masten.length,
+        mastenMontage,
+        mastenTausch,
+        mastenDemontage,
+        einmessungWeggeschicktAm: normalizeDateValue(aufmassAllgemein?.einmessungWeggeschicktAm || ""),
+        materialbuchungErfolgtAm: normalizeDateValue(aufmassAllgemein?.materialbuchungErfolgtAm || ""),
+        proformaRechnungWeggeschicktAm: normalizeDateValue(aufmassAllgemein?.proformaRechnungWeggeschicktAm || ""),
+        stunden: Number((aufmassStats?.stunden || 0).toFixed(2)),
+        hourlyRate: Number((aufmassStats?.hourlyRate || 0).toFixed(2)),
+        gesamtHsw: Number((aufmassStats?.gesamtHsw || 0).toFixed(2)),
+        gesamtMueller: Number((aufmassStats?.gesamtMueller || 0).toFixed(2)),
+        subKosten: Number((aufmassStats?.subKosten || 0).toFixed(2)),
+        gesamt: Number((aufmassStats?.gesamt || 0).toFixed(2)),
+        notes: project?.notes || ""
       };
     })
-    .filter((row) => isProformaStatus(row.status) && !!row.proformaDate)
-    .filter((row) => !proformaFilterFrom || row.proformaDate >= proformaFilterFrom)
-    .filter((row) => !proformaFilterTo || row.proformaDate <= proformaFilterTo)
-    .sort((a, b) => (b.proformaSetAt?.getTime() || 0) - (a.proformaSetAt?.getTime() || 0));
+    .filter((row) => ordersExportTypeFilter === "Alle" || row.type === ordersExportTypeFilter)
+    .filter((row) => ordersExportStatusFilter === "Alle" || row.status === ordersExportStatusFilter)
+    .filter((row) => !ordersExportDateFromISO || (row.createdDateISO && row.createdDateISO >= ordersExportDateFromISO))
+    .filter((row) => !ordersExportDateToISO || (row.createdDateISO && row.createdDateISO <= ordersExportDateToISO));
 
-  const exportProformaToExcel = () => {
-    if (proformaExportRows.length === 0) {
-      setToast("Keine Proforma-Projekte im gewählten Zeitraum gefunden");
+  const toggleOrdersExportField = (key) => {
+    setOrdersExportSelectedFields((prev) => {
+      if (prev.includes(key)) {
+        return prev.filter((item) => item !== key);
+      }
+      return [...prev, key];
+    });
+  };
+
+  const selectAllOrdersExportFields = () => {
+    setOrdersExportSelectedFields([...DEFAULT_ORDER_EXPORT_FIELDS]);
+  };
+
+  const clearOrdersExportFields = () => {
+    setOrdersExportSelectedFields([]);
+  };
+
+  const exportOrdersToExcel = () => {
+    if (ordersExportRows.length === 0) {
+      setToast("Keine Aufträge im gewählten Filter gefunden");
       setTimeout(() => setToast(null), 2500);
       return;
     }
 
-    const rows = proformaExportRows.map((item) => ({
-      Beschreibung: item.beschreibung,
-      "AB Müller": item.abMueller,
-      Typ: item.typ,
-      Westnetznummer: item.westnetznummer,
-      "Status auf Proforma gesetzt am": item.proformaSetAt
-        ? formatDateToDDMMYYYY(item.proformaSetAt)
-        : ""
-    }));
+    const selectedFields = ORDER_EXPORT_FIELD_OPTIONS.filter((field) => ordersExportSelectedFields.includes(field.key));
+    if (selectedFields.length === 0) {
+      setToast("Bitte mindestens ein Feld für den Export auswählen");
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    const rows = ordersExportRows.map((row) => {
+      const exportRow = {};
+      selectedFields.forEach((field) => {
+        exportRow[field.label] = row[field.key] ?? "";
+      });
+      return exportRow;
+    });
 
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet['!cols'] = [
-      { wch: 36 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 38 },
-      { wch: 24 }
+    sheet['!cols'] = selectedFields.map((field) => ({ wch: field.width || 16 }));
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Aufträge');
+
+    const filterSheetRows = [
+      { Filter: 'Typ', Wert: ordersExportTypeFilter },
+      { Filter: 'Status', Wert: ordersExportStatusFilter },
+      { Filter: 'Von Datum', Wert: normalizeDateValue(ordersExportDateFrom) || '-' },
+      { Filter: 'Bis Datum', Wert: normalizeDateValue(ordersExportDateTo) || '-' },
+      { Filter: 'Ausgewählte Felder', Wert: selectedFields.map((field) => field.label).join(', ') },
+      { Filter: 'Anzahl Aufträge', Wert: ordersExportRows.length }
     ];
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Proforma');
+    const filterSheet = XLSX.utils.json_to_sheet(filterSheetRows);
+    filterSheet['!cols'] = [{ wch: 24 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(workbook, filterSheet, 'Filter');
 
-    const fromPart = normalizeDateValue(proformaDateFrom) || 'alle';
-    const toPart = normalizeDateValue(proformaDateTo) || 'heute';
-    XLSX.writeFile(workbook, `Proforma_Export_${fromPart}_bis_${toPart}.xlsx`);
+    const fromPart = normalizeDateValue(ordersExportDateFrom) || 'alle';
+    const toPart = normalizeDateValue(ordersExportDateTo) || 'heute';
+    XLSX.writeFile(workbook, `Auftraege_Export_${fromPart}_bis_${toPart}.xlsx`);
 
-    setToast(`✅ Proforma-Export erstellt (${rows.length} Projekte)`);
+    setToast(`✅ Auftrags-Export erstellt (${ordersExportRows.length} Aufträge)`);
     setTimeout(() => setToast(null), 2200);
+    setOrdersExportPopupOpen(false);
   };
 
   useEffect(() => {
@@ -2239,6 +2374,82 @@ const createProject = async () => {
   const typeMax = Math.max(1, ...typeData.map((item) => item.avgRate));
   const distributionMax = Math.max(1, ...distributionData.map((item) => item.count));
   const monthlyHoursMax = Math.max(1, ...monthlyVolumeData.map((item) => item.totalHours));
+
+  const openChartDetail = (title, rows) => {
+    setChartDetailTitle(title);
+    setChartDetailRows(Array.isArray(rows) ? rows : []);
+    setChartDetailSearch("");
+    setChartDetailStatusFilter("Alle");
+    setChartDetailTypeFilter("Alle");
+    setChartDetailDateFrom("");
+    setChartDetailDateTo("");
+    setChartDetailSortKey("createdDate");
+    setChartDetailSortDir("desc");
+    setChartDetailOpen(true);
+  };
+
+  const toggleChartDetailSort = (key) => {
+    if (chartDetailSortKey === key) {
+      setChartDetailSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setChartDetailSortKey(key);
+    setChartDetailSortDir(key === "hourlyRate" || key === "stunden" || key === "createdDate" ? "desc" : "asc");
+  };
+
+  const chartDetailDateFromISO = normalizeDateFilterInputToISO(chartDetailDateFrom);
+  const chartDetailDateToISO = normalizeDateFilterInputToISO(chartDetailDateTo);
+  const chartDetailSearchNeedle = chartDetailSearch.trim().toLowerCase();
+
+  const chartDetailStatusOptions = ["Alle", ...Array.from(new Set(chartDetailRows.map((row) => row.status).filter(Boolean)))];
+  const chartDetailTypeOptions = ["Alle", ...Array.from(new Set(chartDetailRows.map((row) => row.type).filter(Boolean)))];
+
+  const chartDetailFilteredRows = chartDetailRows
+    .filter((row) => chartDetailStatusFilter === "Alle" || row.status === chartDetailStatusFilter)
+    .filter((row) => chartDetailTypeFilter === "Alle" || row.type === chartDetailTypeFilter)
+    .filter((row) => !chartDetailDateFromISO || (row.createdDate && row.createdDate >= chartDetailDateFromISO))
+    .filter((row) => !chartDetailDateToISO || (row.createdDate && row.createdDate <= chartDetailDateToISO))
+    .filter((row) => {
+      if (!chartDetailSearchNeedle) return true;
+      const haystack = [
+        row.name,
+        row.status,
+        row.type,
+        row.city,
+        row.abHsw,
+        row.abMueller,
+        row.createdDate
+      ].map((value) => String(value || "").toLowerCase()).join(" ");
+      return haystack.includes(chartDetailSearchNeedle);
+    })
+    .sort((a, b) => {
+      const direction = chartDetailSortDir === "asc" ? 1 : -1;
+
+      if (chartDetailSortKey === "createdDate") {
+        const aMs = a.createdAt ? a.createdAt.getTime() : 0;
+        const bMs = b.createdAt ? b.createdAt.getTime() : 0;
+        return (aMs - bMs) * direction;
+      }
+
+      if (chartDetailSortKey === "hourlyRate" || chartDetailSortKey === "stunden") {
+        const aNum = Number(a[chartDetailSortKey] || 0);
+        const bNum = Number(b[chartDetailSortKey] || 0);
+        return (aNum - bNum) * direction;
+      }
+
+      const aText = String(a[chartDetailSortKey] || "").toLowerCase();
+      const bText = String(b[chartDetailSortKey] || "").toLowerCase();
+      return aText.localeCompare(bText, 'de') * direction;
+    });
+
+  const openProjectFromChartRow = (row) => {
+    if (!row?.id) return;
+    const project = projects.find((item) => item.id === row.id);
+    if (!project) return;
+    setChartDetailOpen(false);
+    setSettingsOpen(false);
+    openProject(project);
+  };
 
   // Prüfe: Ist der Tab korrekt UND sind wir in der Detailansicht (Projekt offen)?
   const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung") && !!selectedProject;
@@ -4390,10 +4601,10 @@ const createProject = async () => {
               <h3 style={{ margin: 0 }}>Einstellungen & Nachkalkulation</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
-                  Excel Export
+                  Nachkalkulation Excel Export
                 </button>
-                <button onClick={() => setProformaExportPopupOpen(true)} style={{ backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
-                  Proforma Excel Export
+                <button onClick={() => setOrdersExportPopupOpen(true)} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                  Aufträge Excel Export
                 </button>
                 <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Logout
@@ -4527,7 +4738,15 @@ const createProject = async () => {
                   {timelineData.length > 0 ? (
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', minHeight: '220px', overflowX: 'auto', paddingBottom: '8px' }}>
                       {timelineData.map((item) => (
-                        <div key={item.key} style={{ minWidth: '48px', textAlign: 'center' }}>
+                        <div
+                          key={item.key}
+                          style={{ minWidth: '48px', textAlign: 'center', cursor: 'pointer' }}
+                          title="Details anzeigen"
+                          onClick={() => {
+                            const detailRows = analyticsRows.filter((row) => row.createdDate && row.createdDate.startsWith(item.key));
+                            openChartDetail(`Verlauf ${item.key} (${detailRows.length})`, detailRows);
+                          }}
+                        >
                           <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{item.avgRate.toFixed(1)}</div>
                           <div style={{
                             height: `${Math.max(8, (item.avgRate / timelineMax) * 170)}px`,
@@ -4547,7 +4766,15 @@ const createProject = async () => {
                   <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn nach Stadt</h4>
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {cityData.map((item) => (
-                      <div key={item.city} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 150px', gap: '8px', alignItems: 'center' }}>
+                      <div
+                        key={item.city}
+                        style={{ display: 'grid', gridTemplateColumns: '120px 1fr 150px', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                        title="Details anzeigen"
+                        onClick={() => {
+                          const detailRows = analyticsRows.filter((row) => row.city === item.city);
+                          openChartDetail(`Stadt ${item.city} (${detailRows.length})`, detailRows);
+                        }}
+                      >
                         <span>{item.city}</span>
                         <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
                           <div style={{ width: `${Math.min(100, (item.avgRate / cityMax) * 100)}%`, height: '100%', background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
@@ -4564,7 +4791,15 @@ const createProject = async () => {
                   <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn nach Auftragstyp</h4>
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {typeData.map((item) => (
-                      <div key={item.type} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 150px', gap: '8px', alignItems: 'center' }}>
+                      <div
+                        key={item.type}
+                        style={{ display: 'grid', gridTemplateColumns: '160px 1fr 150px', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                        title="Details anzeigen"
+                        onClick={() => {
+                          const detailRows = analyticsRowsByTypeChart.filter((row) => row.type === item.type);
+                          openChartDetail(`Typ ${item.type} (${detailRows.length})`, detailRows);
+                        }}
+                      >
                         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</span>
                         <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
                           <div style={{ width: `${Math.min(100, (item.avgRate / typeMax) * 100)}%`, height: '100%', background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
@@ -4581,7 +4816,22 @@ const createProject = async () => {
                   <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Rentabilitäts-Verteilung</h4>
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {distributionData.map((item) => (
-                      <div key={item.label} style={{ display: 'grid', gridTemplateColumns: '170px 1fr 80px', gap: '8px', alignItems: 'center' }}>
+                      <div
+                        key={item.label}
+                        style={{ display: 'grid', gridTemplateColumns: '170px 1fr 80px', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                        title="Details anzeigen"
+                        onClick={() => {
+                          const detailRows = analyticsRows.filter((row) => {
+                            if (item.label.startsWith('<')) return row.hourlyRate < MIN_HOURLY_RATE;
+                            if (item.label.startsWith('>=')) return row.hourlyRate >= VERY_GOOD_HOURLY_RATE;
+                            if (item.label.startsWith(`${MIN_HOURLY_RATE.toFixed(0)}`)) {
+                              return row.hourlyRate >= MIN_HOURLY_RATE && row.hourlyRate < NORMAL_HOURLY_RATE;
+                            }
+                            return row.hourlyRate >= NORMAL_HOURLY_RATE && row.hourlyRate < VERY_GOOD_HOURLY_RATE;
+                          });
+                          openChartDetail(`Verteilung ${item.label} (${detailRows.length})`, detailRows);
+                        }}
+                      >
                         <span>{item.label}</span>
                         <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
                           <div style={{ width: `${Math.min(100, (item.count / distributionMax) * 100)}%`, height: '100%', background: item.color }} />
@@ -4599,7 +4849,15 @@ const createProject = async () => {
                   {monthlyVolumeData.length > 0 ? (
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', minHeight: '220px', overflowX: 'auto', paddingBottom: '8px' }}>
                       {monthlyVolumeData.map((item) => (
-                        <div key={item.key} style={{ minWidth: '48px', textAlign: 'center' }}>
+                        <div
+                          key={item.key}
+                          style={{ minWidth: '48px', textAlign: 'center', cursor: 'pointer' }}
+                          title="Details anzeigen"
+                          onClick={() => {
+                            const detailRows = analyticsRowsByTypeChart.filter((row) => row.createdDate && row.createdDate.startsWith(item.key));
+                            openChartDetail(`Monat ${item.key} (${detailRows.length})`, detailRows);
+                          }}
+                        >
                           <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{item.totalHours.toFixed(0)}h</div>
                           <div style={{
                             height: `${Math.max(8, (item.totalHours / monthlyHoursMax) * 170)}px`,
@@ -4619,9 +4877,150 @@ const createProject = async () => {
               )}
             </div>
 
-            {proformaExportPopupOpen && (
+            {chartDetailOpen && (
               <div
-                onClick={() => setProformaExportPopupOpen(false)}
+                onClick={() => setChartDetailOpen(false)}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(2,6,23,0.78)',
+                  zIndex: 13100,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  padding: '16px'
+                }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    width: 'min(1180px, 98vw)',
+                    maxHeight: '92vh',
+                    overflow: 'auto',
+                    background: '#0b1220',
+                    border: '1px solid #1f2a44',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    color: '#e2e8f0'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <h4 style={{ margin: 0, color: '#7dd3fc' }}>{chartDetailTitle || 'Chart-Details'}</h4>
+                    <button onClick={() => setChartDetailOpen(false)} style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}>
+                      Schließen
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Freitextsuche (Name, Status, Typ, Stadt, AB, Datum)"
+                      value={chartDetailSearch}
+                      onChange={(e) => setChartDetailSearch(e.target.value)}
+                      className="mast-input-base"
+                      style={{ marginTop: 0 }}
+                    />
+                    <select
+                      value={chartDetailStatusFilter}
+                      onChange={(e) => setChartDetailStatusFilter(e.target.value)}
+                      className="mast-input-base"
+                      style={{ marginTop: 0 }}
+                    >
+                      {chartDetailStatusOptions.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={chartDetailTypeFilter}
+                      onChange={(e) => setChartDetailTypeFilter(e.target.value)}
+                      className="mast-input-base"
+                      style={{ marginTop: 0 }}
+                    >
+                      {chartDetailTypeOptions.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="Von dd.mm.yyyy"
+                      value={normalizeDateValue(chartDetailDateFrom)}
+                      onChange={(e) => setChartDetailDateFrom(e.target.value)}
+                      onBlur={(e) => setChartDetailDateFrom(normalizeDateValue(e.target.value))}
+                      className="mast-input-base"
+                      style={{ marginTop: 0 }}
+                    />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
+                      placeholder="Bis dd.mm.yyyy"
+                      value={normalizeDateValue(chartDetailDateTo)}
+                      onChange={(e) => setChartDetailDateTo(e.target.value)}
+                      onBlur={(e) => setChartDetailDateTo(normalizeDateValue(e.target.value))}
+                      className="mast-input-base"
+                      style={{ marginTop: 0 }}
+                    />
+                  </div>
+
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#93c5fd' }}>
+                    Treffer: {chartDetailFilteredRows.length} von {chartDetailRows.length}
+                  </div>
+
+                  <div style={{ marginTop: '10px', border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ background: '#111827' }}>
+                          <th onClick={() => toggleChartDetailSort('name')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Name {chartDetailSortKey === 'name' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('status')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Status {chartDetailSortKey === 'status' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('type')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Typ {chartDetailSortKey === 'type' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('createdDate')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Datum {chartDetailSortKey === 'createdDate' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('abHsw')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>AB HSW {chartDetailSortKey === 'abHsw' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('abMueller')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>AB Müller {chartDetailSortKey === 'abMueller' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('stunden')} style={{ textAlign: 'right', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Stunden {chartDetailSortKey === 'stunden' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('hourlyRate')} style={{ textAlign: 'right', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>EUR/h {chartDetailSortKey === 'hourlyRate' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {chartDetailFilteredRows.map((row, idx) => (
+                          <tr
+                            key={`${row.id || row.name}-${idx}`}
+                            onClick={() => openProjectFromChartRow(row)}
+                            style={{
+                              borderTop: '1px solid #1f2a44',
+                              cursor: 'pointer',
+                              background: idx % 2 === 0 ? '#0b1220' : '#0f172a'
+                            }}
+                            title="Baustelle öffnen"
+                          >
+                            <td style={{ padding: '8px', color: '#e2e8f0' }}>{row.name || '-'}</td>
+                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.status || '-'}</td>
+                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.type || '-'}</td>
+                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.createdDate ? `${row.createdDate.slice(8, 10)}.${row.createdDate.slice(5, 7)}.${row.createdDate.slice(0, 4)}` : '-'}</td>
+                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.abHsw || '-'}</td>
+                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.abMueller || '-'}</td>
+                            <td style={{ padding: '8px', textAlign: 'right', color: '#cbd5e1' }}>{Number(row.stunden || 0).toFixed(2)}</td>
+                            <td style={{ padding: '8px', textAlign: 'right', color: getProfitabilityColor(row.hourlyRate || 0, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{Number(row.hourlyRate || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                        {chartDetailFilteredRows.length === 0 && (
+                          <tr>
+                            <td colSpan={8} style={{ padding: '14px', color: '#94a3b8', textAlign: 'center' }}>
+                              Keine Baustellen für die aktuelle Filterauswahl.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {ordersExportPopupOpen && (
+              <div
+                onClick={() => setOrdersExportPopupOpen(false)}
                 style={{
                   position: 'fixed',
                   inset: 0,
@@ -4636,7 +5035,9 @@ const createProject = async () => {
                 <div
                   onClick={(e) => e.stopPropagation()}
                   style={{
-                    width: 'min(560px, 96vw)',
+                    width: 'min(900px, 97vw)',
+                    maxHeight: '90vh',
+                    overflow: 'auto',
                     background: '#0b1220',
                     border: '1px solid #1f2a44',
                     borderRadius: '10px',
@@ -4644,18 +5045,46 @@ const createProject = async () => {
                     color: '#e2e8f0'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                    <h4 style={{ margin: 0, color: '#7dd3fc' }}>Proforma Export</h4>
-                    <button onClick={() => setProformaExportPopupOpen(false)} style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <h4 style={{ margin: 0, color: '#7dd3fc' }}>Aufträge Excel Export</h4>
+                    <button onClick={() => setOrdersExportPopupOpen(false)} style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}>
                       Schließen
                     </button>
                   </div>
 
                   <div style={{ marginTop: '10px', fontSize: '12px', color: '#93c5fd' }}>
-                    Zeitraum bezieht sich auf den Zeitpunkt, wann der Status auf Proforma gesetzt wurde.
+                    Filter nach Typ, Zeitraum (Erstellt am) und Status. Danach auswählbare Felder exportieren.
                   </div>
 
-                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ</label>
+                      <select
+                        value={ordersExportTypeFilter}
+                        onChange={(e) => setOrdersExportTypeFilter(e.target.value)}
+                        className="mast-input-base"
+                        style={{ width: '100%', marginTop: '4px' }}
+                      >
+                        {orderExportTypeOptions.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Status</label>
+                      <select
+                        value={ordersExportStatusFilter}
+                        onChange={(e) => setOrdersExportStatusFilter(e.target.value)}
+                        className="mast-input-base"
+                        style={{ width: '100%', marginTop: '4px' }}
+                      >
+                        {orderExportStatusOptions.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div>
                       <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
                       <input
@@ -4663,13 +5092,14 @@ const createProject = async () => {
                         inputMode="numeric"
                         maxLength={10}
                         placeholder="dd.mm.yyyy"
-                        value={normalizeDateValue(proformaDateFrom)}
-                        onChange={(e) => setProformaDateFrom(e.target.value)}
-                        onBlur={(e) => setProformaDateFrom(normalizeDateValue(e.target.value))}
+                        value={normalizeDateValue(ordersExportDateFrom)}
+                        onChange={(e) => setOrdersExportDateFrom(e.target.value)}
+                        onBlur={(e) => setOrdersExportDateFrom(normalizeDateValue(e.target.value))}
                         className="mast-input-base"
                         style={{ width: '100%', marginTop: '4px' }}
                       />
                     </div>
+
                     <div>
                       <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
                       <input
@@ -4677,9 +5107,9 @@ const createProject = async () => {
                         inputMode="numeric"
                         maxLength={10}
                         placeholder="dd.mm.yyyy"
-                        value={normalizeDateValue(proformaDateTo)}
-                        onChange={(e) => setProformaDateTo(e.target.value)}
-                        onBlur={(e) => setProformaDateTo(normalizeDateValue(e.target.value))}
+                        value={normalizeDateValue(ordersExportDateTo)}
+                        onChange={(e) => setOrdersExportDateTo(e.target.value)}
+                        onBlur={(e) => setOrdersExportDateTo(normalizeDateValue(e.target.value))}
                         className="mast-input-base"
                         style={{ width: '100%', marginTop: '4px' }}
                       />
@@ -4687,9 +5117,48 @@ const createProject = async () => {
                   </div>
 
                   <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '12px', color: '#93c5fd' }}>Treffer: {proformaExportRows.length}</span>
-                    <button onClick={exportProformaToExcel} style={{ backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
-                      Jetzt Proforma exportieren
+                    <strong style={{ color: '#cbd5e1' }}>Felder auswählen</strong>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={selectAllOrdersExportFields}
+                        style={{ background: '#0369a1', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}
+                      >
+                        Alle wählen
+                      </button>
+                      <button
+                        onClick={clearOrdersExportFields}
+                        style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}
+                      >
+                        Alle abwählen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '8px', border: '1px solid #1f2a44', borderRadius: '8px', padding: '10px', background: '#0f172a' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px 10px' }}>
+                      {ORDER_EXPORT_FIELD_OPTIONS.map((field) => {
+                        const isChecked = ordersExportSelectedFields.includes(field.key);
+                        return (
+                          <label key={field.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e2e8f0' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleOrdersExportField(field.key)}
+                              style={{ width: '16px', height: '16px', margin: 0 }}
+                            />
+                            <span>{field.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#93c5fd' }}>
+                      Treffer: {ordersExportRows.length} | Ausgewählte Felder: {ordersExportSelectedFields.length}
+                    </span>
+                    <button onClick={exportOrdersToExcel} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                      Jetzt Aufträge exportieren
                     </button>
                   </div>
                 </div>
