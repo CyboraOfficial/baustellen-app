@@ -10,29 +10,30 @@
     <meta name="apple-mobile-web-app-title" content="Hegener App">
     <link rel="apple-touch-icon" href="/logo192.png">
     <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self'; 
-    script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
-    connect-src 'self' 
-                https://app.elektro-hegener.de
-                http://127.0.0.1:8090
-                https://nominatim.openstreetmap.org 
-                https://github.com
-                https://api.github.com
-                https://objects.githubusercontent.com
-                http://localhost:* 
-                ws://localhost:*; 
-    style-src 'self' 'unsafe-inline'; 
-    img-src 'self' 
-            data: 
-            blob:
-            https://*.tile.openstreetmap.org 
-            https://www.openstreetmap.org
-            https://server.arcgisonline.com 
-            https://upload.wikimedia.org
-            https://raw.githubusercontent.com 
-            https://unpkg.com;
-    font-src 'self' data:;
-">
+      default-src 'self'; 
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; 
+      worker-src 'self' blob:;
+      connect-src 'self' 
+                  https://app.elektro-hegener.de
+                  http://127.0.0.1:8090
+                  https://nominatim.openstreetmap.org 
+                  https://github.com
+                  https://api.github.com
+                  https://objects.githubusercontent.com
+                  http://localhost:* 
+                  ws://localhost:*; 
+      style-src 'self' 'unsafe-inline'; 
+      img-src 'self' 
+              data: 
+              blob:
+              https://*.tile.openstreetmap.org 
+              https://www.openstreetmap.org
+              https://server.arcgisonline.com 
+              https://upload.wikimedia.org
+              https://raw.githubusercontent.com 
+              https://unpkg.com;
+      font-src 'self' data:;
+    ">
     <title>Baustellen App</title>
   </head>
   <body>

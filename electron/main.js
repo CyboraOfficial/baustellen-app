@@ -4,7 +4,6 @@ const { app, BrowserWindow, session, ipcMain, dialog, shell } = require('electro
 const path = require('path'); // Pfad separat importieren, damit .join() sicher definiert ist
 const fs = require("fs");
 const os = require('os');
-const crypto = require('crypto');
 const userDataPath = path.join(os.homedir(), 'Desktop', 'Baustellen');
 const { autoUpdater } = require("electron-updater");
 
@@ -184,25 +183,6 @@ function saveConfig(config) {
   writeJsonSafe(configPath, config);
 }
 
-function getOrCreateManagedEncryptionPassphrase() {
-  const config = getConfig();
-  const existing = String(config.managedEncryptionPassphrase || "").trim();
-  if (existing) return existing;
-
-  const generated = crypto.randomBytes(32).toString('base64');
-  saveConfig({ ...config, managedEncryptionPassphrase: generated });
-  return generated;
-}
-
-function setManagedEncryptionPassphrase(passphrase) {
-  const cleanPassphrase = String(passphrase || "").trim();
-  if (!cleanPassphrase) return false;
-
-  const config = getConfig();
-  saveConfig({ ...config, managedEncryptionPassphrase: cleanPassphrase });
-  return true;
-}
-
 async function chooseBaseFolder(force = false) {
   const config = getConfig();
 
@@ -234,21 +214,6 @@ function getFileType(ext) {
   if ([".pdf"].includes(e)) return "pdf";
   if ([".doc", ".docx", ".xls", ".xlsx", ".dwg", ".dxf", ".txt"].includes(e)) return "document";
   return "other";
-}
-
-function getExtensionFromMimeType(mimeType) {
-  const normalized = String(mimeType || "").toLowerCase().split(";")[0].trim();
-  const map = {
-    "application/pdf": ".pdf",
-    "image/png": ".png",
-    "image/jpeg": ".jpg",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-    "image/bmp": ".bmp",
-    "image/svg+xml": ".svg"
-  };
-
-  return map[normalized] || "";
 }
 
 function readProjects() {
@@ -414,24 +379,6 @@ ipcMain.handle("projects:create", async (_, project) => {
   return result;
 });
 
-ipcMain.handle('security:getManagedEncryptionPassphrase', async () => {
-  try {
-    const passphrase = getOrCreateManagedEncryptionPassphrase();
-    return { ok: true, passphrase };
-  } catch (error) {
-    return { ok: false, passphrase: "", error: error?.message || "Unbekannter Fehler" };
-  }
-});
-
-ipcMain.handle('security:setManagedEncryptionPassphrase', async (_, passphrase) => {
-  try {
-    const ok = setManagedEncryptionPassphrase(passphrase);
-    return { ok };
-  } catch (error) {
-    return { ok: false, error: error?.message || "Unbekannter Fehler" };
-  }
-});
-
 if (!fs.existsSync(userDataPath)) {
   fs.mkdirSync(userDataPath, { recursive: true });
 }
@@ -532,10 +479,6 @@ ipcMain.handle("shell:openPath", async (_, filePath) => {
   return shell.openPath(filePath);
 });
 
-ipcMain.handle("shell:openExternal", async (_, url) => {
-  return shell.openExternal(String(url || ""));
-});
-
 ipcMain.handle("shell:showItemInFolder", async (_, filePath) => {
   shell.showItemInFolder(filePath);
   return { ok: true };
@@ -575,22 +518,9 @@ ipcMain.handle('open-file', async (event, relativePath) => {
   return false;
 });
 
-ipcMain.handle('open-temp-file', async (_, { fileName, mimeType, bytes }) => {
-  try {
-    const tempDir = path.join(app.getPath('temp'), 'baustellen-app-preview');
-    ensureDir(tempDir);
-
-    const baseName = path.basename(String(fileName || 'datei')).replace(/\.[^.]+$/, '');
-    const ext = path.extname(String(fileName || '')) || getExtensionFromMimeType(mimeType);
-    const finalName = `${baseName || 'datei'}${ext || ''}`;
-    const tempPath = path.join(tempDir, `${Date.now()}_${finalName}`);
-
-    fs.writeFileSync(tempPath, Buffer.from(bytes));
-    await shell.openPath(tempPath);
-    return { ok: true, path: tempPath };
-  } catch (error) {
-    return { ok: false, error: error?.message || 'Unbekannter Fehler' };
-  }
+ipcMain.on('open-external-file', (event, url) => {
+  console.log("Öffne externe URL:", url);
+  shell.openExternal(url); 
 });
 
 // 1. Eine einzelne Datei aus einem Projektordner löschen

@@ -7,15 +7,11 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   deleteProject: (id) => ipcRenderer.invoke('projects:delete', id),
   chooseBaseFolder: () => ipcRenderer.invoke("settings:chooseBaseFolder"),
   openPath: (filePath) => ipcRenderer.invoke("shell:openPath", filePath),
-  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   showItemInFolder: (filePath) => ipcRenderer.invoke("shell:showItemInFolder", filePath),
   uploadFile: (data) => ipcRenderer.invoke("upload-file", data),
   openFile: (filePath) => ipcRenderer.invoke("open-file", filePath),
-  openTempFile: (data) => ipcRenderer.invoke("open-temp-file", data),
   deleteFile: (data) => ipcRenderer.invoke('delete-file', data),
   openProjectFolder: (name) => ipcRenderer.invoke('open-project-folder', name),
-  getManagedEncryptionPassphrase: () => ipcRenderer.invoke('security:getManagedEncryptionPassphrase'),
-  setManagedEncryptionPassphrase: (passphrase) => ipcRenderer.invoke('security:setManagedEncryptionPassphrase', passphrase),
   
   // --- UPDATER EVENTS ---
   onUpdateAvailable: (callback) => {
@@ -58,7 +54,7 @@ contextBridge.exposeInMainWorld("desktopAPI", {
 
   send: (channel, data) => {
     // WICHTIG: Prüfe, ob 'install-update' hier wirklich EXAKT so drin steht!
-    let validChannels = ['check-updates', 'start-download', 'install-update']; 
+    let validChannels = ['open-file', 'open-external-file', 'check-updates', 'start-download', 'install-update']; 
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     } else {
