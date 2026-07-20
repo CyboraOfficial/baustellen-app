@@ -1,7 +1,7 @@
 {
   "name": "baustellen-app",
   "private": true,
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "App zur Verwaltung von Baustellen",
   "author": "CyboraOfficial",
   "main": "electron/main.js",
@@ -65,7 +65,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
+    "@babel/parser": "^7.28.5",
+    "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.0.1",
     "electron": "^31.7.7",
     "electron-builder": "^26.8.1",

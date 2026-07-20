@@ -10,7 +10,6 @@ import imageCompression from 'browser-image-compression';
 import * as XLSX from 'xlsx';
 
 L.Map.mergeOptions({ zoomAnimation: true, zoomAnimationThreshold: 10 });
-
 function FlyToPosition({ position }) {
   const map = useMap();
 
@@ -232,6 +231,7 @@ const DEFAULT_ORDER_EXPORT_FIELDS = ORDER_EXPORT_FIELD_OPTIONS.map((field) => fi
 
 const normalizeProjectType = (value) => String(value || "").trim().toLowerCase();
 const isExcludedFromNachkalk = (type) => EXCLUDED_NACHKALK_TYPES.has(normalizeProjectType(type));
+const isMontageRelatedAction = (action) => normalizeProjectType(action) === "montage";
 
 const parseNumberInput = (value) => {
   const num = Number(String(value || "").replace(',', '.').trim());
@@ -3765,7 +3765,7 @@ const createProject = async () => {
                           </div>
                         )}
                         <div style={{ marginTop: '4px', fontSize: '10px', color: '#94a3b8' }}>
-                          Für ANS zählt externe Graben-Oberfläche plus zusätzlich die Lampen-Oberflächen.
+                          Für ANS zählt die externe Graben-Oberfläche plus zusätzlich die Oberflächen aus Montage.
                         </div>
                       </div>
                     </div>
@@ -4170,13 +4170,20 @@ const createProject = async () => {
           });
 
           // --- 2. MÜLLER POSITIONEN ---
-          const addMuellerSurface = (surfaceType, area, labelSuffix) => {
+          const ensureMuellerSurfaceCategory = (surfaceType, labelSuffix) => {
             const normalized = normalizeSurfaceType(surfaceType);
-            if (area <= 0 || normalized === "Grass") return;
+            if (normalized === "Grass") return null;
             const catGrabenName = `Graben ${getSurfaceLabel(normalized)}${labelSuffix ? ` ${labelSuffix}` : ""}`;
             if (!dataMueller.surfaces[catGrabenName]) {
               dataMueller.surfaces[catGrabenName] = { title: `${catGrabenName} (m²)`, total: 0, items: [] };
             }
+            return catGrabenName;
+          };
+
+          const addMuellerSurface = (surfaceType, area, labelSuffix) => {
+            if (area <= 0) return;
+            const catGrabenName = ensureMuellerSurfaceCategory(surfaceType, labelSuffix);
+            if (!catGrabenName) return;
             dataMueller.surfaces[catGrabenName].total += area;
             dataMueller.surfaces[catGrabenName].items.push({ label: mastLabel, val: area });
           };
@@ -4185,33 +4192,56 @@ const createProject = async () => {
           const laengeGrabenAend = num(m.grabenTiefeBreiteTausch);
           const laengeGrabenAbr = num(m.grabenTiefeBreiteDemo);
 
+          const basisMast = (form.masten || []).find((mast) => {
+            if (mast?.id && m?.id) return mast.id === m.id;
+            if (mast?.mastLabel && m?.mastLabel) return mast.mastLabel === m.mastLabel;
+            return false;
+          }) || (form.masten || [])[mastIdx] || {};
+
+          const aufmassAreasByType = getMastSurfaceAreasByType(m);
+          const basisAreasByType = getMastSurfaceAreasByType(basisMast);
+          const mergedLampAreasByType = {};
+          const areaTypes = Array.from(new Set([
+            ...Object.keys(aufmassAreasByType),
+            ...Object.keys(basisAreasByType)
+          ]));
+          areaTypes.forEach((type) => {
+            mergedLampAreasByType[type] = aufmassAreasByType[type] > 0 ? aufmassAreasByType[type] : (basisAreasByType[type] || 0);
+          });
+
+            const shouldAddMontageSurfacesToAns = isMontageRelatedAction(m.aktion);
+
           if (laengeGrabenAns > 0) {
-            const basisMast = (form.masten || []).find((mast) => {
-              if (mast?.id && m?.id) return mast.id === m.id;
-              if (mast?.mastLabel && m?.mastLabel) return mast.mastLabel === m.mastLabel;
-              return false;
-            }) || (form.masten || [])[mastIdx] || {};
-
-            const aufmassAreasByType = getMastSurfaceAreasByType(m);
-            const basisAreasByType = getMastSurfaceAreasByType(basisMast);
-            const mergedLampAreasByType = {};
-            const areaTypes = Array.from(new Set([
-              ...Object.keys(aufmassAreasByType),
-              ...Object.keys(basisAreasByType)
-            ]));
-            areaTypes.forEach((type) => {
-              mergedLampAreasByType[type] = aufmassAreasByType[type] > 0 ? aufmassAreasByType[type] : (basisAreasByType[type] || 0);
-            });
-
             const flaecheGrabenAns = laengeGrabenAns * 0.3;
 
             // Externe Graben-Oberfläche bleibt erhalten.
             addMuellerSurface(m.oberflaecheGraben || "Platten", flaecheGrabenAns, "(ANS)");
 
-            // Lampen-Oberflächen kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
-            Object.entries(mergedLampAreasByType).forEach(([surfaceType, area]) => {
-              if ((Number(area) || 0) > 0) {
-                addMuellerSurface(surfaceType, area, "(ANS)");
+            // Oberflächen von Montage kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
+            if (shouldAddMontageSurfacesToAns) {
+              Object.entries(mergedLampAreasByType).forEach(([surfaceType, area]) => {
+                if ((Number(area) || 0) > 0) {
+                  addMuellerSurface(surfaceType, area, "(ANS)");
+                }
+              });
+            }
+          } else if (shouldAddMontageSurfacesToAns) {
+            // Ohne Graben: Montage-Oberflächen trotzdem mit realer Fläche ausweisen.
+            // Falls keine messbare Fläche hinterlegt ist, Position mit 0 sichtbar halten.
+            const surfaceEntries = Object.entries(mergedLampAreasByType);
+            const hasPositiveArea = surfaceEntries.some(([, area]) => (Number(area) || 0) > 0);
+
+            surfaceEntries.forEach(([surfaceType, area]) => {
+              const numericArea = Number(area) || 0;
+              if (numericArea > 0) {
+                addMuellerSurface(surfaceType, numericArea, "(ANS)");
+                return;
+              }
+
+              if (!hasPositiveArea) {
+                const catName = ensureMuellerSurfaceCategory(surfaceType, "(ANS)");
+                if (!catName) return;
+                dataMueller.surfaces[catName].items.push({ label: mastLabel, val: 0 });
               }
             });
           }
