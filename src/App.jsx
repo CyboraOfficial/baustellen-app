@@ -4094,8 +4094,7 @@ const createProject = async () => {
         muffenDemoMontage: { title: "Muffen demontieren ANS(Stk)", total: 0, items: [] },
         muffenDemo: { title: "Muffen demontieren ABR(Stk)", total: 0, items: [] },
         muffenDemoTausch: { title: "Muffen demontieren ÄND(Stk)", total: 0, items: [] },
-        netz1: { title: "Netzanschluss bis 1m", total: 0, items: [] },
-        netz2: { title: "Netzanschluss über 1m", total: 0, items: [] },
+        netzAns: { title: "Netzanschluss montieren ANS", total: 0, items: [] },
         netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
         grabenAns: { title: "Graben ANS (m)", total: 0, items: [] },
         grabenAend: { title: "Graben ÄND (m)", total: 0, items: [] },
@@ -4134,13 +4133,21 @@ const createProject = async () => {
 
           mastSurfaces.forEach((entry, idx) => {
             if (normalizeSurfaceType(entry.typ) === "Grass") return;
-            const flaeche = num(entry.x) * num(entry.y);
+            const xVal = num(entry.x);
+            const yVal = num(entry.y);
+            const flaeche = xVal * yVal;
             if (flaeche <= 0) return;
 
             const name = getSurfaceLabel(entry.typ);
             if (!dataHsw.surfaces[name]) dataHsw.surfaces[name] = { title: `${name} (m²)`, total: 0, items: [] };
             dataHsw.surfaces[name].total += flaeche;
-            dataHsw.surfaces[name].items.push({ label: idx === 0 ? mastLabel : `${mastLabel} (extra)`, val: flaeche });
+            dataHsw.surfaces[name].items.push({
+              label: idx === 0 ? mastLabel : `${mastLabel} (extra)`,
+              val: flaeche,
+              x: xVal,
+              y: yVal,
+              area: flaeche
+            });
           });
 
           const sondersachen = [
@@ -4180,12 +4187,21 @@ const createProject = async () => {
             return catGrabenName;
           };
 
-          const addMuellerSurface = (surfaceType, area, labelSuffix) => {
+          const addMuellerSurface = (surfaceType, xVal, yVal, labelSuffix, detailLabel = "") => {
+            const width = num(xVal);
+            const height = num(yVal);
+            const area = width * height;
             if (area <= 0) return;
             const catGrabenName = ensureMuellerSurfaceCategory(surfaceType, labelSuffix);
             if (!catGrabenName) return;
             dataMueller.surfaces[catGrabenName].total += area;
-            dataMueller.surfaces[catGrabenName].items.push({ label: mastLabel, val: area });
+            dataMueller.surfaces[catGrabenName].items.push({
+              label: detailLabel ? `${mastLabel} (${detailLabel})` : mastLabel,
+              val: area,
+              x: width,
+              y: height,
+              area
+            });
           };
 
           const laengeGrabenAns = num(m.grabenTiefeBreite);
@@ -4212,16 +4228,16 @@ const createProject = async () => {
             const shouldAddMontageSurfacesToAns = isMontageRelatedAction(m.aktion);
 
           if (laengeGrabenAns > 0) {
-            const flaecheGrabenAns = laengeGrabenAns * 0.3;
-
             // Externe Graben-Oberfläche bleibt erhalten.
-            addMuellerSurface(m.oberflaecheGraben || "Platten", flaecheGrabenAns, "(ANS)");
+            addMuellerSurface(m.oberflaecheGraben || "Platten", laengeGrabenAns, 0.3, "(ANS)", "Graben");
 
             // Oberflächen von Montage kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
             if (shouldAddMontageSurfacesToAns) {
               Object.entries(mergedLampAreasByType).forEach(([surfaceType, area]) => {
-                if ((Number(area) || 0) > 0) {
-                  addMuellerSurface(surfaceType, area, "(ANS)");
+                const numericArea = Number(area) || 0;
+                if (numericArea > 0) {
+                  // Fuer aggregierte Montageflaechen liegt nur die fertige m²-Summe vor.
+                  addMuellerSurface(surfaceType, numericArea, 1, "(ANS)");
                 }
               });
             }
@@ -4234,24 +4250,24 @@ const createProject = async () => {
             surfaceEntries.forEach(([surfaceType, area]) => {
               const numericArea = Number(area) || 0;
               if (numericArea > 0) {
-                addMuellerSurface(surfaceType, numericArea, "(ANS)");
+                addMuellerSurface(surfaceType, numericArea, 1, "(ANS)");
                 return;
               }
 
               if (!hasPositiveArea) {
                 const catName = ensureMuellerSurfaceCategory(surfaceType, "(ANS)");
                 if (!catName) return;
-                dataMueller.surfaces[catName].items.push({ label: mastLabel, val: 0 });
+                dataMueller.surfaces[catName].items.push({ label: mastLabel, val: 0, x: 0, y: 0, area: 0 });
               }
             });
           }
 
           if (laengeGrabenAend > 0) {
-            addMuellerSurface(m.oberflaecheGrabenTausch || "Platten", laengeGrabenAend * 0.3, "(ÄND)");
+            addMuellerSurface(m.oberflaecheGrabenTausch || "Platten", laengeGrabenAend, 0.3, "(ÄND)", "Graben");
           }
 
           if (laengeGrabenAbr > 0) {
-            addMuellerSurface(m.oberflaecheGrabenDemo || "Platten", laengeGrabenAbr * 0.3, "(ABR)");
+            addMuellerSurface(m.oberflaecheGrabenDemo || "Platten", laengeGrabenAbr, 0.3, "(ABR)", "Graben");
           }
 
           const countGrubenAns = num(m.montagegrube);
@@ -4290,7 +4306,11 @@ const createProject = async () => {
           if (num(m.grabenKabelverlegen) > 0) { dataMueller.kabelverlegenAns.total += num(m.grabenKabelverlegen); dataMueller.kabelverlegenAns.items.push({ label: mastLabel, val: num(m.grabenKabelverlegen) }); }
           if (num(m.grabenKabelverlegenTausch) > 0) { dataMueller.kabelverlegenAend.total += num(m.grabenKabelverlegenTausch); dataMueller.kabelverlegenAend.items.push({ label: mastLabel, val: num(m.grabenKabelverlegenTausch) }); }
           if (num(m.grabenKabelverlegenDemo) > 0) { dataMueller.kabelverlegenAbr.total += num(m.grabenKabelverlegenDemo); dataMueller.kabelverlegenAbr.items.push({ label: mastLabel, val: num(m.grabenKabelverlegenDemo) }); }
-          if (num(m.netzanschlussBis1m) > 0) { dataMueller.netz1.total += num(m.netzanschlussBis1m); dataMueller.netz1.items.push({ label: mastLabel, val: num(m.netzanschlussBis1m) }); }
+          const netzanschlussAnsTotal = num(m.netzanschlussBis1m) + num(m.netzanschlussUeber1m);
+          if (netzanschlussAnsTotal > 0) {
+            dataMueller.netzAns.total += netzanschlussAnsTotal;
+            dataMueller.netzAns.items.push({ label: mastLabel, val: netzanschlussAnsTotal });
+          }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ label: mastLabel, val: num(m.kabelAnAbklemmenAnzahl) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ label: mastLabel, val: num(m.netzanschlussDemoAnzahl) }); }
           if (num(m.muffenMontierenUeber1m) > 0) { dataMueller.muffenMontierenUeber1m.total += num(m.muffenMontierenUeber1m); dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: num(m.muffenMontierenUeber1m) }); }
@@ -4312,6 +4332,57 @@ const createProject = async () => {
 
       // RENDER-FUNKTION angepasst auf item.label
       const renderCol = (title, dataObj) => {
+        const formatNumber = (value) => {
+          const numeric = Number(value) || 0;
+          return numeric.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+        };
+
+        const formatItemLine = (item) => {
+          if (
+            item &&
+            Number.isFinite(item.x) &&
+            Number.isFinite(item.y) &&
+            Number.isFinite(item.area)
+          ) {
+            return `${item.label} ${formatNumber(item.x)}m x ${formatNumber(item.y)}m = ${formatNumber(item.area)}m²`;
+          }
+          return `${item.label}: ${formatNumber(item?.val)}`;
+        };
+
+        const getCategoryCopyText = (cat) =>
+          (cat.items || [])
+            .map((item) => {
+              if (
+                item &&
+                Number.isFinite(item.x) &&
+                Number.isFinite(item.y) &&
+                Number.isFinite(item.area)
+              ) {
+                return `${item.label}\t\t${formatNumber(item.x)}m x ${formatNumber(item.y)}m = ${formatNumber(item.area)}m²`;
+              }
+
+              const title = String(cat?.title || '').toLowerCase();
+              let unit = '';
+              if (title.includes('(stk)') || title.includes('(st)')) unit = 'St';
+              else if (title.includes('(m)')) unit = 'm';
+              else if (title.includes('(std)')) unit = 'Std';
+
+              const valueText = formatNumber(item?.val);
+              return `${item?.label || ''}\t\t${valueText}${unit ? ` ${unit}` : ''}`.trim();
+            })
+            .join('\n');
+
+        const copyCategory = async (cat) => {
+          try {
+            await navigator.clipboard.writeText(getCategoryCopyText(cat));
+            setToast(`Kopiert: ${cat.title}`);
+            setTimeout(() => setToast(null), 1500);
+          } catch {
+            setToast('Kopieren fehlgeschlagen');
+            setTimeout(() => setToast(null), 2000);
+          }
+        };
+
         const list = [
           ...Object.values(dataObj.surfaces),
           ...Object.values(dataObj.linear),
@@ -4326,8 +4397,7 @@ const createProject = async () => {
           ...(dataObj.kabelverlegenAns.total > 0 ? [dataObj.kabelverlegenAns] : []),
           ...(dataObj.kabelverlegenAend.total > 0 ? [dataObj.kabelverlegenAend] : []),
           ...(dataObj.kabelverlegenAbr.total > 0 ? [dataObj.kabelverlegenAbr] : []),
-          ...(dataObj.netz1.total > 0 ? [dataObj.netz1] : []),
-          ...(dataObj.netz2.total > 0 ? [dataObj.netz2] : []),
+          ...(dataObj.netzAns.total > 0 ? [dataObj.netzAns] : []),
           ...(dataObj.kabel.total > 0 ? [dataObj.kabel] : []),
           ...(dataObj.muffenMontierenUeber1m.total > 0 ? [dataObj.muffenMontierenUeber1m] : []),
           ...(dataObj.muffenMontierenTausch.total > 0 ? [dataObj.muffenMontierenTausch] : []),
@@ -4348,13 +4418,42 @@ const createProject = async () => {
               <details key={`${title}-${idx}`} style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
                   <span>{cat.title}</span>
-                  <span style={{ color: '#38bdf8' }}>{cat.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        copyCategory(cat);
+                      }}
+                      style={{
+                        border: '1px solid #334155',
+                        background: '#0f172a',
+                        color: '#cbd5e1',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        padding: '2px 6px'
+                      }}
+                    >
+                      Kopieren
+                    </button>
+                    <span style={{ color: '#38bdf8' }}>{cat.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                  </span>
                 </summary>
                 <div style={{ marginTop: '10px', paddingLeft: '10px', borderLeft: '2px solid #38bdf8' }}>
                   {cat.items?.map((item, i) => (
-                    <div key={`${title}-${cat.title}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                      <span style={{ color: '#94a3b8' }}>{item.label}</span>
-                      <span>{item.val.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                    <div
+                      key={`${title}-${cat.title}-${i}`}
+                      style={{
+                        padding: '2px 0',
+                        color: '#94a3b8',
+                        fontSize: '12px',
+                        lineHeight: '1.4',
+                        fontFamily: 'Consolas, "Courier New", monospace'
+                      }}
+                    >
+                      {formatItemLine(item)}
                     </div>
                   ))}
                 </div>
