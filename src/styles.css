@@ -78,7 +78,7 @@ hr {
   display: flex;
   flex-direction: column;
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .sidebar.closed {
@@ -258,6 +258,114 @@ hr {
   max-height: 120px;
   object-fit: cover;
   border-radius: 8px;
+}
+
+.filter-multi-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.filter-multi {
+  min-width: 0;
+  position: relative;
+}
+
+.filter-multi-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+
+.filter-multi-toggle {
+  width: 100%;
+  min-width: 0;
+  position: relative;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  padding: 8px 30px;
+  margin: 0;
+}
+
+.filter-multi-toggle:hover {
+  background: #f8fafc;
+}
+
+.filter-multi-toggle-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-multi-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  pointer-events: none;
+}
+
+.filter-multi-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  max-height: none;
+  overflow-y: visible;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  z-index: 60;
+  padding: 6px;
+}
+
+.filter-multi-option {
+  display: grid;
+  grid-template-columns: 18px 1fr 16px;
+  align-items: center;
+  column-gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.filter-multi-option:hover {
+  background: #f3f4f6;
+}
+
+.filter-multi-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  justify-self: center;
+  accent-color: #2563eb;
+}
+
+.filter-multi-option-text {
+  text-align: center;
+  line-height: 1.25;
+}
+
+.filter-multi-checkmark {
+  color: #16a34a;
+  font-weight: 700;
+  text-align: center;
+  visibility: hidden;
+}
+
+.filter-multi-checkmark.visible {
+  visibility: visible;
 }
 
 .file-button {

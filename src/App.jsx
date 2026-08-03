@@ -486,8 +486,18 @@ export default function App() {
 
   /* 🔍 FILTER */
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("OffenAlle");
-  const [filterType, setFilterType] = useState("Alle");
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState([
+    "Offen",
+    "Klärung",
+    "Westnetznummer fehlt",
+    "In Bearbeitung",
+    "Fertig für Abrechnung"
+  ]);
+  const [selectedTypeFilters, setSelectedTypeFilters] = useState(["Alle"]);
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
+  const statusFilterRef = useRef(null);
+  const typeFilterRef = useRef(null);
 
   /* 🔎 ADRESSSUCHE FÜR ERSTELLEN */
   const [searchResults, setSearchResults] = useState([]);
@@ -530,7 +540,24 @@ export default function App() {
     "Trilux 9701",
     "Trilux 9821"
   ];
-  const OFFENE_STATUS = ["Offen", "Klärung", "In Bearbeitung", "Westnetznummer fehlt", "Fertig für Abrechnung", "Klärung"];
+  const STATUS_FILTER_OPTIONS = [
+    { value: "Alle", label: "Alle" },
+    { value: "Offen", label: "Offen" },
+    { value: "Klärung", label: "Klärung" },
+    { value: "Westnetznummer fehlt", label: "Westnetznummer fehlt" },
+    { value: "In Bearbeitung", label: "In Bearbeitung" },
+    { value: "Fertig für Abrechnung", label: "Fertig für Abrechnung" },
+    { value: "Proformarechnung weggeschickt", label: "Proformarechnung weggeschickt" },
+    { value: "Abgerechnet", label: "Abgerechnet" }
+  ];
+  const TYPE_FILTER_OPTIONS = [
+    { value: "Alle", label: "Alle" },
+    { value: "Konzept", label: "Konzept" },
+    { value: "Anfahrschaden", label: "Anfahrschaden" },
+    { value: "Störung", label: "Störung" },
+    { value: "LK-Tausch", label: "LK-Tausch" },
+    { value: "Sonstiges", label: "Sonstiges" }
+  ];
 
   const emptyForm = {
     name: "",
@@ -1027,6 +1054,62 @@ Weitere Infos: ${form.notes || ""}
     loadProjects();
   }, []);
 
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (statusFilterRef.current && !statusFilterRef.current.contains(event.target)) {
+        setStatusFilterOpen(false);
+      }
+      if (typeFilterRef.current && !typeFilterRef.current.contains(event.target)) {
+        setTypeFilterOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const toggleMultiFilterValue = (value, selectedValues, setSelectedValues) => {
+    if (value === "Alle") {
+      setSelectedValues(["Alle"]);
+      return;
+    }
+
+    const withoutAlle = selectedValues.filter((v) => v !== "Alle");
+    if (withoutAlle.includes(value)) {
+      const next = withoutAlle.filter((v) => v !== value);
+      setSelectedValues(next.length === 0 ? ["Alle"] : next);
+      return;
+    }
+
+    setSelectedValues([...withoutAlle, value]);
+  };
+
+  const getMultiFilterSummary = (selectedValues, options) => {
+    if (selectedValues.includes("Alle") || selectedValues.length === 0) return "Alle";
+    if (selectedValues.length === 1) {
+      return options.find((opt) => opt.value === selectedValues[0])?.label || selectedValues[0];
+    }
+    return `${selectedValues.length} ausgewählt`;
+  };
+
+  const matchesStatusFilter = (projectStatus) => {
+    if (selectedStatusFilters.includes("Alle") || selectedStatusFilters.length === 0) return true;
+    return selectedStatusFilters.includes(projectStatus);
+  };
+
+  const keepOnlyOneStatusFilter = (value) => {
+    if (value === "Alle") {
+      setSelectedStatusFilters(["Alle"]);
+      return;
+    }
+    setSelectedStatusFilters([value]);
+  };
+
+  const matchesTypeFilter = (projectType) => {
+    if (selectedTypeFilters.includes("Alle") || selectedTypeFilters.length === 0) return true;
+    return selectedTypeFilters.includes(projectType);
+  };
+
   const filteredProjects = projects.filter((p) => {
     const text = search.toLowerCase();
     return (
@@ -1038,8 +1121,8 @@ Weitere Infos: ${form.notes || ""}
         p.ab_mueller?.toLowerCase().includes(text) ||
         p.type?.toLowerCase().includes(text) ||
         p.pgk?.toLowerCase().includes(text)) &&
-      (filterStatus === "Alle" || (filterStatus === "OffenAlle" && OFFENE_STATUS.includes(p.status)) || p.status === filterStatus) &&
-      (filterType === "Alle" || p.type === filterType)
+      matchesStatusFilter(p.status) &&
+      matchesTypeFilter(p.type)
     );
   });
 
@@ -1579,8 +1662,8 @@ useEffect(() => {
       }
       
       // Optional: Filter zurücksetzen, falls gewünscht
-      // setFilterStatus("Alle");
-      // setFilterType("Alle");
+      // setSelectedStatusFilters(["Alle"]);
+      // setSelectedTypeFilters(["Alle"]);
     }
   };
 
@@ -2786,7 +2869,8 @@ const createProject = async () => {
         display: 'flex', 
         flexDirection: 'column', 
         height: '100%', 
-        overflow: 'hidden' 
+        overflow: 'visible',
+        position: 'relative'
       }}>
         
         {/* --- 1. STATISCHER HEADER (Bleibt immer oben) --- */}
@@ -2795,7 +2879,9 @@ const createProject = async () => {
           flexShrink: 0, 
           borderBottom: '1px solid #eee',
           backgroundColor: '#fff',
-          zIndex: 10
+          zIndex: 100,
+          position: 'relative',
+          overflow: 'visible'
         }}>
       <div className="header-bar">
         <button onClick={() => {
@@ -2851,32 +2937,74 @@ const createProject = async () => {
             )}
           </div>
 
-          {/* Filter-Selects */}
-          <div style={{ display: "flex", gap: "8px" }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ width: '100%' }}>
-                <option>Alle</option>
-                <option>Offen</option>
-                <option value="OffenAlle">Offen (alle)</option>
-                <option>Klärung</option>
-                <option>Westnetznummer fehlt</option>
-                <option>In Bearbeitung</option>
-                <option>Fertig für Abrechnung</option>
-                <option>Proformarechnung weggeschickt</option>
-                <option>Abgerechnet</option>
-              </select>
+          {/* Filter mit Mehrfachauswahl und Checkmarks */}
+          <div className="filter-multi-row">
+            <div className="filter-multi" ref={statusFilterRef}>
+              <label className="filter-multi-label">Status</label>
+              <button
+                type="button"
+                onClick={() => setStatusFilterOpen((prev) => !prev)}
+                className="filter-multi-toggle"
+              >
+                <span className="filter-multi-toggle-text">{getMultiFilterSummary(selectedStatusFilters, STATUS_FILTER_OPTIONS)}</span>
+                <span className="filter-multi-arrow">▾</span>
+              </button>
+              {statusFilterOpen && (
+                <div className="filter-multi-menu">
+                  {STATUS_FILTER_OPTIONS.map((option) => {
+                    const checked = selectedStatusFilters.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className="filter-multi-option"
+                        onDoubleClick={() => keepOnlyOneStatusFilter(option.value)}
+                      >
+                        <input
+                          type="checkbox"
+                          className="filter-multi-checkbox"
+                          checked={checked}
+                          onChange={() => toggleMultiFilterValue(option.value, selectedStatusFilters, setSelectedStatusFilters)}
+                        />
+                        <span className="filter-multi-option-text">{option.label}</span>
+                        <span className={`filter-multi-checkmark${checked ? " visible" : ""}`}>✓</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Typ</label>
-              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ width: '100%' }}>
-                <option>Alle</option>
-                <option>Konzept</option>
-                <option>Anfahrschaden</option>
-                <option>Störung</option>
-                <option>LK-Tausch</option>
-                <option>Sonstiges</option>
-              </select>
+            <div className="filter-multi" ref={typeFilterRef}>
+              <label className="filter-multi-label">Typ</label>
+              <button
+                type="button"
+                onClick={() => setTypeFilterOpen((prev) => !prev)}
+                className="filter-multi-toggle"
+              >
+                <span className="filter-multi-toggle-text">{getMultiFilterSummary(selectedTypeFilters, TYPE_FILTER_OPTIONS)}</span>
+                <span className="filter-multi-arrow">▾</span>
+              </button>
+              {typeFilterOpen && (
+                <div className="filter-multi-menu">
+                  {TYPE_FILTER_OPTIONS.map((option) => {
+                    const checked = selectedTypeFilters.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className="filter-multi-option"
+                      >
+                        <input
+                          type="checkbox"
+                          className="filter-multi-checkbox"
+                          checked={checked}
+                          onChange={() => toggleMultiFilterValue(option.value, selectedTypeFilters, setSelectedTypeFilters)}
+                        />
+                        <span className="filter-multi-option-text">{option.label}</span>
+                        <span className={`filter-multi-checkmark${checked ? " visible" : ""}`}>✓</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2926,7 +3054,10 @@ const createProject = async () => {
     <div className="sidebar-scroll-area" style={{ 
           flexGrow: 1, 
           overflowY: 'auto', // Nur hier wird gescrollt
-          padding: '5px'
+          padding: '5px',
+          minHeight: 0,
+          position: 'relative',
+          zIndex: 1
         }}>
               {mode === "list" && (
                 <>
