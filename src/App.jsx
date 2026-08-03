@@ -992,7 +992,7 @@ const generiereAufmassDaten = (masten) => {
       mastTypNeu: m.mastTypNeu || "",
       grabenTiefeBreite: m.grabenTiefeBreite || "",
       grabenKabelverlegen: m.grabenKabelverlegen || "",
-      oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Platten"),
+      oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Grass"),
       montagegrube: m.montagegrube || "",
       endmuffenAns: m.endmuffenAns || "",
       montagegrubeDemo: m.montagegrubeDemo || "",
@@ -1002,10 +1002,10 @@ const generiereAufmassDaten = (masten) => {
       muffenDemoMontage: m.muffenDemoMontage || "",
       grabenTiefeBreiteDemo: m.grabenTiefeBreiteDemo || "",
       grabenKabelverlegenDemo: m.grabenKabelverlegenDemo || "",
-      oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten"),
+      oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Grass"),
       grabenTiefeBreiteTausch: m.grabenTiefeBreiteTausch || "",
       grabenKabelverlegenTausch: m.grabenKabelverlegenTausch || "",
-      oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten"),
+      oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Grass"),
       lkMontieren: m.lkMontieren || "",
       lkDemontieren: m.lkDemontieren || "",
       lkTauschen: m.lkTauschen || "",
@@ -1604,9 +1604,9 @@ const handleInitialisiereAufmass = () => {
     sondersacheRinnenflussY: "",
     oberflaeche: normalizeSurfaceType(m.oberflaeche || "Grass"),
     oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
-    oberflaecheGraben: "Platten",
-    oberflaecheGrabenDemo: "Platten",
-    oberflaecheGrabenTausch: "Platten",
+    oberflaecheGraben: "Grass",
+    oberflaecheGrabenDemo: "Grass",
+    oberflaecheGrabenTausch: "Grass",
     grabenTiefeBreite: "",
     grabenKabelverlegen: "",
     montagegrube: "",
@@ -1715,7 +1715,7 @@ const openProject = (p) => {
     oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
     grabenTiefeBreite: m.grabenTiefeBreite || "",
     grabenKabelverlegen: m.grabenKabelverlegen || "",
-    oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Platten"),
+    oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Grass"),
     montagegrube: m.montagegrube || "",
     endmuffenAns: m.endmuffenAns || "",
     montagegrubeDemo: m.montagegrubeDemo || "",
@@ -1725,10 +1725,10 @@ const openProject = (p) => {
     muffenDemoMontage: m.muffenDemoMontage || "",
     grabenTiefeBreiteDemo: m.grabenTiefeBreiteDemo || "",
     grabenKabelverlegenDemo: m.grabenKabelverlegenDemo || "",
-    oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten"),
+    oberflaecheGrabenDemo: normalizeSurfaceType(m.oberflaecheGrabenDemo || "Grass"),
     grabenTiefeBreiteTausch: m.grabenTiefeBreiteTausch || "",
     grabenKabelverlegenTausch: m.grabenKabelverlegenTausch || "",
-    oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten"),
+    oberflaecheGrabenTausch: normalizeSurfaceType(m.oberflaecheGrabenTausch || "Grass"),
     lkMontieren: m.lkMontieren || "",
     lkDemontieren: m.lkDemontieren || "",
     lkTauschen: m.lkTauschen || "",
@@ -4539,7 +4539,7 @@ const createProject = async () => {
                             <span>Graben ANS (m):</span>
                             <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreite || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreite', e.target.value)} />
                             <span>Graben-Oberfläche ANS:</span>
-                            <select className="mast-input-base" style={{ width: '96px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGraben || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGraben', normalizeSurfaceType(e.target.value))}>
+                            <select className="mast-input-base" style={{ width: '96px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGraben || "Grass")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGraben', normalizeSurfaceType(e.target.value))}>
                               {SURFACE_OPTIONS.map((opt) => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
                               ))}
@@ -4589,7 +4589,7 @@ const createProject = async () => {
                           <span>Endmuffen ABR (Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenDemo', e.target.value)} />
                           <span>Graben-Oberfläche:</span>
-                          <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenDemo', normalizeSurfaceType(e.target.value))}>
+                          <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenDemo || "Grass")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenDemo', normalizeSurfaceType(e.target.value))}>
                             {SURFACE_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
@@ -4628,7 +4628,7 @@ const createProject = async () => {
                           <span>Endmuffen ÄND (Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenTausch', e.target.value)} />
                           <span>Graben-Oberfläche:</span>
-                          <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenTausch', normalizeSurfaceType(e.target.value))}>
+                          <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenTausch || "Grass")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenTausch', normalizeSurfaceType(e.target.value))}>
                             {SURFACE_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
@@ -5063,7 +5063,7 @@ const createProject = async () => {
 
           if (laengeGrabenAns > 0) {
             // Externe Graben-Oberfläche bleibt erhalten.
-            addMuellerSurface(m.oberflaecheGraben || "Platten", laengeGrabenAns, 0.3, "(ANS)", "Graben");
+            addMuellerSurface(m.oberflaecheGraben || "Grass", laengeGrabenAns, 0.3, "(ANS)", "Graben");
 
             // Oberflächen von Montage kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
             if (shouldAddMontageSurfacesToAns) {
@@ -5097,11 +5097,11 @@ const createProject = async () => {
           }
 
           if (laengeGrabenAend > 0) {
-            addMuellerSurface(m.oberflaecheGrabenTausch || "Platten", laengeGrabenAend, 0.3, "(ÄND)", "Graben");
+            addMuellerSurface(m.oberflaecheGrabenTausch || "Grass", laengeGrabenAend, 0.3, "(ÄND)", "Graben");
           }
 
           if (laengeGrabenAbr > 0) {
-            addMuellerSurface(m.oberflaecheGrabenDemo || "Platten", laengeGrabenAbr, 0.3, "(ABR)", "Graben");
+            addMuellerSurface(m.oberflaecheGrabenDemo || "Grass", laengeGrabenAbr, 0.3, "(ABR)", "Graben");
           }
 
           const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
