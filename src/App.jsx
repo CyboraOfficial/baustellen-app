@@ -1,13 +1,37 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, ZoomControl } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Rectangle, useMapEvents, ZoomControl } from "react-leaflet";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import "leaflet.heat/dist/leaflet-heat.js";
 import { useMap } from "react-leaflet"; 
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
 import * as XLSX from 'xlsx';
+
+const enableLeafletHeatWillReadFrequently = () => {
+  const HeatLayer = L?.HeatLayer;
+  if (!HeatLayer || HeatLayer.__willReadFrequentlyPatched) return;
+
+  const originalInitCanvas = HeatLayer.prototype?._initCanvas;
+  if (typeof originalInitCanvas !== 'function') return;
+
+  HeatLayer.prototype._initCanvas = function patchedInitCanvas() {
+    originalInitCanvas.call(this);
+
+    try {
+      // Ensure the first context creation uses the readback-optimized hint.
+      this._canvas?.getContext?.('2d', { willReadFrequently: true });
+    } catch (e) {
+      // Ignore: fallback behavior remains unchanged.
+    }
+  };
+
+  HeatLayer.__willReadFrequentlyPatched = true;
+};
+
+enableLeafletHeatWillReadFrequently();
 
 L.Map.mergeOptions({ zoomAnimation: true, zoomAnimationThreshold: 10 });
 function FlyToPosition({ position }) {
@@ -112,6 +136,165 @@ function FitBounds({ projects, enabled, mode }) {
 }, 300);
     }
   }, [projects, enabled, map, mode]);
+
+  return null;
+}
+
+function SettingsHeatmapLayer({ points, radius = 34, blur = 26 }) {
+  const map = useMap();
+  const layerRef = useRef([]);
+  const retryTimerRef = useRef(null);
+  const [currentZoom, setCurrentZoom] = useState(null);
+
+  useEffect(() => {
+    if (!map) return;
+
+    const updateZoom = () => setCurrentZoom(map.getZoom());
+    updateZoom();
+    map.on('zoomend', updateZoom);
+
+    return () => {
+      map.off('zoomend', updateZoom);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    if (!map) return;
+
+    if (Array.isArray(layerRef.current) && layerRef.current.length > 0) {
+      layerRef.current.forEach((layer) => map.removeLayer(layer));
+      layerRef.current = [];
+    }
+
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+
+    if (!Array.isArray(points) || points.length === 0) return;
+
+    const size = map.getSize();
+    if (!size || size.x <= 0 || size.y <= 0) {
+      // In modals, Leaflet can momentarily report zero size; retry once after layout settles.
+      retryTimerRef.current = setTimeout(() => {
+        try {
+          map.invalidateSize(false);
+        } catch (e) {
+          // No-op: if map is gone, next effect run handles cleanup.
+        }
+      }, 60);
+      return () => {
+        if (retryTimerRef.current) {
+          clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
+      };
+    }
+
+    try {
+      const heatPoints = points
+        .filter((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lng))
+        .map((point) => [point.lat, point.lng, point.intensity]);
+
+      if (heatPoints.length === 0) return;
+
+      const zoomValue = Number.isFinite(currentZoom) ? currentZoom : map.getZoom();
+      const zoomFactor = zoomValue > 0 ? Math.min(3.2, Math.max(1, 14 / zoomValue)) : 1;
+      const dynamicRadius = Math.round(radius * zoomFactor);
+      const dynamicBlur = Math.round(blur * Math.min(2.2, Math.max(1, Math.sqrt(zoomFactor))));
+
+      const layer = L.heatLayer(heatPoints, {
+        radius: dynamicRadius,
+        blur: dynamicBlur,
+        maxZoom: 16,
+        minOpacity: 0.2,
+        // Colors represent hourly-rate intensity (low=red, high=green).
+        gradient: {
+          0.1: '#ef4444',
+          0.35: '#f97316',
+          0.55: '#eab308',
+          0.75: '#84cc16',
+          1: '#22c55e'
+        }
+      });
+
+      layer.addTo(map);
+      layerRef.current = [layer];
+    } catch (err) {
+      console.warn('Heatmap-Layer konnte noch nicht gezeichnet werden, neuer Versuch beim nächsten Render.', err);
+    }
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      if (Array.isArray(layerRef.current) && layerRef.current.length > 0) {
+        layerRef.current.forEach((layer) => map.removeLayer(layer));
+        layerRef.current = [];
+      }
+    };
+  }, [map, points, radius, blur, currentZoom]);
+
+  return null;
+}
+
+function SettingsMapStabilizer({ watchKey, points = [], companyLat = null, companyLng = null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    let cancelled = false;
+    const timers = [];
+
+    const safeInvalidate = () => {
+      if (cancelled) return;
+      try {
+        map.invalidateSize(false);
+      } catch (e) {
+        // No-op when map was already unmounted.
+      }
+    };
+
+    // Modal/layout transitions can report stale dimensions; re-check several times.
+    [0, 80, 180, 320, 520].forEach((delay) => {
+      const t = setTimeout(safeInvalidate, delay);
+      timers.push(t);
+    });
+
+    const fitTimer = setTimeout(() => {
+      if (cancelled) return;
+
+      const fitPoints = [];
+      points.forEach((point) => {
+        if (Number.isFinite(point?.lat) && Number.isFinite(point?.lng)) {
+          fitPoints.push([point.lat, point.lng]);
+        }
+      });
+
+      if (Number.isFinite(companyLat) && Number.isFinite(companyLng)) {
+        fitPoints.push([companyLat, companyLng]);
+      }
+
+      if (fitPoints.length === 0) return;
+
+      try {
+        map.flyToBounds(L.latLngBounds(fitPoints), {
+          padding: [36, 36],
+          maxZoom: 13,
+          duration: 0.45
+        });
+      } catch (e) {
+        // Ignore if map is not ready yet.
+      }
+    }, 220);
+
+    timers.push(fitTimer);
+
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => clearTimeout(timer));
+    };
+  }, [map, watchKey, points, companyLat, companyLng]);
 
   return null;
 }
@@ -300,6 +483,25 @@ const getMastLvPositionKey = ({ action, foundationType, mastType, heightValue })
 const parseNumberInput = (value) => {
   const num = Number(String(value || "").replace(',', '.').trim());
   return Number.isFinite(num) ? num : 0;
+};
+
+const parseCoordinateInput = (value) => {
+  const num = Number(String(value || "").replace(',', '.').trim());
+  return Number.isFinite(num) ? num : null;
+};
+
+const toRadians = (value) => (Number(value) || 0) * (Math.PI / 180);
+
+const calculateDistanceKm = (lat1, lng1, lat2, lng2) => {
+  if (![lat1, lng1, lat2, lng2].every((value) => Number.isFinite(value))) return null;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
 };
 
 const formatWorkDaysLabel = (fullDays = 0) => {
@@ -539,6 +741,31 @@ export default function App() {
     return Number.isFinite(saved) && saved > 0 ? saved : 14;
   });
   const [settingsChartView, setSettingsChartView] = useState("timeline");
+  const [settingsCompanyLat, setSettingsCompanyLat] = useState(() => {
+    const saved = String(localStorage.getItem('settings_company_lat') || '').trim();
+    // Migrate previous default to Bundesstrasse 168 in 59909 Bestwig.
+    if (!saved || saved === '51.3515') return '51.3622994';
+    return saved;
+  });
+  const [settingsCompanyLng, setSettingsCompanyLng] = useState(() => {
+    const saved = String(localStorage.getItem('settings_company_lng') || '').trim();
+    // Migrate previous default to Bundesstrasse 168 in 59909 Bestwig.
+    if (!saved || saved === '8.2839') return '8.4046718';
+    return saved;
+  });
+  const [settingsHeatRadius, setSettingsHeatRadius] = useState(() => {
+    const saved = Number(localStorage.getItem('settings_heat_radius'));
+    return Number.isFinite(saved) ? Math.min(180, Math.max(18, Math.round(saved))) : 46;
+  });
+  const [settingsHeatBlur, setSettingsHeatBlur] = useState(() => {
+    const saved = Number(localStorage.getItem('settings_heat_blur'));
+    return Number.isFinite(saved) ? Math.min(60, Math.max(10, Math.round(saved))) : 26;
+  });
+  const [settingsGeoOverlayMode, setSettingsGeoOverlayMode] = useState(() => localStorage.getItem('settings_geo_overlay_mode') || 'heat');
+  const [settingsGeoCellSizeKm, setSettingsGeoCellSizeKm] = useState(() => {
+    const saved = Number(localStorage.getItem('settings_geo_cell_size_km'));
+    return Number.isFinite(saved) ? Math.min(25, Math.max(0.1, Number(saved.toFixed(1)))) : 4;
+  });
 
   const [originalProject, setOriginalProject] = useState(null);
   const [toast, setToast] = useState(null);
@@ -2182,8 +2409,27 @@ const createProject = async () => {
     return { stunden, gesamtHsw: sumHsw, gesamtMueller: sumMueller, subKosten, gesamtBrutto, gesamt, hourlyRate, ...actionCounts };
   };
 
+  const parseProjectPosition = (project) => {
+    const rawPosition = project?.position;
+    let parsedPosition = rawPosition;
+
+    if (typeof rawPosition === 'string') {
+      try {
+        parsedPosition = JSON.parse(rawPosition);
+      } catch (e) {
+        parsedPosition = null;
+      }
+    }
+
+    const lat = Number(parsedPosition?.lat);
+    const lng = Number(parsedPosition?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { lat: null, lng: null };
+    return { lat, lng };
+  };
+
   const analyticsRowsAllTypesBase = projects.map((p) => {
     const stats = parseProjectAufmassStats(p);
+    const position = parseProjectPosition(p);
     const createdAt = p.created ? new Date(p.created) : null;
     return {
       id: p.id,
@@ -2195,6 +2441,8 @@ const createProject = async () => {
       abMueller: String(p.ab_mueller || "").trim() || "-",
       createdAt,
       createdDate: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "",
+      lat: position.lat,
+      lng: position.lng,
       ...stats
     };
   }).filter((row) => row.stunden > 0);
@@ -2552,6 +2800,30 @@ const createProject = async () => {
     localStorage.setItem('proforma_reminder_days', String(proformaReminderDays));
   }, [proformaReminderDays]);
 
+  useEffect(() => {
+    localStorage.setItem('settings_company_lat', String(settingsCompanyLat || ''));
+  }, [settingsCompanyLat]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_company_lng', String(settingsCompanyLng || ''));
+  }, [settingsCompanyLng]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_heat_radius', String(settingsHeatRadius));
+  }, [settingsHeatRadius]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_heat_blur', String(settingsHeatBlur));
+  }, [settingsHeatBlur]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_geo_overlay_mode', String(settingsGeoOverlayMode || 'heat'));
+  }, [settingsGeoOverlayMode]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_geo_cell_size_km', String(settingsGeoCellSizeKm));
+  }, [settingsGeoCellSizeKm]);
+
   const proformaReminderCheckedRef = React.useRef(false);
 
   useEffect(() => {
@@ -2711,6 +2983,187 @@ const createProject = async () => {
   const typeMax = Math.max(1, ...typeData.map((item) => item.avgRate));
   const distributionMax = Math.max(1, ...distributionData.map((item) => item.count));
   const monthlyHoursMax = Math.max(1, ...monthlyVolumeData.map((item) => item.totalHours));
+
+  const settingsCompanyLatNum = parseCoordinateInput(settingsCompanyLat);
+  const settingsCompanyLngNum = parseCoordinateInput(settingsCompanyLng);
+  const hasCompanyCoordinates = Number.isFinite(settingsCompanyLatNum) && Number.isFinite(settingsCompanyLngNum);
+
+  const analyticsGeoRows = analyticsRows
+    .filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng))
+    .map((row) => {
+      const distanceKm = hasCompanyCoordinates
+        ? calculateDistanceKm(row.lat, row.lng, settingsCompanyLatNum, settingsCompanyLngNum)
+        : null;
+      return {
+        ...row,
+        distanceKm: Number.isFinite(distanceKm) ? distanceKm : null
+      };
+    });
+
+  const heatmapGeoPoints = analyticsGeoRows.map((row) => {
+    const normalizedRate = Math.max(
+      0,
+      Math.min(1, (row.hourlyRate - MIN_HOURLY_RATE) / Math.max(0.0001, (VERY_GOOD_HOURLY_RATE + 10 - MIN_HOURLY_RATE)))
+    );
+    // Reduce low-value dominance and keep high hourly rates visibly green when zooming out.
+    const intensity = 0.05 + (Math.pow(normalizedRate, 1.25) * 0.95);
+
+    return {
+      id: row.id,
+      name: row.name,
+      lat: row.lat,
+      lng: row.lng,
+      hourlyRate: row.hourlyRate,
+      status: row.status,
+      type: row.type,
+      city: row.city,
+      distanceKm: row.distanceKm,
+      intensity,
+      baseRow: row
+    };
+  });
+
+  const geoRasterCells = (() => {
+    if (heatmapGeoPoints.length === 0) return [];
+
+    const refLat = hasCompanyCoordinates ? settingsCompanyLatNum : heatmapGeoPoints[0].lat;
+    const latDenominator = 111.32;
+    const lngDenominator = Math.max(1, 111.32 * Math.cos(toRadians(refLat || 0)));
+    const latStep = Math.max(0.0005, settingsGeoCellSizeKm / latDenominator);
+    const lngStep = Math.max(0.0005, settingsGeoCellSizeKm / lngDenominator);
+
+    const minLat = Math.min(...heatmapGeoPoints.map((point) => point.lat));
+    const minLng = Math.min(...heatmapGeoPoints.map((point) => point.lng));
+    const originLat = Math.floor(minLat / latStep) * latStep;
+    const originLng = Math.floor(minLng / lngStep) * lngStep;
+
+    const buckets = new Map();
+
+    heatmapGeoPoints.forEach((point) => {
+      const row = Math.floor((point.lat - originLat) / latStep);
+      const col = Math.floor((point.lng - originLng) / lngStep);
+      const key = `${row}|${col}`;
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          key,
+          row,
+          col,
+          count: 0,
+          sumRate: 0,
+          minRate: Infinity,
+          maxRate: -Infinity,
+          rows: []
+        });
+      }
+
+      const bucket = buckets.get(key);
+      bucket.count += 1;
+      bucket.sumRate += point.hourlyRate;
+      bucket.minRate = Math.min(bucket.minRate, point.hourlyRate);
+      bucket.maxRate = Math.max(bucket.maxRate, point.hourlyRate);
+      bucket.rows.push(point.baseRow);
+    });
+
+    return Array.from(buckets.values()).map((bucket) => {
+      const south = originLat + bucket.row * latStep;
+      const north = south + latStep;
+      const west = originLng + bucket.col * lngStep;
+      const east = west + lngStep;
+      const avgRate = bucket.count > 0 ? bucket.sumRate / bucket.count : 0;
+
+      return {
+        ...bucket,
+        avgRate,
+        bounds: [[south, west], [north, east]]
+      };
+    });
+  })();
+
+  const geoRasterCellMaxCount = Math.max(1, ...geoRasterCells.map((cell) => cell.count));
+
+  const geoRowsWithDistance = analyticsGeoRows.filter((row) => Number.isFinite(row.distanceKm));
+
+  const distanceCorrelation = (() => {
+    if (geoRowsWithDistance.length < 3) return null;
+
+    const distances = geoRowsWithDistance.map((row) => row.distanceKm);
+    const rates = geoRowsWithDistance.map((row) => row.hourlyRate);
+    const meanX = distances.reduce((sum, value) => sum + value, 0) / distances.length;
+    const meanY = rates.reduce((sum, value) => sum + value, 0) / rates.length;
+
+    let numerator = 0;
+    let denomX = 0;
+    let denomY = 0;
+
+    for (let i = 0; i < distances.length; i += 1) {
+      const dx = distances[i] - meanX;
+      const dy = rates[i] - meanY;
+      numerator += dx * dy;
+      denomX += dx * dx;
+      denomY += dy * dy;
+    }
+
+    const denominator = Math.sqrt(denomX * denomY);
+    if (denominator <= 0) return null;
+    return numerator / denominator;
+  })();
+
+  const distanceCorrelationInterpretation = (() => {
+    if (distanceCorrelation === null) {
+      return {
+        label: 'Nicht auswertbar',
+        detail: 'Zu wenig Datenpunkte für eine robuste Aussage (mind. 3 nötig).',
+        toneColor: '#94a3b8'
+      };
+    }
+
+    const absR = Math.abs(distanceCorrelation);
+    const direction = distanceCorrelation > 0 ? 'positiv' : distanceCorrelation < 0 ? 'negativ' : 'neutral';
+
+    let strength = 'sehr schwach';
+    if (absR >= 0.7) strength = 'stark';
+    else if (absR >= 0.5) strength = 'moderat';
+    else if (absR >= 0.3) strength = 'schwach bis moderat';
+    else if (absR >= 0.1) strength = 'schwach';
+
+    let detail = 'Mit zunehmender Entfernung bleibt der Stundenlohn tendenziell ähnlich.';
+    let toneColor = '#cbd5e1';
+
+    if (direction === 'positiv') {
+      detail = 'Mit zunehmender Entfernung steigt der Stundenlohn tendenziell.';
+      toneColor = '#f87171';
+    } else if (direction === 'negativ') {
+      detail = 'Mit zunehmender Entfernung sinkt der Stundenlohn tendenziell.';
+      toneColor = '#22c55e';
+    }
+
+    return {
+      label: `${strength} ${direction}`,
+      detail,
+      toneColor
+    };
+  })();
+
+  const distanceBands = [
+    { key: '0-5', label: '0 bis 5 km', min: 0, max: 5 },
+    { key: '5-15', label: '5 bis 15 km', min: 5, max: 15 },
+    { key: '15-30', label: '15 bis 30 km', min: 15, max: 30 },
+    { key: '30+', label: '30+ km', min: 30, max: Infinity }
+  ].map((band) => {
+    const rows = geoRowsWithDistance.filter((row) => row.distanceKm >= band.min && row.distanceKm < band.max);
+    const avgRate = rows.length > 0 ? rows.reduce((sum, row) => sum + row.hourlyRate, 0) / rows.length : 0;
+    return {
+      ...band,
+      count: rows.length,
+      avgRate
+    };
+  });
+
+  const geoMapCenter = hasCompanyCoordinates
+    ? [settingsCompanyLatNum, settingsCompanyLngNum]
+    : [51.15, 8.2];
+
+  const geoMapBoundsKey = `${settingsTypeFilter}|${settingsDateFromISO}|${settingsDateToISO}|${settingsCompanyLat}|${settingsCompanyLng}|${heatmapGeoPoints.length}`;
 
   const openChartDetail = (title, rows) => {
     setChartDetailTitle(title);
@@ -5364,6 +5817,64 @@ const createProject = async () => {
                   style={{ width: '100%', marginTop: '4px' }}
                 />
               </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Firma Lat</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="z. B. 51.3515"
+                  value={settingsCompanyLat}
+                  onChange={(e) => setSettingsCompanyLat(e.target.value)}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Firma Lng</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="z. B. 8.2839"
+                  value={settingsCompanyLng}
+                  onChange={(e) => setSettingsCompanyLng(e.target.value)}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Heatmap Radius</label>
+                <input
+                  type="number"
+                  min={18}
+                  max={180}
+                  step={1}
+                  value={settingsHeatRadius}
+                  onChange={(e) => {
+                    const nextValue = Number(e.target.value);
+                    if (!Number.isFinite(nextValue)) return;
+                    setSettingsHeatRadius(Math.min(180, Math.max(18, Math.round(nextValue))));
+                  }}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Heatmap Blur</label>
+                <input
+                  type="number"
+                  min={10}
+                  max={60}
+                  step={1}
+                  value={settingsHeatBlur}
+                  onChange={(e) => {
+                    const nextValue = Number(e.target.value);
+                    if (!Number.isFinite(nextValue)) return;
+                    setSettingsHeatBlur(Math.min(60, Math.max(10, Math.round(nextValue))));
+                  }}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
             </div>
 
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
@@ -5398,6 +5909,7 @@ const createProject = async () => {
                 { id: 'timeline', label: 'Verlauf' },
                 { id: 'city', label: 'Städte' },
                 { id: 'type', label: 'Auftragstypen' },
+                { id: 'geo-heatmap', label: 'Heatmap Karte' },
                 { id: 'distribution', label: 'Rentabilität' },
                 { id: 'monthly', label: 'Monatliche Stunden' }
               ].map((chart) => (
@@ -5495,6 +6007,229 @@ const createProject = async () => {
                         <span style={{ textAlign: 'right', color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
                       </div>
                     ))}
+                  </div>
+                </>
+              )}
+
+              {settingsChartView === 'geo-heatmap' && (
+                <>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Karten-Heatmap: Stundenlohn und Entfernung zur Firma</h4>
+
+                  <div style={{ marginBottom: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung:</span>
+                    {[
+                      { id: 'heat', label: 'Wärmewolke' },
+                      { id: 'raster', label: 'Raster' },
+                      { id: 'points', label: 'Punkte' }
+                    ].map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setSettingsGeoOverlayMode(mode.id)}
+                        style={{
+                          background: settingsGeoOverlayMode === mode.id ? '#0284c7' : '#1e293b',
+                          color: 'white',
+                          border: '1px solid #334155',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 600
+                        }}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+
+                    {settingsGeoOverlayMode === 'raster' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Rastergröße (km):</span>
+                        <input
+                          type="number"
+                          min={0.1}
+                          max={25}
+                          step={0.1}
+                          value={settingsGeoCellSizeKm}
+                          onChange={(e) => {
+                            const nextValue = Number(e.target.value);
+                            if (!Number.isFinite(nextValue)) return;
+                            setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
+                          }}
+                          className="mast-input-base"
+                          style={{ width: '88px', marginTop: 0 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {!hasCompanyCoordinates && (
+                    <div style={{ marginBottom: '8px', color: '#fda4af', fontSize: '12px' }}>
+                      Bitte gültige Firmen-Koordinaten (Lat/Lng) eintragen, damit die Distanzanalyse berechnet werden kann.
+                    </div>
+                  )}
+
+                  <div style={{ border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
+                    <MapContainer
+                      key={geoMapBoundsKey}
+                      center={geoMapCenter}
+                      zoom={10}
+                      style={{ width: '100%', height: '420px', minHeight: '420px', background: '#0b1220' }}
+                      scrollWheelZoom={true}
+                    >
+                      <TileLayer
+                        url={osmUrl}
+                        attribution="OpenStreetMap"
+                      />
+
+                      <SettingsMapStabilizer
+                        watchKey={`${geoMapBoundsKey}|${settingsGeoOverlayMode}`}
+                        points={heatmapGeoPoints}
+                        companyLat={settingsCompanyLatNum}
+                        companyLng={settingsCompanyLngNum}
+                      />
+
+                      {settingsGeoOverlayMode === 'heat' && (
+                        <SettingsHeatmapLayer
+                          points={heatmapGeoPoints}
+                          radius={settingsHeatRadius}
+                          blur={settingsHeatBlur}
+                        />
+                      )}
+
+                      {hasCompanyCoordinates && (
+                        <Marker position={[settingsCompanyLatNum, settingsCompanyLngNum]}>
+                          <Popup>
+                            Firma<br />
+                            Lat: {settingsCompanyLatNum.toFixed(5)}<br />
+                            Lng: {settingsCompanyLngNum.toFixed(5)}
+                          </Popup>
+                        </Marker>
+                      )}
+
+                      {(settingsGeoOverlayMode === 'heat' || settingsGeoOverlayMode === 'points') && heatmapGeoPoints.map((point) => {
+                        const isHeatMode = settingsGeoOverlayMode === 'heat';
+                        return (
+                        <CircleMarker
+                          key={point.id}
+                          center={[point.lat, point.lng]}
+                          radius={isHeatMode ? 3 : 5}
+                          pathOptions={{
+                            color: isHeatMode ? 'rgba(15,23,42,0.28)' : '#0f172a',
+                            weight: 1,
+                            fillColor: getProfitabilityColor(point.hourlyRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10),
+                            fillOpacity: isHeatMode ? 0.16 : 0.95
+                          }}
+                          eventHandlers={{
+                            click: () => openChartDetail(`Geo ${point.name}`, [point.baseRow])
+                          }}
+                        >
+                          <Popup>
+                            <strong>{point.name}</strong><br />
+                            Typ: {point.type}<br />
+                            Stadt: {point.city}<br />
+                            Stundenlohn: {point.hourlyRate.toFixed(2)} EUR/h<br />
+                            {Number.isFinite(point.distanceKm) ? `Entfernung: ${point.distanceKm.toFixed(2)} km` : 'Entfernung: -'}
+                          </Popup>
+                        </CircleMarker>
+                        );
+                      })}
+
+                      {settingsGeoOverlayMode === 'raster' && geoRasterCells.map((cell) => {
+                        const fillOpacity = Math.min(0.92, 0.24 + (cell.count / geoRasterCellMaxCount) * 0.68);
+                        const fillColor = getProfitabilityColor(cell.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10);
+
+                        return (
+                          <Rectangle
+                            key={cell.key}
+                            bounds={cell.bounds}
+                            pathOptions={{
+                              color: '#111827',
+                              weight: 0.6,
+                              fillColor,
+                              fillOpacity
+                            }}
+                            eventHandlers={{
+                              click: () => openChartDetail(`Rasterzelle (${cell.count})`, cell.rows)
+                            }}
+                          >
+                            <Popup>
+                              Rasterzelle<br />
+                              Ø Stundenlohn: {cell.avgRate.toFixed(2)} EUR/h<br />
+                              Baustellen: {cell.count}<br />
+                              Min/Max: {cell.minRate.toFixed(2)} / {cell.maxRate.toFixed(2)} EUR/h
+                            </Popup>
+                          </Rectangle>
+                        );
+                      })}
+                    </MapContainer>
+
+                    {heatmapGeoPoints.length === 0 && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(2, 6, 23, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                        <div style={{ color: '#cbd5e1', fontSize: '13px', background: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155', borderRadius: '8px', padding: '8px 10px' }}>
+                          Keine geokodierten Datensätze im aktuellen Filter.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>Geokodierte Baustellen</div>
+                      <strong style={{ color: '#e2e8f0' }}>{heatmapGeoPoints.length}</strong>
+                    </div>
+                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>Ø Entfernung</div>
+                      <strong style={{ color: '#e2e8f0' }}>
+                        {geoRowsWithDistance.length > 0
+                          ? `${(geoRowsWithDistance.reduce((sum, row) => sum + row.distanceKm, 0) / geoRowsWithDistance.length).toFixed(2)} km`
+                          : '-'}
+                      </strong>
+                    </div>
+                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>Korrelation Entfernung ↔ Stundenlohn</div>
+                      <strong style={{ color: distanceCorrelation === null ? '#e2e8f0' : (distanceCorrelation < 0 ? '#22c55e' : distanceCorrelation > 0 ? '#f87171' : '#e2e8f0') }}>
+                        {distanceCorrelation === null ? 'zu wenig Daten' : distanceCorrelation.toFixed(3)}
+                      </strong>
+                      <div style={{ marginTop: '4px', fontSize: '11px', color: distanceCorrelationInterpretation.toneColor, fontWeight: 700 }}>
+                        {distanceCorrelationInterpretation.label}
+                      </div>
+                      <div style={{ marginTop: '2px', fontSize: '10px', color: '#94a3b8', lineHeight: 1.35 }}>
+                        {distanceCorrelationInterpretation.detail} (n={geoRowsWithDistance.length})
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+                    {distanceBands.map((band) => (
+                      <div
+                        key={band.key}
+                        style={{ display: 'grid', gridTemplateColumns: '180px 1fr 160px', gap: '8px', alignItems: 'center', cursor: band.count > 0 ? 'pointer' : 'default' }}
+                        title={band.count > 0 ? 'Details anzeigen' : 'Keine Daten'}
+                        onClick={() => {
+                          if (band.count === 0) return;
+                          const detailRows = geoRowsWithDistance.filter((row) => row.distanceKm >= band.min && row.distanceKm < band.max);
+                          openChartDetail(`Distanz ${band.label} (${detailRows.length})`, detailRows);
+                        }}
+                      >
+                        <span style={{ color: '#cbd5e1' }}>{band.label}</span>
+                        <div style={{ height: '10px', borderRadius: '999px', background: '#1f2937', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              height: '100%',
+                              width: `${Math.min(100, (band.count / Math.max(1, geoRowsWithDistance.length)) * 100)}%`,
+                              background: getProfitabilityColor(band.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10)
+                            }}
+                          />
+                        </div>
+                        <span style={{ textAlign: 'right', color: '#e2e8f0' }}>
+                          {band.count} Baust. | {band.count > 0 ? `${band.avgRate.toFixed(2)} EUR/h` : '-'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#94a3b8' }}>
+                    Hinweis: Du kannst zwischen Wärmewolke, Raster und Punkten wechseln. Im Wärmewolken-Modus richten sich die Farben nach Stundenlohn (rot = niedriger, gruen = hoeher), Punkte sind dabei bewusst transparent. Klick auf Rasterzelle, Punkt oder Distanzband oeffnet Details.
                   </div>
                 </>
               )}
