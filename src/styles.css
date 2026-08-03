@@ -753,6 +753,68 @@ hr {
   cursor: pointer;
 }
 
+.ans-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ans-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.ans-toggle-track {
+  width: 44px;
+  height: 24px;
+  background: #334155;
+  border: 1px solid #475569;
+  border-radius: 999px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ans-toggle-thumb {
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.ans-toggle-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.ans-toggle:hover .ans-toggle-track {
+  border-color: #60a5fa;
+}
+
+.ans-toggle-input:checked + .ans-toggle-track {
+  background: #0ea5e9;
+  border-color: #38bdf8;
+}
+
+.ans-toggle-input:checked + .ans-toggle-track .ans-toggle-thumb {
+  transform: translateX(20px);
+}
+
+.ans-toggle-input:focus-visible + .ans-toggle-track {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 /* Falls das Aufmaß aktiv ist, weiten wir die Seitenleiste/Box nach rechts aus */
 .deine-seitenleiste-klasse:has(.masten-container) {
   width: 85vw !important; /* Erlaubt der Box, weit über die Karte zu ragen */
@@ -767,6 +829,12 @@ hr {
   max-width: 100% !important;
   box-sizing: border-box !important;
   padding-top: 15px;
+}
+
+.aufmass-pane {
+  color: #f1f5f9;
+  padding: 4px;
+  font-size: 12px;
 }
 
 /* Sauberes Grid für die Felder nebeneinander */
@@ -799,19 +867,137 @@ hr {
 
 .aufmass-allgemein-row {
   background: #334155;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   margin-bottom: 8px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
   flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
 }
 
 .aufmass-section-title {
   font-weight: 600;
   color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.aufmass-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.aufmass-inline-field-transport {
+  flex: 0 0 auto;
+}
+
+.aufmass-inline-field-info {
+  flex: 1 1 320px;
+  min-width: 220px;
+}
+
+.aufmass-inline-field-info .aufmass-input {
+  flex: 1;
+}
+
+.aufmass-unit {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.aufmass-input {
+  margin: 0 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+}
+
+.aufmass-input:not(textarea) {
+  height: 30px !important;
+}
+
+textarea.aufmass-autogrow {
+  min-height: 30px !important;
+  height: auto;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.aufmass-input-transport {
+  width: 64px !important;
+  max-width: 64px !important;
+  text-align: center;
+}
+
+.aufmass-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 340px;
+  min-width: 260px;
+}
+
+.aufmass-date-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.aufmass-input-date {
+  width: 112px !important;
+  max-width: 112px !important;
+}
+
+.aufmass-mini-btn {
+  margin: 0 !important;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aufmass-mini-btn:hover {
+  background: #263448;
+}
+
+.aufmass-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.aufmass-danger-btn {
+  margin: 0 !important;
+  padding: 7px 10px;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aufmass-danger-btn:hover {
+  background: #dc2626;
 }
 
 .aufmass-text-muted {
@@ -824,9 +1010,10 @@ hr {
 
 .aufmass-summen-details {
   background: #1e293b;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
+  margin: 0;
 }
 
 .aufmass-summen-summary {
@@ -892,6 +1079,29 @@ hr {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+@media (max-width: 1100px) {
+  .aufmass-date-field {
+    flex-basis: 300px;
+  }
+}
+
+@media (max-width: 820px) {
+  .aufmass-inline-field-info,
+  .aufmass-date-field {
+    flex: 1 1 100%;
+  }
+
+  .aufmass-date-field {
+    flex-wrap: wrap;
+  }
+
+  .aufmass-head-actions {
+    justify-content: flex-start;
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 /* Grid & Spalten */

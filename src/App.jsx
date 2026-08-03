@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, ZoomControl } from "react-leaflet";
 import "leaflet.markercluster";
@@ -163,6 +163,7 @@ const DEFAULT_NACHKALKULATION = {
 const DEFAULT_AUFMASS_ALLGEMEIN = {
   transport: "",
   extraInfos: "",
+  ansMindestansatzBeiUnter1m: false,
   einmessungWeggeschicktAm: "",
   materialbuchungErfolgtAm: "",
   proformaRechnungWeggeschicktAm: "",
@@ -802,6 +803,9 @@ const handleLogin = async (e) => {
     const authData = await pb.collection('users').authWithPassword(loginEmail, loginPass);
     setUser(pb.authStore.model);
 
+    // Nach erfolgreichem Login die auth-geschuetzten Projekte neu laden.
+    await loadProjects();
+
     // Login-Erfolg direkt anzeigen
     setToast("✅ Login erfolgreich!");
     setTimeout(() => setToast(null), 2000);
@@ -1098,6 +1102,25 @@ const updateAufmassAllgemein = (field, value) => {
   });
 };
 
+const autoResizeTextarea = (event) => {
+  const el = event?.target || event?.currentTarget;
+  if (!el) return;
+  el.style.overflowY = 'hidden';
+  el.style.height = '0px';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
+useLayoutEffect(() => {
+  if (activeTab !== "Aufmaß") return;
+
+  const elements = document.querySelectorAll('textarea.aufmass-autogrow');
+  elements.forEach((el) => {
+    el.style.overflowY = 'hidden';
+    el.style.height = '0px';
+    el.style.height = `${el.scrollHeight}px`;
+  });
+}, [activeTab, form]);
+
 const handleStatusChange = (newStatus) => {
   setForm(prev => {
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
@@ -1230,6 +1253,7 @@ const openProject = (p) => {
   let aufmassMasten = [];
   let allgemeinTransport = "";
   let allgemeinExtraInfos = "";
+  let allgemeinAnsMindestansatzBeiUnter1m = false;
   let allgemeinEinmessungWeggeschicktAm = "";
   let allgemeinMaterialbuchungErfolgtAm = "";
   let allgemeinProformaRechnungWeggeschicktAm = "";
@@ -1244,6 +1268,7 @@ const openProject = (p) => {
       aufmassMasten = rawAufmass.masten || [];
       allgemeinTransport = rawAufmass.allgemein?.transport || "";
       allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
+      allgemeinAnsMindestansatzBeiUnter1m = !!rawAufmass.allgemein?.ansMindestansatzBeiUnter1m;
       allgemeinEinmessungWeggeschicktAm = rawAufmass.allgemein?.einmessungWeggeschicktAm || "";
       allgemeinMaterialbuchungErfolgtAm = rawAufmass.allgemein?.materialbuchungErfolgtAm || "";
       allgemeinProformaRechnungWeggeschicktAm = rawAufmass.allgemein?.proformaRechnungWeggeschicktAm || "";
@@ -1314,6 +1339,7 @@ const openProject = (p) => {
       allgemein: {
         transport: allgemeinTransport,
         extraInfos: allgemeinExtraInfos,
+        ansMindestansatzBeiUnter1m: allgemeinAnsMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: allgemeinEinmessungWeggeschicktAm,
         materialbuchungErfolgtAm: allgemeinMaterialbuchungErfolgtAm,
         proformaRechnungWeggeschicktAm: allgemeinProformaRechnungWeggeschicktAm,
@@ -1577,6 +1603,7 @@ useEffect(() => {
       allgemein: {
         transport: data.allgemein?.transport || "",
         extraInfos: data.allgemein?.extraInfos || "",
+        ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
         materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
         proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
@@ -1634,6 +1661,7 @@ const normalizeAufmass = (data) => {
     allgemein: {
       transport: data.allgemein?.transport || "",
       extraInfos: data.allgemein?.extraInfos || "",
+      ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
       einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
       materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
       proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
@@ -3368,123 +3396,123 @@ const createProject = async () => {
 )}
 
 {activeTab === "Aufmaß" && (
-  <div className="masten-container" style={{ color: '#f1f5f9', padding: '4px', fontSize: '12px' }}>
+  <div className="masten-container aufmass-pane">
     
     {/* 1. ALLGEMEIN SEKTION */}
-    <div className="aufmass-allgemein-row" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 10px', overflowX: 'hidden', whiteSpace: 'normal' }}>
-      <div className="aufmass-flex-center" style={{ gap: '8px' }}>
+    <div className="aufmass-allgemein-row">
+      <div className="aufmass-inline-field aufmass-inline-field-transport">
         <span className="aufmass-section-title">🚛 Transport:</span>
         <input 
           type="text" 
           inputMode="decimal"
-          className="mast-input-base" 
-          style={{ width: '46px', padding: '2px 6px', height: '24px', borderRadius: '4px' }}
+          className="mast-input-base aufmass-input aufmass-input-transport"
           value={form.aufmass?.allgemein?.transport || ""} 
           onChange={(e) => updateAufmassAllgemein('transport', e.target.value)} 
         />
-        <span className="aufmass-text-muted">Std</span>
+        <span className="aufmass-unit">Std</span>
       </div>
 
-      <div className="aufmass-flex-center" style={{ gap: '8px', flex: 1, minWidth: '240px', maxWidth: '360px' }}>
+      <div className="aufmass-inline-field aufmass-inline-field-info">
         <span className="aufmass-section-title">📝 Infos:</span>
-        <input 
-          type="text"
-          className="mast-input-base" 
-          style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '100%' }}
+        <textarea
+          rows={1}
+          className="mast-input-base aufmass-input aufmass-autogrow"
           placeholder="Anmerkungen zur Baustelle..."
           value={form.aufmass?.allgemein?.extraInfos || ""} 
-          onChange={(e) => updateAufmassAllgemein('extraInfos', e.target.value)} 
+          onInput={autoResizeTextarea}
+          onChange={(e) => {
+            autoResizeTextarea(e);
+            updateAufmassAllgemein('extraInfos', e.target.value);
+          }} 
         />
       </div>
 
-      <div className="aufmass-flex-center" style={{ gap: '6px' }}>
+      <label className="ans-toggle" title="Bei Anschluss unter 1m automatisch 1m Graben ANS + 1 St Montagegrube ANS ansetzen">
+        <input
+          type="checkbox"
+          className="ans-toggle-input"
+          checked={!!form.aufmass?.allgemein?.ansMindestansatzBeiUnter1m}
+          onChange={(e) => updateAufmassAllgemein('ansMindestansatzBeiUnter1m', e.target.checked)}
+        />
+        <span className="ans-toggle-track" aria-hidden="true">
+          <span className="ans-toggle-thumb" />
+        </span>
+        <span className="ans-toggle-label">ANS Montagegrube unter 1m</span>
+      </label>
+
+      <div className="aufmass-date-field">
         <span className="aufmass-section-title">📏 Einmessung weggeschickt:</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div className="aufmass-date-controls">
           <input
             type="text"
             inputMode="numeric"
             maxLength={10}
-            className="mast-input-base"
+            className="mast-input-base aufmass-input aufmass-input-date"
             placeholder="dd.mm.yyyy"
-            style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '104px', fontSize: '12px' }}
             value={normalizeDateValue(form.aufmass?.allgemein?.einmessungWeggeschicktAm || "")}
             onChange={(e) => updateAufmassAllgemein('einmessungWeggeschicktAm', e.target.value)}
             onBlur={(e) => updateAufmassAllgemein('einmessungWeggeschicktAm', normalizeDateValue(e.target.value))}
           />
           <button
             type="button"
+            className="aufmass-mini-btn"
             onClick={() => updateAufmassAllgemein('einmessungWeggeschicktAm', getTodayDateString())}
-            style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
           >
             Heute
           </button>
         </div>
       </div>
 
-      <div className="aufmass-flex-center" style={{ gap: '6px' }}>
+      <div className="aufmass-date-field">
         <span className="aufmass-section-title">📦 Materialbuchung erfolgt:</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div className="aufmass-date-controls">
           <input
             type="text"
             inputMode="numeric"
             maxLength={10}
-            className="mast-input-base"
+            className="mast-input-base aufmass-input aufmass-input-date"
             placeholder="dd.mm.yyyy"
-            style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '104px', fontSize: '12px' }}
             value={normalizeDateValue(form.aufmass?.allgemein?.materialbuchungErfolgtAm || "")}
             onChange={(e) => updateAufmassAllgemein('materialbuchungErfolgtAm', e.target.value)}
             onBlur={(e) => updateAufmassAllgemein('materialbuchungErfolgtAm', normalizeDateValue(e.target.value))}
           />
           <button
             type="button"
+            className="aufmass-mini-btn"
             onClick={() => updateAufmassAllgemein('materialbuchungErfolgtAm', getTodayDateString())}
-            style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
           >
             Heute
           </button>
         </div>
       </div>
 
-      <div className="aufmass-flex-center" style={{ gap: '6px' }}>
+      <div className="aufmass-date-field">
         <span className="aufmass-section-title">🧾 Proforma Rechnung weggeschickt:</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div className="aufmass-date-controls">
           <input
             type="text"
             inputMode="numeric"
             maxLength={10}
-            className="mast-input-base"
+            className="mast-input-base aufmass-input aufmass-input-date"
             placeholder="dd.mm.yyyy"
-            style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '104px', fontSize: '12px' }}
             value={normalizeDateValue(form.aufmass?.allgemein?.proformaRechnungWeggeschicktAm || "")}
             onChange={(e) => updateAufmassAllgemein('proformaRechnungWeggeschicktAm', e.target.value)}
             onBlur={(e) => updateAufmassAllgemein('proformaRechnungWeggeschicktAm', normalizeDateValue(e.target.value))}
           />
           <button
             type="button"
+            className="aufmass-mini-btn"
             onClick={() => updateAufmassAllgemein('proformaRechnungWeggeschicktAm', getTodayDateString())}
-            style={{ height: '24px', padding: '0 8px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', fontSize: '11px', cursor: 'pointer' }}
           >
             Heute
           </button>
         </div>
       </div>
 
+      <div className="aufmass-head-actions">
       <button 
+        className="aufmass-danger-btn"
         onClick={resetAufmassVonMasten}
-        style={{
-          marginBottom: '0',
-          padding: '6px 10px',
-          background: '#ef4444',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontWeight: 'bold',
-          fontSize: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}
       >
         <span>🗑️ Aufmaß komplett neu laden</span>
       </button>
@@ -3496,6 +3524,7 @@ const createProject = async () => {
           <div>Muffen: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) : 0} Stk</strong></div>
         </div>
       </details>
+      </div>
     </div>
 
     {/* 2. DYNAMISCHE MASTEN-KARTEN */}
@@ -3920,13 +3949,17 @@ const createProject = async () => {
 
                 <div className="aufmass-flex-center" style={{ flex: 1 }}>
                   <span style={{ color: '#cbd5e1', whiteSpace: 'nowrap' }}>Notiz:</span>
-                  <input 
-                    type="text"
-                    className="mast-input-base" 
-                    style={{ padding: '2px 6px', height: '24px', borderRadius: '4px', width: '100%' }}
+                  <textarea
+                    rows={1}
+                    className="mast-input-base aufmass-autogrow"
+                    style={{ padding: '2px 6px', borderRadius: '4px', width: '100%' }}
                     placeholder="Besonderheiten eintragen..."
+                    onInput={autoResizeTextarea}
                     value={m.aufmassNotiz || ""} 
-                    onChange={(e) => updateAufmass(originalIndex, 'aufmassNotiz', e.target.value)}
+                    onChange={(e) => {
+                      autoResizeTextarea(e);
+                      updateAufmass(originalIndex, 'aufmassNotiz', e.target.value);
+                    }}
                   />
                 </div>
               </div>
@@ -4112,6 +4145,7 @@ const createProject = async () => {
 
       const dataHsw = buildData();
       const dataMueller = buildData();
+      const ansMindestansatzBeiUnter1mAktiv = !!form.aufmass?.allgemein?.ansMindestansatzBeiUnter1m;
 
       if (normalizeProjectType(form.type) === "anfahrschaden") {
         dataHsw.stoerungseinsatzGefahrImVerzug.total = 1;
@@ -4204,7 +4238,10 @@ const createProject = async () => {
             });
           };
 
-          const laengeGrabenAns = num(m.grabenTiefeBreite);
+          const netzanschlussBis1mCount = num(m.netzanschlussBis1m);
+          const ansMindestEinheiten = ansMindestansatzBeiUnter1mAktiv ? netzanschlussBis1mCount : 0;
+
+          const laengeGrabenAns = num(m.grabenTiefeBreite) + ansMindestEinheiten;
           const laengeGrabenAend = num(m.grabenTiefeBreiteTausch);
           const laengeGrabenAbr = num(m.grabenTiefeBreiteDemo);
 
@@ -4270,7 +4307,7 @@ const createProject = async () => {
             addMuellerSurface(m.oberflaecheGrabenDemo || "Platten", laengeGrabenAbr, 0.3, "(ABR)", "Graben");
           }
 
-          const countGrubenAns = num(m.montagegrube);
+          const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
           const countGrubenAend = num(m.montagegrubeTausch);
           const countGrubenAbr = num(m.montagegrubeDemo);
 
