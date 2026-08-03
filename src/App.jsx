@@ -34,7 +34,6 @@ function MarkerCluster({ projects, openProject }) {
       maxClusterRadius: 25,
       disableClusteringAtZoom: 15,
       spiderfyOnMaxZoom: false,
-      showCoverageOnHover: false,
       animate: true,
       // WICHTIG: Wir schalten den Standard-Zoom aus, um ihn selbst zu steuern
       zoomToBoundsOnClick: false 
@@ -200,6 +199,30 @@ const LK_SIKA_HSW_FIELDS = [
   { key: 'steckdosenanschlussDemontieren', title: 'Steckdosenanschluss demontieren (Stk)' }
 ];
 
+const MAST_LV_POSITION_DEFS = [
+  { key: 'lv_2_1_10', action: 'montage', group: 'gerade', height: 'bis5', title: 'LV-2.1.10 Lichtmast bis 5,00 m Lichtpunkthöhe errichten (Stk)' },
+  { key: 'lv_2_1_30', action: 'montage', group: 'gerade', height: '5bis8', title: 'LV-2.1.30 Lichtmast errichten 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_20', action: 'demontage', group: 'gerade', height: 'bis5', title: 'LV-2.1.20 Lichtmast bis 5,00 m Lichtpunkthöhe demontieren (Stk)' },
+  { key: 'lv_2_1_40', action: 'demontage', group: 'gerade', height: '5bis8', title: 'LV-2.1.40 Lichtmast demontieren 5,01 m bis 8,00 m (Stk)' },
+  { key: 'lv_2_1_50', action: 'montage', group: 'gebogen', height: 'bis5', title: 'LV-2.1.50 Lichtmast gebogen errichten bis 5,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_70', action: 'montage', group: 'gebogen', height: '5bis8', title: 'LV-2.1.70 Lichtmast gebogen errichten 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_60', action: 'demontage', group: 'gebogen', height: 'bis5', title: 'LV-2.1.60 Lichtmast gebogen demontieren bis 5,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_80', action: 'demontage', group: 'gebogen', height: '5bis8', title: 'LV-2.1.80 Lichtmast gebogen demontieren 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_90', action: 'montage', group: 'pvc', height: 'bis5', title: 'LV-2.1.90 Lichtmast in PVC-Rohr bis 5,00 m Lichtpunkthöhe errichten (Stk)' },
+  { key: 'lv_2_1_100', action: 'montage', group: 'pvc', height: '5bis8', title: 'LV-2.1.100 Lichtmast in PVC-Rohr errichten 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_110', action: 'demontage', group: 'pvc', height: 'bis5', title: 'LV-2.1.110 Lichtmast in PVC-Rohr demontieren bis 5,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_120', action: 'demontage', group: 'pvc', height: '5bis8', title: 'LV-2.1.120 Lichtmast in PVC-Rohr demontieren 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_130', action: 'montage', group: 'flansch', height: 'bis5', title: 'LV-2.1.130 Lichtmast mit Flansch bis 5,00 m Lichtpunkthöhe errichten (Stk)' },
+  { key: 'lv_2_1_140', action: 'montage', group: 'flansch', height: '5bis8', title: 'LV-2.1.140 Lichtmast mit Flansch errichten 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_150', action: 'demontage', group: 'flansch', height: 'bis5', title: 'LV-2.1.150 Lichtmast mit Flansch demontieren bis 5,00 m Lichtpunkthöhe (Stk)' },
+  { key: 'lv_2_1_160', action: 'demontage', group: 'flansch', height: '5bis8', title: 'LV-2.1.160 Lichtmast mit Flansch demontieren 5,01 m bis 8,00 m Lichtpunkthöhe (Stk)' }
+];
+
+const MAST_LV_POSITION_LOOKUP = MAST_LV_POSITION_DEFS.reduce((acc, def) => {
+  acc[`${def.action}|${def.group}|${def.height}`] = def.key;
+  return acc;
+}, {});
+
 const ORDER_EXPORT_FIELD_OPTIONS = [
   { key: "name", label: "Projektname", width: 34 },
   { key: "type", label: "Typ", width: 18 },
@@ -233,6 +256,43 @@ const DEFAULT_ORDER_EXPORT_FIELDS = ORDER_EXPORT_FIELD_OPTIONS.map((field) => fi
 const normalizeProjectType = (value) => String(value || "").trim().toLowerCase();
 const isExcludedFromNachkalk = (type) => EXCLUDED_NACHKALK_TYPES.has(normalizeProjectType(type));
 const isMontageRelatedAction = (action) => normalizeProjectType(action) === "montage";
+
+const getMastHeightBucket = (heightValue) => {
+  const height = parseNumberInput(heightValue);
+  if (height <= 0) return null;
+  if (height <= 5) return "bis5";
+  if (height <= 8) return "5bis8";
+  return null;
+};
+
+const normalizeFoundationGroup = (foundationType) => {
+  const normalized = normalizeProjectType(foundationType);
+  if (normalized.includes('pvc')) return 'pvc';
+  if (normalized.includes('flansch')) return 'flansch';
+  return 'fundament';
+};
+
+const normalizeMastShape = (mastType) => {
+  const normalized = normalizeProjectType(mastType);
+  return normalized === 'gebogen' ? 'gebogen' : 'gerade';
+};
+
+const resolveMastLvGroup = (foundationType, mastType) => {
+  const foundationGroup = normalizeFoundationGroup(foundationType);
+  if (foundationGroup === 'pvc' || foundationGroup === 'flansch') return foundationGroup;
+  return normalizeMastShape(mastType);
+};
+
+const getMastLvPositionKey = ({ action, foundationType, mastType, heightValue }) => {
+  const normalizedAction = normalizeProjectType(action);
+  if (normalizedAction !== 'montage' && normalizedAction !== 'demontage') return null;
+
+  const heightBucket = getMastHeightBucket(heightValue);
+  if (!heightBucket) return null;
+
+  const group = resolveMastLvGroup(foundationType, mastType);
+  return MAST_LV_POSITION_LOOKUP[`${normalizedAction}|${group}|${heightBucket}`] || null;
+};
 
 const parseNumberInput = (value) => {
   const num = Number(String(value || "").replace(',', '.').trim());
@@ -4104,53 +4164,17 @@ const createProject = async () => {
   <div style={{ color: '#e2e8f0', padding: '15px', fontSize: '14px' }}>
     <h2 style={{ marginBottom: '15px', color: '#38bdf8' }}>Abrechnungs-Details</h2>
 
-    {/* 1. MASTEN ÜBERSICHT (Bereinigt: Keine Kabel-Anzeige mehr hier) */}
-    <div style={{ marginBottom: '20px', background: '#1e293b', padding: '12px', borderRadius: '6px' }}>
-      <h3 style={{ fontSize: '15px', marginBottom: '10px', color: '#38bdf8', borderBottom: '1px solid #334155', paddingBottom: '5px' }}>
-        Masten Übersicht (Detailliert)
-      </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {(() => {
-          const summary = {};
-          form.aufmass?.masten?.forEach(m => {
-            // Hilfsfunktion: Gruppierung nur noch nach LPH, Typ und Fundament
-            const addToSummary = (action, foundation, mastType, lphValue) => {
-              const type = mastType || "Gerade";
-              const key = `${lphValue}m ${type} | ${foundation} (${action})`;
-              if (!summary[key]) summary[key] = { count: 0 };
-              summary[key].count += 1;
-            };
-
-            // --- LOGIK ---
-            if (m.aktion === 'Montage') {
-              addToSummary("Montage", m.montageTyp || "Fundament", m.mastTypNeu, m.lichtpunkthoehe);
-            } 
-            else if (m.aktion === 'Demontage') {
-              addToSummary("Demontage", m.demontageTyp || "Fundament", m.mastTypAlt, m.lichtpunkthoehe);
-            } 
-            else if (m.aktion === 'Tausch') {
-              addToSummary("Demontage", m.tauschDemoTyp || "Fundament", m.mastTypAlt, m.lphAlt);
-              addToSummary("Montage", m.tauschMontageTyp || "Fundament", m.mastTypNeu, m.lphNeu);
-            }
-          });
-
-          return Object.entries(summary).map(([key, val]) => (
-            <div key={key} style={{ fontSize: '13px', borderBottom: '1px solid #334155', padding: '4px 0', lineHeight: '1.4' }}>
-              <strong>{key}</strong> 
-              <br />
-              <span style={{ color: '#cbd5e1' }}>→ Anzahl: {val.count}</span>
-            </div>
-          ));
-        })()}
-      </div>
-    </div>
-
-    {/* 2. ABRECHNUNGSPOSITIONEN */}
+    {/* ABRECHNUNGSPOSITIONEN */}
     {(() => {
       const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
 
       const createLkSikaBuckets = () => LK_SIKA_HSW_FIELDS.reduce((acc, field) => {
         acc[field.key] = { title: field.title, total: 0, items: [] };
+        return acc;
+      }, {});
+
+      const createMastLvBuckets = () => MAST_LV_POSITION_DEFS.reduce((acc, def) => {
+        acc[def.key] = { title: def.title, total: 0, items: [] };
         return acc;
       }, {});
 
@@ -4182,6 +4206,7 @@ const createProject = async () => {
         montagegrubeAbr: { title: "Montagegrube ABR (Stk)", total: 0, items: [] },
         handarbeitStd: { title: "Handarbeit (Std)", total: 0, items: [] },
         transport: { title: "Transport (Std)", total: 0, items: [] },
+        mastLv: createMastLvBuckets(),
         ...createLkSikaBuckets()
       });
 
@@ -4200,6 +4225,60 @@ const createProject = async () => {
         form.aufmass.masten.forEach((m, mastIdx) => {
           // WICHTIG: Hier nutzen wir das Label aus dem Formular statt des Index
           const mastLabel = m.mastLabel || "Mast ?";
+
+          const addMastLvPosition = (targetData, input, entryLabel) => {
+            const lvKey = getMastLvPositionKey(input);
+            if (!lvKey) return;
+            const bucket = targetData.mastLv?.[lvKey];
+            if (!bucket) return;
+            bucket.total += 1;
+            bucket.items.push({ label: entryLabel, val: 1 });
+          };
+
+          if (m.aktion === 'Montage') {
+            addMastLvPosition(
+              dataHsw,
+              {
+                action: 'Montage',
+                foundationType: m.montageTyp,
+                mastType: m.mastTypNeu,
+                heightValue: m.lichtpunkthoehe
+              },
+              mastLabel
+            );
+          } else if (m.aktion === 'Demontage') {
+            addMastLvPosition(
+              dataHsw,
+              {
+                action: 'Demontage',
+                foundationType: m.demontageTyp,
+                mastType: m.mastTypAlt,
+                heightValue: m.lichtpunkthoehe
+              },
+              mastLabel
+            );
+          } else if (m.aktion === 'Tausch') {
+            addMastLvPosition(
+              dataHsw,
+              {
+                action: 'Demontage',
+                foundationType: m.tauschDemoTyp,
+                mastType: m.mastTypAlt,
+                heightValue: m.lphAlt
+              },
+              `${mastLabel} (Alt)`
+            );
+            addMastLvPosition(
+              dataHsw,
+              {
+                action: 'Montage',
+                foundationType: m.tauschMontageTyp,
+                mastType: m.mastTypNeu,
+                heightValue: m.lphNeu
+              },
+              `${mastLabel} (Neu)`
+            );
+          }
 
           // --- 1. HSW POSITIONEN ---
           const mastSurfaces = [
@@ -4478,6 +4557,7 @@ const createProject = async () => {
         const list = [
           ...Object.values(dataObj.surfaces),
           ...Object.values(dataObj.linear),
+          ...MAST_LV_POSITION_DEFS.flatMap((def) => (dataObj.mastLv?.[def.key]?.total > 0 ? [dataObj.mastLv[def.key]] : [])),
           ...(dataObj.stoerungseinsatzGefahrImVerzug.total > 0 ? [dataObj.stoerungseinsatzGefahrImVerzug] : []),
           ...(dataObj.mitarbeiterUndGeraete.total > 0 ? [dataObj.mitarbeiterUndGeraete] : []),
           ...(dataObj.grabenAns.total > 0 ? [dataObj.grabenAns] : []),
@@ -4558,11 +4638,51 @@ const createProject = async () => {
         );
       };
 
+      const mastNotizen = (form.aufmass?.masten || [])
+        .map((m, idx) => {
+          const note = String(m?.aufmassNotiz || '').trim();
+          if (!note) return null;
+          const label = String(m?.mastLabel || `Mast ${idx + 1}`).trim();
+          return {
+            label: label || `Mast ${idx + 1}`,
+            note
+          };
+        })
+        .filter(Boolean);
+
+      const allgemeineInfos = String(form.aufmass?.allgemein?.extraInfos || '').trim();
+
       return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', width: '100%', padding: '10px' }}>
-          {renderCol("HSW", dataHsw)}
-          {renderCol("Müller", dataMueller)}
-        </div>
+        <>
+          {(allgemeineInfos || mastNotizen.length > 0) && (
+            <div style={{ marginBottom: '12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '10px' }}>
+              <h3 style={{ margin: '0 0 8px 0', color: '#67e8f9', fontSize: '14px' }}>Allgemein</h3>
+
+              {allgemeineInfos && (
+                <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px', marginBottom: mastNotizen.length > 0 ? '8px' : 0 }}>
+                  <div style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>Infos zur Baustelle</div>
+                  <div style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{allgemeineInfos}</div>
+                </div>
+              )}
+
+              {mastNotizen.length > 0 && (
+                <div style={{ display: 'grid', gap: '6px' }}>
+                  {mastNotizen.map((entry, idx) => (
+                    <div key={`${entry.label}-${idx}`} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
+                      <div style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>{entry.label}</div>
+                      <div style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{entry.note}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', width: '100%', padding: '10px' }}>
+            {renderCol("HSW", dataHsw)}
+            {renderCol("Müller", dataMueller)}
+          </div>
+        </>
       );
     })()}
   </div>
