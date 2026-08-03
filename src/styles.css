@@ -1204,6 +1204,7 @@ textarea.aufmass-autogrow {
   border-left: 2px solid #38bdf8;
   display: grid;
   grid-template-columns: 1fr auto;
+  align-items: center;
   gap: 3px;
   font-size: 10px;
   margin-top: 2px;
@@ -1214,6 +1215,7 @@ textarea.aufmass-autogrow {
   border-left: 2px solid #f43f5e;
   display: grid;
   grid-template-columns: 1fr auto;
+  align-items: center;
   gap: 3px;
   font-size: 11px;
   margin-top: 2px;
@@ -1224,9 +1226,35 @@ textarea.aufmass-autogrow {
   border-left: 2px solid #a855f7;
   display: grid;
   grid-template-columns: 1fr auto;
+  align-items: center;
   gap: 3px;
   font-size: 11px;
   margin-top: 2px;
+}
+
+.aufmass-position-details {
+  padding-left: 8px;
+  margin-top: 2px;
+}
+
+.aufmass-position-details-demo {
+  border-left: 2px solid #f43f5e;
+}
+
+.aufmass-position-details-tausch {
+  border-left: 2px solid #a855f7;
+}
+
+.aufmass-position-details > summary {
+  list-style-position: inside;
+  outline: none;
+}
+
+.aufmass-sub-graben-details > span,
+.aufmass-demo-block > span,
+.aufmass-tausch-block > span {
+  align-self: center;
+  line-height: 1.2;
 }
 
 /* Footer Zeile */

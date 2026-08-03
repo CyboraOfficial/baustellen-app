@@ -302,6 +302,12 @@ const getMastSurfaceAreasByType = (mast = {}) => {
   return result;
 };
 
+const calculateArea = (xVal, yVal) => {
+  const width = parseFloat(String(xVal || "").replace(',', '.')) || 0;
+  const height = parseFloat(String(yVal || "").replace(',', '.')) || 0;
+  return width * height;
+};
+
 const formatDateToDDMMYYYY = (date) => {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -655,14 +661,20 @@ const generiereAufmassDaten = (masten) => {
       oberflaecheX: m.oberflaecheX || "",
       oberflaecheY: m.oberflaecheY || "",
       oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
+      sondersacheRinnenflussX: m.sondersacheRinnenflussX || "",
+      sondersacheRinnenflussY: m.sondersacheRinnenflussY || "",
+      sondersacheRinnenfluss: m.sondersacheRinnenfluss || (calculateArea(m.sondersacheRinnenflussX, m.sondersacheRinnenflussY) > 0 ? String(calculateArea(m.sondersacheRinnenflussX, m.sondersacheRinnenflussY)) : ""),
       mastTypAlt: m.mastTypAlt || "",
       mastTypNeu: m.mastTypNeu || "",
       grabenTiefeBreite: m.grabenTiefeBreite || "",
       grabenKabelverlegen: m.grabenKabelverlegen || "",
       oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Platten"),
       montagegrube: m.montagegrube || "",
+      endmuffenAns: m.endmuffenAns || "",
       montagegrubeDemo: m.montagegrubeDemo || "",
+      endmuffenDemo: m.endmuffenDemo || "",
       montagegrubeTausch: m.montagegrubeTausch || "",
+      endmuffenTausch: m.endmuffenTausch || "",
       muffenDemoMontage: m.muffenDemoMontage || "",
       grabenTiefeBreiteDemo: m.grabenTiefeBreiteDemo || "",
       grabenKabelverlegenDemo: m.grabenKabelverlegenDemo || "",
@@ -998,9 +1010,17 @@ const updateAufmass = (index, field, value) => {
     // Sicherstellen, dass die Struktur existiert
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
     const neueMasten = [...(aktuellesAufmass.masten || [])];
-    
-    // Wert des spezifischen Mastens aktualisieren
-    neueMasten[index] = { ...neueMasten[index], [field]: value };
+    const aktuellerMast = neueMasten[index];
+    if (!aktuellerMast) return prev;
+
+    if (field === 'sondersacheRinnenflussX' || field === 'sondersacheRinnenflussY') {
+      const naechsterMast = { ...aktuellerMast, [field]: value };
+      const flaeche = calculateArea(naechsterMast.sondersacheRinnenflussX, naechsterMast.sondersacheRinnenflussY);
+      naechsterMast.sondersacheRinnenfluss = flaeche > 0 ? String(flaeche) : "";
+      neueMasten[index] = naechsterMast;
+    } else {
+      neueMasten[index] = { ...aktuellerMast, [field]: value };
+    }
     
     return {
       ...prev,
@@ -1192,6 +1212,8 @@ const handleInitialisiereAufmass = () => {
     sondersacheRasenkante: "",
     sondersacheBordstein: "",
     sondersacheRinnenfluss: "",
+    sondersacheRinnenflussX: "",
+    sondersacheRinnenflussY: "",
     oberflaeche: normalizeSurfaceType(m.oberflaeche || "Grass"),
     oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
     oberflaecheGraben: "Platten",
@@ -1200,8 +1222,11 @@ const handleInitialisiereAufmass = () => {
     grabenTiefeBreite: "",
     grabenKabelverlegen: "",
     montagegrube: "",
+    endmuffenAns: "",
     montagegrubeDemo: "",
+    endmuffenDemo: "",
     montagegrubeTausch: "",
+    endmuffenTausch: "",
     muffenDemoMontage: "",
     grabenTiefeBreiteDemo: "",
     grabenKabelverlegenDemo: "",
@@ -1302,8 +1327,11 @@ const openProject = (p) => {
     grabenKabelverlegen: m.grabenKabelverlegen || "",
     oberflaecheGraben: normalizeSurfaceType(m.oberflaecheGraben || "Platten"),
     montagegrube: m.montagegrube || "",
+    endmuffenAns: m.endmuffenAns || "",
     montagegrubeDemo: m.montagegrubeDemo || "",
+    endmuffenDemo: m.endmuffenDemo || "",
     montagegrubeTausch: m.montagegrubeTausch || "",
+    endmuffenTausch: m.endmuffenTausch || "",
     muffenDemoMontage: m.muffenDemoMontage || "",
     grabenTiefeBreiteDemo: m.grabenTiefeBreiteDemo || "",
     grabenKabelverlegenDemo: m.grabenKabelverlegenDemo || "",
@@ -3701,11 +3729,11 @@ const createProject = async () => {
                         <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '11px' }}>
                           Gesamtfläche: {(() => {
                             const base = normalizeSurfaceType(m.oberflaeche || "Grass") !== "Grass"
-                              ? (parseFloat(String(m.oberflaecheX || '').replace(',', '.')) || 0) * (parseFloat(String(m.oberflaecheY || '').replace(',', '.')) || 0)
+                              ? calculateArea(m.oberflaecheX, m.oberflaecheY)
                               : 0;
                             const extraTotal = normalizeExtraSurfaces(m.oberflaechenExtra).reduce((sum, entry) => {
                               if (normalizeSurfaceType(entry.typ) === "Grass") return sum;
-                              return sum + ((parseFloat(String(entry.x || '').replace(',', '.')) || 0) * (parseFloat(String(entry.y || '').replace(',', '.')) || 0));
+                              return sum + calculateArea(entry.x, entry.y);
                             }, 0);
                             return (base + extraTotal).toFixed(2);
                           })()} m²
@@ -3741,10 +3769,15 @@ const createProject = async () => {
                           </div>
                           <div className="aufmass-row-justify">
                             <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rinnenfluss:</span>
-                            <div className="aufmass-flex-center" style={{ gap: '3px' }}>
-                              <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheRinnenfluss || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenfluss', e.target.value)} />
+                            <div className="aufmass-flex-center" style={{ gap: '1px', flexWrap: 'nowrap', justifyContent: 'flex-end', flexShrink: 1, minWidth: 0 }}>
+                              <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheRinnenflussX || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenflussX', e.target.value)} />
+                              <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>×</span>
+                              <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheRinnenflussY || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenflussY', e.target.value)} />
                               <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>m²</span>
                             </div>
+                          </div>
+                          <div style={{ marginTop: '2px', textAlign: 'right', fontSize: '10px', color: '#22c55e', fontWeight: 'bold' }}>
+                            Gesamtfläche: {calculateArea(m.sondersacheRinnenflussX, m.sondersacheRinnenflussY).toFixed(2)} m²
                           </div>
                         </div>
                       </details>
@@ -3762,7 +3795,7 @@ const createProject = async () => {
                         </div>
                         {Number(m.netzanschlussBis1m) > 0 && (
                           <div className="aufmass-sub-muffen-montage">
-                            <span style={{ color: '#cbd5e1' }}>↳ Muffen mont.:</span>
+                            <span style={{ color: '#cbd5e1' }}>Muffen mont.:</span>
                             <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} placeholder="0" value={m.muffenMontierenBis1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenBis1m', e.target.value)} />
                           </div>
                         )}
@@ -3775,21 +3808,23 @@ const createProject = async () => {
                         </div>
                         {Number(m.netzanschlussUeber1m) > 0 && (
                           <div className="aufmass-sub-graben-details">
-                            <span>↳ Muffen mont. (Stk):</span>
+                            <span>Muffen mont. ANS (Stk):</span>
                             <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenUeber1m', e.target.value)} />
-                            <span>↳ Graben ANS (m):</span>
+                            <span>Graben ANS (m):</span>
                             <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreite || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreite', e.target.value)} />
-                            <span>↳ Graben-Oberfläche ANS:</span>
+                            <span>Graben-Oberfläche ANS:</span>
                             <select className="mast-input-base" style={{ width: '96px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGraben || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGraben', normalizeSurfaceType(e.target.value))}>
                               {SURFACE_OPTIONS.map((opt) => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
                               ))}
                             </select>
-                            <span>↳ Kabelverlegen ANS (m):</span>
+                            <span>Kabelverlegen ANS (m):</span>
                             <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegen || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegen', e.target.value)} />
-                            <span>↳ Montagegrube ANS (Stk):</span>
+                            <span>Montagegrube ANS (Stk):</span>
                             <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrube || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrube', e.target.value)} />
-                            <span>↳ Muffen demont. ANS (Stk):</span>
+                            <span>Endmuffen ANS (Stk):</span>
+                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenAns || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenAns', e.target.value)} />
+                            <span>Muffen demont. ANS (Stk):</span>
                             <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemoMontage || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoMontage', e.target.value)} />
                           </div>
                         )}
@@ -3808,24 +3843,26 @@ const createProject = async () => {
                       </div>
                       {Number(m.netzanschlussDemoAnzahl) > 0 && (
                         <div className="aufmass-demo-block">
-                          <span>↳ Muffen montieren (Neu-Stk):</span>
+                          <span>Muffen montieren (Neu-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenDemo', e.target.value)} />
-                          <span>↳ Muffen demontieren (Alt-Stk):</span>
+                          <span>Muffen demontieren (Alt-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemo', e.target.value)} />
                         </div>
                       )}
 
                       {Number(m.netzanschlussDemoAnzahl) > 0 && (
-                      <details className="aufmass-demo-block" style={{ marginTop: '6px' }}>
+                      <details className="aufmass-position-details aufmass-position-details-demo" style={{ marginTop: '6px' }}>
                         <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#fda4af' }}>📦 Positionen ABR</summary>
                         <div className="aufmass-demo-block" style={{ marginTop: '4px' }}>
-                          <span>↳ Graben ABR (m):</span>
+                          <span>Graben ABR (m):</span>
                           <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreiteDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteDemo', e.target.value)} />
-                          <span>↳ Kabelverlegen ABR (m):</span>
+                          <span>Kabelverlegen ABR (m):</span>
                           <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenDemo', e.target.value)} />
-                          <span>↳ Montagegrube ABR (Stk):</span>
+                          <span>Montagegrube ABR (Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeDemo', e.target.value)} />
-                          <span>↳ Graben-Oberfläche:</span>
+                          <span>Endmuffen ABR (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenDemo', e.target.value)} />
+                          <span>Graben-Oberfläche:</span>
                           <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenDemo || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenDemo', normalizeSurfaceType(e.target.value))}>
                             {SURFACE_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -3845,24 +3882,26 @@ const createProject = async () => {
                       </div>
                       {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
                         <div className="aufmass-tausch-block">
-                          <span>↳ Muffen montieren (Neu-Stk):</span>
+                          <span>Muffen montieren (Neu-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenTausch', e.target.value)} />
-                          <span>↳ Muffen demontieren (Alt-Stk):</span>
+                          <span>Muffen demontieren (Alt-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemoTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoTausch', e.target.value)} />
                         </div>
                       )}
 
                       {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
-                      <details className="aufmass-tausch-block" style={{ marginTop: '6px' }}>
+                      <details className="aufmass-position-details aufmass-position-details-tausch" style={{ marginTop: '6px' }}>
                         <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#d8b4fe' }}>📦 Positionen ÄND</summary>
                         <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
-                          <span>↳ Graben ÄND (m):</span>
+                          <span>Graben ÄND (m):</span>
                           <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreiteTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteTausch', e.target.value)} />
-                          <span>↳ Kabelverlegen ÄND (m):</span>
+                          <span>Kabelverlegen ÄND (m):</span>
                           <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenTausch', e.target.value)} />
-                          <span>↳ Montagegrube ÄND (Stk):</span>
+                          <span>Montagegrube ÄND (Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeTausch', e.target.value)} />
-                          <span>↳ Graben-Oberfläche:</span>
+                          <span>Endmuffen ÄND (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenTausch', e.target.value)} />
+                          <span>Graben-Oberfläche:</span>
                           <select className="mast-input-base" style={{ width: '88px', padding: '1px', height: '20px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaecheGrabenTausch || "Platten")} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheGrabenTausch', normalizeSurfaceType(e.target.value))}>
                             {SURFACE_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -4127,6 +4166,9 @@ const createProject = async () => {
         muffenDemoMontage: { title: "Muffen demontieren ANS(Stk)", total: 0, items: [] },
         muffenDemo: { title: "Muffen demontieren ABR(Stk)", total: 0, items: [] },
         muffenDemoTausch: { title: "Muffen demontieren ÄND(Stk)", total: 0, items: [] },
+        endmuffenAns: { title: "Endmuffen ANS (Stk)", total: 0, items: [] },
+        endmuffenAend: { title: "Endmuffen ÄND (Stk)", total: 0, items: [] },
+        endmuffenAbr: { title: "Endmuffen ABR (Stk)", total: 0, items: [] },
         netzAns: { title: "Netzanschluss montieren ANS", total: 0, items: [] },
         netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
         grabenAns: { title: "Graben ANS (m)", total: 0, items: [] },
@@ -4194,7 +4236,17 @@ const createProject = async () => {
             if (val > 0) {
               if (!dataHsw.linear[s.key]) dataHsw.linear[s.key] = { title: s.title, total: 0, items: [] };
               dataHsw.linear[s.key].total += val;
-              dataHsw.linear[s.key].items.push({ label: mastLabel, val: val });
+              if (s.key === 'sondersacheRinnenfluss') {
+                dataHsw.linear[s.key].items.push({
+                  label: mastLabel,
+                  val,
+                  x: num(m.sondersacheRinnenflussX),
+                  y: num(m.sondersacheRinnenflussY),
+                  area: val
+                });
+              } else {
+                dataHsw.linear[s.key].items.push({ label: mastLabel, val: val });
+              }
             }
           });
 
@@ -4356,6 +4408,9 @@ const createProject = async () => {
           if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ label: mastLabel, val: num(m.muffenDemo) }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
+          if (num(m.endmuffenAns) > 0) { dataMueller.endmuffenAns.total += num(m.endmuffenAns); dataMueller.endmuffenAns.items.push({ label: mastLabel, val: num(m.endmuffenAns) }); }
+          if (num(m.endmuffenTausch) > 0) { dataMueller.endmuffenAend.total += num(m.endmuffenTausch); dataMueller.endmuffenAend.items.push({ label: mastLabel, val: num(m.endmuffenTausch) }); }
+          if (num(m.endmuffenDemo) > 0) { dataMueller.endmuffenAbr.total += num(m.endmuffenDemo); dataMueller.endmuffenAbr.items.push({ label: mastLabel, val: num(m.endmuffenDemo) }); }
         });
       }
 
@@ -4381,7 +4436,7 @@ const createProject = async () => {
             Number.isFinite(item.y) &&
             Number.isFinite(item.area)
           ) {
-            return `${item.label} ${formatNumber(item.x)}m x ${formatNumber(item.y)}m = ${formatNumber(item.area)}m²`;
+            return `${item.label}: ${formatNumber(item.x)}m x ${formatNumber(item.y)}m = ${formatNumber(item.area)}m²`;
           }
           return `${item.label}: ${formatNumber(item?.val)}`;
         };
@@ -4395,7 +4450,7 @@ const createProject = async () => {
                 Number.isFinite(item.y) &&
                 Number.isFinite(item.area)
               ) {
-                return `${item.label}\t\t${formatNumber(item.x)}m x ${formatNumber(item.y)}m = ${formatNumber(item.area)}m²`;
+                return `${item.label}:\t${formatNumber(item.x)}m x ${formatNumber(item.y)}m = ${formatNumber(item.area)}m²`;
               }
 
               const title = String(cat?.title || '').toLowerCase();
@@ -4442,6 +4497,9 @@ const createProject = async () => {
           ...(dataObj.muffenDemoMontage.total > 0 ? [dataObj.muffenDemoMontage] : []),
           ...(dataObj.muffenDemo.total > 0 ? [dataObj.muffenDemo] : []),
           ...(dataObj.muffenDemoTausch.total > 0 ? [dataObj.muffenDemoTausch] : []),
+          ...(dataObj.endmuffenAns.total > 0 ? [dataObj.endmuffenAns] : []),
+          ...(dataObj.endmuffenAend.total > 0 ? [dataObj.endmuffenAend] : []),
+          ...(dataObj.endmuffenAbr.total > 0 ? [dataObj.endmuffenAbr] : []),
           ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
           ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : []),
           ...LK_SIKA_HSW_FIELDS.flatMap((field) => (dataObj[field.key]?.total > 0 ? [dataObj[field.key]] : [])),
