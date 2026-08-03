@@ -1,74 +1,101 @@
-# 🏗️ Baustellen-App
+# Baustellen-App
 
-Eine moderne Desktop- und Web-Applikation zur effizienten Verwaltung von Bauprojekten. Diese Anwendung kombiniert die Geschwindigkeit einer Single Page Application (SPA) mit der Systemintegration einer Desktop-Software.
+Desktop- und Web-Anwendung zur Verwaltung von Baustellenprojekten.
 
-## 🚀 Key Features
+Die Anwendung kombiniert:
+- React + Vite als Frontend
+- Electron als Desktop-Runtime
+- PocketBase als Backend (Auth + Daten)
 
-*   **Hybrid-Plattform:** Nutzbar als installierbare Windows-Anwendung (.exe) via Electron oder als Progressive Web App (PWA) im Browser.
-*   **Projekt-Dashboard:** Komplette Übersicht aller Baustellen mit Filter- und Sortierfunktionen.
-*   **Intelligente Ordnerstruktur:** Automatisches Erstellen und Öffnen von lokalen Projektordnern direkt aus der App (Desktop-exklusiv).
-*   **Echtzeit-Backend:** Daten-Synchronisation und Authentifizierung über PocketBase.
-*   **Kartenintegration:** Visualisierung von Baustellenstandorten via OpenStreetMap.
-*   **Smart Updates:** Integriertes Update-System, das neue Versionen direkt von GitHub lädt und installiert.
+## Funktionen
 
-## 🛠️ Technologie-Stack
+- Projektverwaltung mit Status, Filtern und Detailansicht
+- Kartenansicht mit OpenStreetMap/Leaflet
+- Datei-Upload und projektbezogene Dokumentablage
+- Desktop-spezifische Dateisystem-Funktionen (Ordner oeffnen, lokale Projektstruktur)
+- Auto-Update fuer die Electron-Anwendung
+
+## Technologie-Stack
 
 | Bereich | Technologie |
 | :--- | :--- |
-| **Frontend** | React, Vite, Tailwind CSS |
-| **Desktop-Runtime** | Electron |
-| **Backend** | PocketBase (Self-hosted) |
-| **APIs** | OpenStreetMap, Nominatim |
-| **CI/CD** | GitHub Actions (Auto-Build & Release) |
+| Frontend | React, Vite |
+| Mapping | Leaflet, React-Leaflet |
+| Desktop | Electron, electron-builder, electron-updater |
+| Backend | PocketBase |
 
-## 📦 Installation & Entwicklung
+## Voraussetzungen
 
-### Voraussetzungen
-*   **Node.js** (LTS empfohlen)
-*   **PocketBase** Instanz (lokal oder unter `app.elektro-hegener.de`)
+- Node.js (LTS empfohlen)
+- npm
+- PocketBase (lokal oder remote)
 
-### Lokale Einrichtung
-1. Repository klonen:
-   ```bash
-   git clone [https://github.com/CyboraOfficial/baustellen-app.git](https://github.com/CyboraOfficial/baustellen-app.git)
-   cd baustellen-app
-2. Abhängigkeiten installieren:
-    ```bash
-    npm install
-### Verfügbare Skripte
-*   `npm run dev`: Startet den Vite Entwicklungs-Server für den Browser-Test (PWA).
-*   `npm run electron:dev`: Startet Vite und öffnet parallel die App im Electron-Entwicklungsmodus.
-*   `npm run build`: Erstellt die produktionsreifen Dateien im `dist/` Ordner.
-*   `npm run preview`: Startet eine lokale Vorschau des Production-Builds.
+## Lokale Entwicklung
 
-## 🚀 2. Deployment & CI/CD
+1. Repository klonen
 
-Die App verfügt über eine automatisierte Pipeline für Web und Desktop:
+```bash
+git clone https://github.com/CyboraOfficial/baustellen-app.git
+cd baustellen-app
+```
 
-### Web-Version (PWA / VPS)
-*   **Automatisches Deployment:** Jeder Push auf den `master` Branch triggert eine GitHub Action.
-*   **Vorgang:** Der Code wird gebaut (`npm run build`) und die fertigen Dateien werden automatisch via SSH/SFTP auf den **VPS** übertragen.
-*   **Live-URL:** Erreichbar unter `https://app.elektro-hegener.de`.
+2. Abhaengigkeiten installieren
 
-### Desktop-Version (.exe)
-*   **Release-Workflow:** Wird durch das Erstellen eines Git-Tags ausgelöst.
-*   **Vorgang:**
-    ```bash
-    git tag v1.0.x
-    git push origin v1.0.x
-    ```
-*   GitHub Actions baut die Windows-Anwendung und veröffentlicht sie unter **GitHub Releases**.
+```bash
+npm install
+```
 
-## 🏗️ 3. Ordnerstruktur & Lokale Daten (Desktop)
-In der Desktop-Version interagiert die App mit dem lokalen Dateisystem:
-*   Basis-Pfad kann in den Einstellungen festgelegt werden.
-*   Projekte legen automatisch eine vordefinierte Unterordner-Struktur an.
+3. PocketBase starten (lokal, Standard-Port)
 
-## 🔒 4. Content Security Policy (CSP)
+```bash
+pocketbase serve --http=127.0.0.1:8090
+```
 
-Aus Sicherheitsgründen nutzt die App eine strikte CSP. Aktuell erlaubte Quellen:
-*   **Connect:** `self`, `app.elektro-hegener.de`, `127.0.0.1:8090`, `nominatim.openstreetmap.org`, `github.com`
-*   **Images:** `self`, `data:`, `blob:`, `*.tile.openstreetmap.org`, `unpkg.com`, `raw.githubusercontent.com`
+4. Frontend starten
 
----
-© 2026 Elektro Hegener
+```bash
+npm run dev
+```
+
+Hinweis zur Backend-URL:
+- In Entwicklung nutzt die App `http://127.0.0.1:8090`
+- Im Production-Modus nutzt sie `https://app.elektro-hegener.de`
+
+Die Umschaltung erfolgt in `src/pocketbase.js` anhand von `import.meta.env.MODE`.
+
+## NPM-Skripte
+
+- `npm run dev`: Vite Entwicklungsserver
+- `npm run electron`: Electron mit aktuellem Build starten
+- `npm run start`: Vite und Electron parallel starten
+- `npm run electron:dev`: Alternative parallele Dev-Ausfuehrung
+- `npm run build`: Web-Build nach `dist/`
+- `npm run preview`: Lokale Vorschau des Web-Builds
+- `npm run dist`: Electron-Distribution bauen
+- `npm run publish`: Build und GitHub-Release-Publish
+
+## Projektstruktur
+
+Wichtige Verzeichnisse:
+
+- `src/`: React-Anwendung
+- `electron/`: Electron Main/Preload Prozesse
+- `public/`: Statische Assets
+- `pb_migrations/`: PocketBase Migrationen
+- `pb_data/`: Lokale PocketBase-Daten (entwicklungsnaher Zustand)
+
+## Sicherheitshinweise
+
+- Die Content-Security-Policy ist in `index.html` definiert.
+- Dateizugriffe und API-Zugriffe sind auf bekannte Quellen eingeschraenkt.
+
+## Lizenz
+
+Dieses Repository ist nicht als Open-Source-Projekt lizenziert.
+
+- Projektlizenz: siehe `LICENSE.md`
+- Drittanbieter-Lizenzen: siehe `THIRD_PARTY_NOTICES.md`
+
+## Copyright
+
+Copyright (c) 2026 CyboraOfficial. Alle Rechte vorbehalten.

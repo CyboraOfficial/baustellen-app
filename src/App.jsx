@@ -162,6 +162,7 @@ const DEFAULT_NACHKALKULATION = {
 const DEFAULT_AUFMASS_ALLGEMEIN = {
   transport: "",
   extraInfos: "",
+  tatsaechlicheWerktage: "",
   ansMindestansatzBeiUnter1m: false,
   einmessungWeggeschicktAm: "",
   materialbuchungErfolgtAm: "",
@@ -235,6 +236,7 @@ const ORDER_EXPORT_FIELD_OPTIONS = [
   { key: "ab_hsw", label: "AB HSW", width: 14 },
   { key: "ab_mueller", label: "AB Müller", width: 14 },
   { key: "zeitbedarf", label: "Zeitbedarf", width: 14 },
+  { key: "tatsaechlicheWerktage", label: "Tatsächlich gebraucht (WT)", width: 22 },
   { key: "mastenTotal", label: "Masten gesamt", width: 14 },
   { key: "mastenMontage", label: "Masten Montage", width: 16 },
   { key: "mastenTausch", label: "Masten Tausch", width: 14 },
@@ -254,6 +256,7 @@ const ORDER_EXPORT_FIELD_OPTIONS = [
 const DEFAULT_ORDER_EXPORT_FIELDS = ORDER_EXPORT_FIELD_OPTIONS.map((field) => field.key);
 
 const normalizeProjectType = (value) => String(value || "").trim().toLowerCase();
+const isKonzeptProjectType = (value) => normalizeProjectType(value) === "konzept";
 const isExcludedFromNachkalk = (type) => EXCLUDED_NACHKALK_TYPES.has(normalizeProjectType(type));
 const isMontageRelatedAction = (action) => normalizeProjectType(action) === "montage";
 
@@ -297,6 +300,13 @@ const getMastLvPositionKey = ({ action, foundationType, mastType, heightValue })
 const parseNumberInput = (value) => {
   const num = Number(String(value || "").replace(',', '.').trim());
   return Number.isFinite(num) ? num : 0;
+};
+
+const formatWorkDaysLabel = (fullDays = 0) => {
+  const safeDays = Math.max(0, Number(fullDays) || 0);
+  const weeks = Math.floor(safeDays / WORK_DAYS_PER_WEEK);
+  const remainingDays = safeDays % WORK_DAYS_PER_WEEK;
+  return `${weeks}W ${remainingDays}T`;
 };
 
 const formatEuro = (value) => `${(Number(value) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
@@ -1105,6 +1115,14 @@ Weitere Infos: ${form.notes || ""}
     setSelectedStatusFilters([value]);
   };
 
+  const keepOnlyOneTypeFilter = (value) => {
+    if (value === "Alle") {
+      setSelectedTypeFilters(["Alle"]);
+      return;
+    }
+    setSelectedTypeFilters([value]);
+  };
+
   const matchesTypeFilter = (projectType) => {
     if (selectedTypeFilters.includes("Alle") || selectedTypeFilters.length === 0) return true;
     return selectedTypeFilters.includes(projectType);
@@ -1421,6 +1439,7 @@ const openProject = (p) => {
   let aufmassMasten = [];
   let allgemeinTransport = "";
   let allgemeinExtraInfos = "";
+  let allgemeinTatsaechlicheWerktage = "";
   let allgemeinAnsMindestansatzBeiUnter1m = false;
   let allgemeinEinmessungWeggeschicktAm = "";
   let allgemeinMaterialbuchungErfolgtAm = "";
@@ -1436,6 +1455,7 @@ const openProject = (p) => {
       aufmassMasten = rawAufmass.masten || [];
       allgemeinTransport = rawAufmass.allgemein?.transport || "";
       allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
+      allgemeinTatsaechlicheWerktage = rawAufmass.allgemein?.tatsaechlicheWerktage || rawAufmass.allgemein?.echteWerktage || "";
       allgemeinAnsMindestansatzBeiUnter1m = !!rawAufmass.allgemein?.ansMindestansatzBeiUnter1m;
       allgemeinEinmessungWeggeschicktAm = rawAufmass.allgemein?.einmessungWeggeschicktAm || "";
       allgemeinMaterialbuchungErfolgtAm = rawAufmass.allgemein?.materialbuchungErfolgtAm || "";
@@ -1510,6 +1530,7 @@ const openProject = (p) => {
       allgemein: {
         transport: allgemeinTransport,
         extraInfos: allgemeinExtraInfos,
+        tatsaechlicheWerktage: allgemeinTatsaechlicheWerktage,
         ansMindestansatzBeiUnter1m: allgemeinAnsMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: allgemeinEinmessungWeggeschicktAm,
         materialbuchungErfolgtAm: allgemeinMaterialbuchungErfolgtAm,
@@ -1774,6 +1795,7 @@ useEffect(() => {
       allgemein: {
         transport: data.allgemein?.transport || "",
         extraInfos: data.allgemein?.extraInfos || "",
+        tatsaechlicheWerktage: data.allgemein?.tatsaechlicheWerktage || data.allgemein?.echteWerktage || "",
         ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
         materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
@@ -1832,6 +1854,7 @@ const normalizeAufmass = (data) => {
     allgemein: {
       transport: data.allgemein?.transport || "",
       extraInfos: data.allgemein?.extraInfos || "",
+      tatsaechlicheWerktage: data.allgemein?.tatsaechlicheWerktage || data.allgemein?.echteWerktage || "",
       ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
       einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
       materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
@@ -2354,7 +2377,20 @@ const createProject = async () => {
     return rawAufmass?.allgemein || {};
   };
 
-  const countProjectMastActionsDetailed = (masten = []) => {
+  const getProjectActualWorkDays = (project) => {
+    const aufmassAllgemein = parseProjectAufmassAllgemein(project);
+    return parseNumberInput(aufmassAllgemein?.tatsaechlicheWerktage || aufmassAllgemein?.echteWerktage);
+  };
+
+  const estimateFullDaysFromActionCounts = ({ mastenMontage = 0, mastenTausch = 0, mastenDemontage = 0 } = {}) => {
+    const estimatedDaysRaw =
+      (mastenMontage / MAST_OUTPUT_PER_DAY.montage) +
+      (mastenTausch / MAST_OUTPUT_PER_DAY.tausch) +
+      (mastenDemontage / MAST_OUTPUT_PER_DAY.demontage);
+    return Math.ceil(estimatedDaysRaw);
+  };
+
+  function countProjectMastActionsDetailed(masten = []) {
     let mastenMontage = 0;
     let mastenTausch = 0;
     let mastenDemontage = 0;
@@ -2372,7 +2408,28 @@ const createProject = async () => {
     });
 
     return { mastenMontage, mastenTausch, mastenDemontage };
-  };
+  }
+
+  const historicalTimeCalibration = projects.reduce((acc, project) => {
+    if (!isKonzeptProjectType(project?.type)) return acc;
+    if (!project?.id || project.id === selectedProject?.id) return acc;
+
+    const masten = parseProjectMasten(project);
+    const actionCounts = countProjectMastActionsDetailed(masten);
+    const estimatedDays = estimateFullDaysFromActionCounts(actionCounts);
+    const actualDays = getProjectActualWorkDays(project);
+
+    if (estimatedDays <= 0 || actualDays <= 0) return acc;
+
+    acc.ratioSum += actualDays / estimatedDays;
+    acc.sampleCount += 1;
+    return acc;
+  }, { ratioSum: 0, sampleCount: 0 });
+
+  const dynamicTimeFactorRaw = historicalTimeCalibration.sampleCount > 0
+    ? historicalTimeCalibration.ratioSum / historicalTimeCalibration.sampleCount
+    : 1;
+  const dynamicTimeFactor = Math.min(2.5, Math.max(0.5, dynamicTimeFactorRaw));
 
   const ordersExportRows = projects
     .map((project) => {
@@ -2383,13 +2440,12 @@ const createProject = async () => {
       const createdAt = project?.created ? new Date(project.created) : null;
       const updatedAt = project?.updated ? new Date(project.updated) : null;
       const createdDateISO = createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString().slice(0, 10) : "";
-      const estimatedDaysRaw =
-        (mastenMontage / MAST_OUTPUT_PER_DAY.montage) +
-        (mastenTausch / MAST_OUTPUT_PER_DAY.tausch) +
-        (mastenDemontage / MAST_OUTPUT_PER_DAY.demontage);
-      const estimatedFullDays = Math.ceil(estimatedDaysRaw);
+      const isKonzeptProject = isKonzeptProjectType(project?.type);
+      const estimatedFullDays = estimateFullDaysFromActionCounts({ mastenMontage, mastenTausch, mastenDemontage });
+      const adjustedFullDays = isKonzeptProject ? Math.ceil(estimatedFullDays * dynamicTimeFactor) : 0;
       const relevantMastenCount = mastenMontage + mastenTausch + mastenDemontage;
-      const estimatedWeeks = Number((estimatedFullDays / WORK_DAYS_PER_WEEK).toFixed(2));
+      const estimatedWeeks = Number((adjustedFullDays / WORK_DAYS_PER_WEEK).toFixed(2));
+      const actualWorkDays = getProjectActualWorkDays(project);
 
       return {
         id: project?.id,
@@ -2404,7 +2460,8 @@ const createProject = async () => {
         pgk: project?.pgk || "",
         ab_hsw: project?.ab_hsw || "",
         ab_mueller: project?.ab_mueller || "",
-        zeitbedarf: relevantMastenCount > 0 ? estimatedWeeks : "",
+        zeitbedarf: isKonzeptProject && relevantMastenCount > 0 ? estimatedWeeks : "",
+        tatsaechlicheWerktage: actualWorkDays > 0 ? Number(actualWorkDays.toFixed(2)) : "",
         mastenTotal: masten.length,
         mastenMontage,
         mastenTausch,
@@ -2869,6 +2926,7 @@ const createProject = async () => {
         display: 'flex', 
         flexDirection: 'column', 
         height: '100%', 
+        minHeight: 0,
         overflow: 'visible',
         position: 'relative'
       }}>
@@ -2966,7 +3024,6 @@ const createProject = async () => {
                           onChange={() => toggleMultiFilterValue(option.value, selectedStatusFilters, setSelectedStatusFilters)}
                         />
                         <span className="filter-multi-option-text">{option.label}</span>
-                        <span className={`filter-multi-checkmark${checked ? " visible" : ""}`}>✓</span>
                       </label>
                     );
                   })}
@@ -2991,6 +3048,7 @@ const createProject = async () => {
                       <label
                         key={option.value}
                         className="filter-multi-option"
+                        onDoubleClick={() => keepOnlyOneTypeFilter(option.value)}
                       >
                         <input
                           type="checkbox"
@@ -2999,7 +3057,6 @@ const createProject = async () => {
                           onChange={() => toggleMultiFilterValue(option.value, selectedTypeFilters, setSelectedTypeFilters)}
                         />
                         <span className="filter-multi-option-text">{option.label}</span>
-                        <span className={`filter-multi-checkmark${checked ? " visible" : ""}`}>✓</span>
                       </label>
                     );
                   })}
@@ -3239,17 +3296,20 @@ const createProject = async () => {
   <div className="masten-container">
     {(() => {
       const totalMasten = form.masten.length;
-      const countMontage = form.masten.filter(m => m.aktion === "Montage").length;
-      const countDemontage = form.masten.filter(m => m.aktion === "Demontage").length;
-      const countTausch = form.masten.filter(m => m.aktion === "Tausch").length;
-      const estimatedDaysRaw =
-        (countMontage / MAST_OUTPUT_PER_DAY.montage) +
-        (countTausch / MAST_OUTPUT_PER_DAY.tausch) +
-        (countDemontage / MAST_OUTPUT_PER_DAY.demontage);
-      const estimatedFullDays = Math.ceil(estimatedDaysRaw);
-      const estimatedWeeks = Math.floor(estimatedFullDays / WORK_DAYS_PER_WEEK);
-      const estimatedRemainingDays = estimatedFullDays % WORK_DAYS_PER_WEEK;
-      const estimatedDurationLabel = `${estimatedWeeks}W ${estimatedRemainingDays}T`;
+      const countMontage = form.masten.filter((m) => String(m?.aktion || "") === "Montage").length;
+      const countDemontage = form.masten.filter((m) => String(m?.aktion || "") === "Demontage").length;
+      const countTausch = form.masten.filter((m) => String(m?.aktion || "") === "Tausch").length;
+      const isCurrentProjectKonzept = isKonzeptProjectType(form.type);
+      const estimatedFullDays = estimateFullDaysFromActionCounts({
+        mastenMontage: countMontage,
+        mastenTausch: countTausch,
+        mastenDemontage: countDemontage
+      });
+      const adjustedEstimatedFullDays = isCurrentProjectKonzept ? Math.ceil(estimatedFullDays * dynamicTimeFactor) : 0;
+      const estimatedDurationLabel = isCurrentProjectKonzept ? formatWorkDaysLabel(adjustedEstimatedFullDays) : "-";
+      const baseEstimatedDurationLabel = formatWorkDaysLabel(estimatedFullDays);
+      const actualWorkDaysValue = form.aufmass?.allgemein?.tatsaechlicheWerktage || "";
+      const calibrationSampleCount = historicalTimeCalibration.sampleCount;
       const LEUCHTEN_DATA = {
         "Trilux Cuvia 40": 2600,
         "Trilux Cuvia 60": 2600,
@@ -3277,11 +3337,33 @@ const createProject = async () => {
               <span className="stat-value" style={{color: '#ef4444'}}>{countDemontage}</span>
               <span className="stat-label">Demontage</span>
             </div>
-            <div className="stat-card stat-time" title="Berechnet aus Montage 1,8/Tag, Tausch 1,2/Tag, Demontage 3,7/Tag (auf volle Tage aufgerundet)">
-              <span className="stat-value" style={{color: '#fbbf24'}}>{estimatedDurationLabel}</span>
-              <span className="stat-label">Zeitbedarf</span>
-            </div>
+            {isCurrentProjectKonzept && (
+              <div className="stat-card stat-time" title="Berechnet aus Montage 1,8/Tag, Tausch 1,2/Tag, Demontage 3,7/Tag und mit Ist-Werktagen vergangener Konzept-Baustellen dynamisch korrigiert">
+                <span className="stat-value" style={{color: '#fbbf24'}}>{estimatedDurationLabel}</span>
+                <span className="stat-label">Zeitbedarf</span>
+              </div>
+            )}
           </div>
+
+          {isCurrentProjectKonzept && (
+            <div style={{ marginTop: '10px', marginBottom: '14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '10px', color: '#cbd5e1' }}>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>Tatsächlich gebraucht (Werktage)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="mast-input-base"
+                  style={{ width: '180px' }}
+                  placeholder="z.B. 8"
+                  value={actualWorkDaysValue}
+                  onChange={(e) => updateAufmassAllgemein('tatsaechlicheWerktage', e.target.value)}
+                />
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {`Basis: ${baseEstimatedDurationLabel} | Korrekturfaktor: ${dynamicTimeFactor.toFixed(2)} (${calibrationSampleCount} Konzept-Baustellen mit Ist-Wert)`}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* --- MASSENANLAGE TOOLBAR --- */}
           <div className="batch-bar" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap', background: '#1e293b', padding: '15px', borderRadius: '8px' }}>
