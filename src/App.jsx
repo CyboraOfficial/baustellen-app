@@ -710,6 +710,8 @@ export default function App() {
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const statusFilterRef = useRef(null);
   const typeFilterRef = useRef(null);
+  const ordersExportTypeFilterRef = useRef(null);
+  const ordersExportStatusFilterRef = useRef(null);
 
   /* 🔎 ADRESSSUCHE FÜR ERSTELLEN */
   const [searchResults, setSearchResults] = useState([]);
@@ -731,8 +733,10 @@ export default function App() {
   const [chartDetailSortKey, setChartDetailSortKey] = useState("createdDate");
   const [chartDetailSortDir, setChartDetailSortDir] = useState("desc");
   const [ordersExportPopupOpen, setOrdersExportPopupOpen] = useState(false);
-  const [ordersExportTypeFilter, setOrdersExportTypeFilter] = useState("Alle");
-  const [ordersExportStatusFilter, setOrdersExportStatusFilter] = useState("Alle");
+  const [ordersExportTypeFilter, setOrdersExportTypeFilter] = useState(["Alle"]);
+  const [ordersExportStatusFilter, setOrdersExportStatusFilter] = useState(["Alle"]);
+  const [ordersExportTypeFilterOpen, setOrdersExportTypeFilterOpen] = useState(false);
+  const [ordersExportStatusFilterOpen, setOrdersExportStatusFilterOpen] = useState(false);
   const [ordersExportDateFrom, setOrdersExportDateFrom] = useState(() => getCurrentYearStartDateString());
   const [ordersExportDateTo, setOrdersExportDateTo] = useState(() => getTodayDateString());
   const [ordersExportSelectedFields, setOrdersExportSelectedFields] = useState(() => [...DEFAULT_ORDER_EXPORT_FIELDS]);
@@ -1298,6 +1302,12 @@ Weitere Infos: ${form.notes || ""}
       }
       if (typeFilterRef.current && !typeFilterRef.current.contains(event.target)) {
         setTypeFilterOpen(false);
+      }
+      if (ordersExportTypeFilterRef.current && !ordersExportTypeFilterRef.current.contains(event.target)) {
+        setOrdersExportTypeFilterOpen(false);
+      }
+      if (ordersExportStatusFilterRef.current && !ordersExportStatusFilterRef.current.contains(event.target)) {
+        setOrdersExportStatusFilterOpen(false);
       }
     };
 
@@ -2577,7 +2587,7 @@ const createProject = async () => {
       "Sonstiges",
       ...projects.map((p) => p.type).filter(Boolean)
     ]))
-  ];
+  ].map((value) => ({ value, label: value }));
 
   const orderExportStatusOptions = [
     "Alle",
@@ -2591,7 +2601,18 @@ const createProject = async () => {
       "Abgerechnet",
       ...projects.map((p) => p.status).filter(Boolean)
     ]))
-  ];
+  ].map((value) => ({ value, label: value }));
+
+  const openOrdersExportPopup = () => {
+    setOrdersExportTypeFilter(["Alle"]);
+    setOrdersExportStatusFilter(["Alle"]);
+    setOrdersExportTypeFilterOpen(false);
+    setOrdersExportStatusFilterOpen(false);
+    setOrdersExportDateFrom("");
+    setOrdersExportDateTo("");
+    setOrdersExportSelectedFields([...DEFAULT_ORDER_EXPORT_FIELDS]);
+    setOrdersExportPopupOpen(true);
+  };
 
   const parseProjectMasten = (project) => {
     const raw = project?.masten;
@@ -2726,8 +2747,8 @@ const createProject = async () => {
         notes: project?.notes || ""
       };
     })
-    .filter((row) => ordersExportTypeFilter === "Alle" || row.type === ordersExportTypeFilter)
-    .filter((row) => ordersExportStatusFilter === "Alle" || row.status === ordersExportStatusFilter)
+    .filter((row) => ordersExportTypeFilter.includes("Alle") || ordersExportTypeFilter.length === 0 || ordersExportTypeFilter.includes(row.type))
+    .filter((row) => ordersExportStatusFilter.includes("Alle") || ordersExportStatusFilter.length === 0 || ordersExportStatusFilter.includes(row.status))
     .filter((row) => !ordersExportDateFromISO || (row.createdDateISO && row.createdDateISO >= ordersExportDateFromISO))
     .filter((row) => !ordersExportDateToISO || (row.createdDateISO && row.createdDateISO <= ordersExportDateToISO));
 
@@ -5744,7 +5765,7 @@ const createProject = async () => {
                 <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Nachkalkulation Excel Export
                 </button>
-                <button onClick={() => setOrdersExportPopupOpen(true)} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                <button onClick={openOrdersExportPopup} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Aufträge Excel Export
                 </button>
                 <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
@@ -6479,33 +6500,65 @@ const createProject = async () => {
                     Filter nach Typ, Zeitraum (Erstellt am) und Status. Danach auswählbare Felder exportieren.
                   </div>
 
-                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
-                    <div>
-                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ</label>
-                      <select
-                        value={ordersExportTypeFilter}
-                        onChange={(e) => setOrdersExportTypeFilter(e.target.value)}
-                        className="mast-input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
+                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+                    <div className="filter-multi" ref={ordersExportTypeFilterRef}>
+                      <label className="filter-multi-label" style={{ color: '#94a3b8' }}>Typ</label>
+                      <button
+                        type="button"
+                        onClick={() => setOrdersExportTypeFilterOpen((prev) => !prev)}
+                        className="filter-multi-toggle filter-multi-toggle-export"
                       >
-                        {orderExportTypeOptions.map((type) => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
+                        <span className="filter-multi-toggle-text">{getMultiFilterSummary(ordersExportTypeFilter, orderExportTypeOptions)}</span>
+                        <span className="filter-multi-arrow">▾</span>
+                      </button>
+                      {ordersExportTypeFilterOpen && (
+                        <div className="filter-multi-menu filter-multi-menu-export">
+                          {orderExportTypeOptions.map((option) => {
+                            const checked = ordersExportTypeFilter.includes(option.value);
+                            return (
+                              <label key={option.value} className="filter-multi-option">
+                                <input
+                                  type="checkbox"
+                                  className="filter-multi-checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleMultiFilterValue(option.value, ordersExportTypeFilter, setOrdersExportTypeFilter)}
+                                />
+                                <span className="filter-multi-option-text">{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
-                    <div>
-                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Status</label>
-                      <select
-                        value={ordersExportStatusFilter}
-                        onChange={(e) => setOrdersExportStatusFilter(e.target.value)}
-                        className="mast-input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
+                    <div className="filter-multi" ref={ordersExportStatusFilterRef}>
+                      <label className="filter-multi-label" style={{ color: '#94a3b8' }}>Status</label>
+                      <button
+                        type="button"
+                        onClick={() => setOrdersExportStatusFilterOpen((prev) => !prev)}
+                        className="filter-multi-toggle filter-multi-toggle-export"
                       >
-                        {orderExportStatusOptions.map((status) => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
+                        <span className="filter-multi-toggle-text">{getMultiFilterSummary(ordersExportStatusFilter, orderExportStatusOptions)}</span>
+                        <span className="filter-multi-arrow">▾</span>
+                      </button>
+                      {ordersExportStatusFilterOpen && (
+                        <div className="filter-multi-menu filter-multi-menu-export">
+                          {orderExportStatusOptions.map((option) => {
+                            const checked = ordersExportStatusFilter.includes(option.value);
+                            return (
+                              <label key={option.value} className="filter-multi-option">
+                                <input
+                                  type="checkbox"
+                                  className="filter-multi-checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleMultiFilterValue(option.value, ordersExportStatusFilter, setOrdersExportStatusFilter)}
+                                />
+                                <span className="filter-multi-option-text">{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     <div>

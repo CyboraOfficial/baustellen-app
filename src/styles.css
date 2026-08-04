@@ -295,6 +295,16 @@ hr {
   background: #f8fafc;
 }
 
+.filter-multi-toggle-export {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+.filter-multi-toggle-export:hover {
+  background: #243044;
+}
+
 .filter-multi-toggle-text {
   display: block;
   width: 100%;
@@ -329,6 +339,13 @@ hr {
   padding: 6px;
 }
 
+.filter-multi-menu-export {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.35);
+}
+
 .filter-multi-option {
   display: grid;
   grid-template-columns: 18px 1fr 16px;
@@ -338,10 +355,11 @@ hr {
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
+  transition: background-color 0.15s ease;
 }
 
 .filter-multi-option:hover {
-  background: #f3f4f6;
+  background: rgba(148, 163, 184, 0.10);
 }
 
 .filter-multi-checkbox {
