@@ -2501,9 +2501,19 @@ const createProject = async () => {
     .filter((row) => !settingsDateFromISO || (row.createdDate && row.createdDate >= settingsDateFromISO))
     .filter((row) => !settingsDateToISO || (row.createdDate && row.createdDate <= settingsDateToISO));
 
-  const overviewAverageRate = analyticsRows.length > 0
-    ? analyticsRows.reduce((sum, item) => sum + item.hourlyRate, 0) / analyticsRows.length
-    : 0;
+  const getWeightedHourlyRate = (rows = []) => {
+    const totals = rows.reduce((acc, row) => {
+      const stunden = Number(row?.stunden) || 0;
+      if (stunden <= 0) return acc;
+      acc.totalHours += stunden;
+      acc.totalNet += Number(row?.gesamt) || 0;
+      return acc;
+    }, { totalHours: 0, totalNet: 0 });
+
+    return totals.totalHours > 0 ? totals.totalNet / totals.totalHours : 0;
+  };
+
+  const overviewAverageRate = getWeightedHourlyRate(analyticsRows);
   const overviewProfitabelCount = analyticsRows.filter((item) => item.hourlyRate >= NORMAL_HOURLY_RATE).length;
   const overviewVeryGoodCount = analyticsRows.filter((item) => item.hourlyRate >= VERY_GOOD_HOURLY_RATE).length;
   const totalMontageCount = analyticsRows.reduce((sum, item) => sum + (item.montageCount || 0), 0);
@@ -2914,7 +2924,7 @@ const createProject = async () => {
       { Kennzahl: 'Von Datum', Wert: settingsDateFrom || '-' },
       { Kennzahl: 'Bis Datum', Wert: settingsDateTo || '-' },
       { Kennzahl: 'Anzahl Datensaetze', Wert: analyticsRows.length },
-      { Kennzahl: 'Durchschnitt Stundenlohn', Wert: Number(overviewAverageRate.toFixed(2)) },
+      { Kennzahl: 'Gewichteter Stundenlohn', Wert: Number(overviewAverageRate.toFixed(2)) },
       { Kennzahl: `Anzahl >= ${NORMAL_HOURLY_RATE.toFixed(1)} EUR/h (Gut+)`, Wert: overviewProfitabelCount },
       { Kennzahl: `Anzahl >= ${VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h (Sehr gut)`, Wert: overviewVeryGoodCount },
       { Kennzahl: 'Montierte Masten (gesamt)', Wert: totalMontageCount },
@@ -2932,36 +2942,38 @@ const createProject = async () => {
     analyticsRows.reduce((acc, row) => {
       if (!row.createdDate) return acc;
       const monthKey = row.createdDate.slice(0, 7);
-      if (!acc[monthKey]) acc[monthKey] = { key: monthKey, sumRate: 0, count: 0 };
-      acc[monthKey].sumRate += row.hourlyRate;
+      if (!acc[monthKey]) acc[monthKey] = { key: monthKey, totalNet: 0, totalHours: 0, count: 0 };
+      acc[monthKey].totalNet += Number(row.gesamt) || 0;
+      acc[monthKey].totalHours += Number(row.stunden) || 0;
       acc[monthKey].count += 1;
       return acc;
     }, {})
   )
     .map((item) => ({
       ...item,
-      avgRate: item.count > 0 ? item.sumRate / item.count : 0
+      avgRate: item.totalHours > 0 ? item.totalNet / item.totalHours : 0
     }))
     .sort((a, b) => a.key.localeCompare(b.key));
 
   const cityOrder = ["Meschede", "Olsberg", "Bestwig", "Sonstige"];
   const cityData = cityOrder.map((city) => {
     const rows = analyticsRows.filter((row) => row.city === city);
-    const avgRate = rows.length > 0 ? rows.reduce((sum, row) => sum + row.hourlyRate, 0) / rows.length : 0;
+    const avgRate = getWeightedHourlyRate(rows);
     return { city, avgRate, count: rows.length };
   });
 
   const typeData = Object.values(
     analyticsRowsByTypeChart.reduce((acc, row) => {
-      if (!acc[row.type]) acc[row.type] = { type: row.type, sumRate: 0, count: 0 };
-      acc[row.type].sumRate += row.hourlyRate;
+      if (!acc[row.type]) acc[row.type] = { type: row.type, totalNet: 0, totalHours: 0, count: 0 };
+      acc[row.type].totalNet += Number(row.gesamt) || 0;
+      acc[row.type].totalHours += Number(row.stunden) || 0;
       acc[row.type].count += 1;
       return acc;
     }, {})
   )
     .map((item) => ({
       ...item,
-      avgRate: item.count > 0 ? item.sumRate / item.count : 0
+      avgRate: item.totalHours > 0 ? item.totalNet / item.totalHours : 0
     }))
     .sort((a, b) => b.avgRate - a.avgRate);
 
@@ -3070,7 +3082,8 @@ const createProject = async () => {
           row,
           col,
           count: 0,
-          sumRate: 0,
+          totalNet: 0,
+          totalHours: 0,
           minRate: Infinity,
           maxRate: -Infinity,
           rows: []
@@ -3079,7 +3092,8 @@ const createProject = async () => {
 
       const bucket = buckets.get(key);
       bucket.count += 1;
-      bucket.sumRate += point.hourlyRate;
+      bucket.totalNet += Number(point.baseRow?.gesamt) || 0;
+      bucket.totalHours += Number(point.baseRow?.stunden) || 0;
       bucket.minRate = Math.min(bucket.minRate, point.hourlyRate);
       bucket.maxRate = Math.max(bucket.maxRate, point.hourlyRate);
       bucket.rows.push(point.baseRow);
@@ -3090,7 +3104,7 @@ const createProject = async () => {
       const north = south + latStep;
       const west = originLng + bucket.col * lngStep;
       const east = west + lngStep;
-      const avgRate = bucket.count > 0 ? bucket.sumRate / bucket.count : 0;
+      const avgRate = bucket.totalHours > 0 ? bucket.totalNet / bucket.totalHours : 0;
 
       return {
         ...bucket,
@@ -3172,7 +3186,7 @@ const createProject = async () => {
     { key: '30+', label: '30+ km', min: 30, max: Infinity }
   ].map((band) => {
     const rows = geoRowsWithDistance.filter((row) => row.distanceKm >= band.min && row.distanceKm < band.max);
-    const avgRate = rows.length > 0 ? rows.reduce((sum, row) => sum + row.hourlyRate, 0) / rows.length : 0;
+    const avgRate = getWeightedHourlyRate(rows);
     return {
       ...band,
       count: rows.length,
@@ -5912,7 +5926,7 @@ const createProject = async () => {
 
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Ø Stundenlohn (Filter)</div>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gewichteter Stundenlohn (Filter)</div>
                 <strong style={{ color: getProfitabilityColor(overviewAverageRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{overviewAverageRate.toFixed(2)} EUR/h</strong>
               </div>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
@@ -6187,7 +6201,7 @@ const createProject = async () => {
                           >
                             <Popup>
                               Rasterzelle<br />
-                              Ø Stundenlohn: {cell.avgRate.toFixed(2)} EUR/h<br />
+                              Gewichteter Stundenlohn: {cell.avgRate.toFixed(2)} EUR/h<br />
                               Baustellen: {cell.count}<br />
                               Min/Max: {cell.minRate.toFixed(2)} / {cell.maxRate.toFixed(2)} EUR/h
                             </Popup>
