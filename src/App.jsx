@@ -5084,7 +5084,7 @@ const createProject = async () => {
 
           if (laengeGrabenAns > 0) {
             // Externe Graben-Oberfläche bleibt erhalten.
-            addMuellerSurface(m.oberflaecheGraben || "Grass", laengeGrabenAns, 0.3, "(ANS)", "Graben");
+            addMuellerSurface(m.oberflaecheGraben || "Grass", laengeGrabenAns, 0.5, "(ANS)", "Graben");
 
             // Oberflächen von Montage kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
             if (shouldAddMontageSurfacesToAns) {
@@ -5118,11 +5118,11 @@ const createProject = async () => {
           }
 
           if (laengeGrabenAend > 0) {
-            addMuellerSurface(m.oberflaecheGrabenTausch || "Grass", laengeGrabenAend, 0.3, "(ÄND)", "Graben");
+            addMuellerSurface(m.oberflaecheGrabenTausch || "Grass", laengeGrabenAend, 0.5, "(ÄND)", "Graben");
           }
 
           if (laengeGrabenAbr > 0) {
-            addMuellerSurface(m.oberflaecheGrabenDemo || "Grass", laengeGrabenAbr, 0.3, "(ABR)", "Graben");
+            addMuellerSurface(m.oberflaecheGrabenDemo || "Grass", laengeGrabenAbr, 0.5, "(ABR)", "Graben");
           }
 
           const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
