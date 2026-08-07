@@ -2501,9 +2501,19 @@ const createProject = async () => {
     .filter((row) => !settingsDateFromISO || (row.createdDate && row.createdDate >= settingsDateFromISO))
     .filter((row) => !settingsDateToISO || (row.createdDate && row.createdDate <= settingsDateToISO));
 
-  const overviewAverageRate = analyticsRows.length > 0
-    ? analyticsRows.reduce((sum, item) => sum + item.hourlyRate, 0) / analyticsRows.length
-    : 0;
+  const getWeightedHourlyRate = (rows = []) => {
+    const totals = rows.reduce((acc, row) => {
+      const stunden = Number(row?.stunden) || 0;
+      if (stunden <= 0) return acc;
+      acc.totalHours += stunden;
+      acc.totalNet += Number(row?.gesamt) || 0;
+      return acc;
+    }, { totalHours: 0, totalNet: 0 });
+
+    return totals.totalHours > 0 ? totals.totalNet / totals.totalHours : 0;
+  };
+
+  const overviewAverageRate = getWeightedHourlyRate(analyticsRows);
   const overviewProfitabelCount = analyticsRows.filter((item) => item.hourlyRate >= NORMAL_HOURLY_RATE).length;
   const overviewVeryGoodCount = analyticsRows.filter((item) => item.hourlyRate >= VERY_GOOD_HOURLY_RATE).length;
   const totalMontageCount = analyticsRows.reduce((sum, item) => sum + (item.montageCount || 0), 0);
@@ -2914,7 +2924,7 @@ const createProject = async () => {
       { Kennzahl: 'Von Datum', Wert: settingsDateFrom || '-' },
       { Kennzahl: 'Bis Datum', Wert: settingsDateTo || '-' },
       { Kennzahl: 'Anzahl Datensaetze', Wert: analyticsRows.length },
-      { Kennzahl: 'Durchschnitt Stundenlohn', Wert: Number(overviewAverageRate.toFixed(2)) },
+      { Kennzahl: 'Gewichteter Stundenlohn', Wert: Number(overviewAverageRate.toFixed(2)) },
       { Kennzahl: `Anzahl >= ${NORMAL_HOURLY_RATE.toFixed(1)} EUR/h (Gut+)`, Wert: overviewProfitabelCount },
       { Kennzahl: `Anzahl >= ${VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h (Sehr gut)`, Wert: overviewVeryGoodCount },
       { Kennzahl: 'Montierte Masten (gesamt)', Wert: totalMontageCount },
@@ -2932,36 +2942,38 @@ const createProject = async () => {
     analyticsRows.reduce((acc, row) => {
       if (!row.createdDate) return acc;
       const monthKey = row.createdDate.slice(0, 7);
-      if (!acc[monthKey]) acc[monthKey] = { key: monthKey, sumRate: 0, count: 0 };
-      acc[monthKey].sumRate += row.hourlyRate;
+      if (!acc[monthKey]) acc[monthKey] = { key: monthKey, totalNet: 0, totalHours: 0, count: 0 };
+      acc[monthKey].totalNet += Number(row.gesamt) || 0;
+      acc[monthKey].totalHours += Number(row.stunden) || 0;
       acc[monthKey].count += 1;
       return acc;
     }, {})
   )
     .map((item) => ({
       ...item,
-      avgRate: item.count > 0 ? item.sumRate / item.count : 0
+      avgRate: item.totalHours > 0 ? item.totalNet / item.totalHours : 0
     }))
     .sort((a, b) => a.key.localeCompare(b.key));
 
   const cityOrder = ["Meschede", "Olsberg", "Bestwig", "Sonstige"];
   const cityData = cityOrder.map((city) => {
     const rows = analyticsRows.filter((row) => row.city === city);
-    const avgRate = rows.length > 0 ? rows.reduce((sum, row) => sum + row.hourlyRate, 0) / rows.length : 0;
+    const avgRate = getWeightedHourlyRate(rows);
     return { city, avgRate, count: rows.length };
   });
 
   const typeData = Object.values(
     analyticsRowsByTypeChart.reduce((acc, row) => {
-      if (!acc[row.type]) acc[row.type] = { type: row.type, sumRate: 0, count: 0 };
-      acc[row.type].sumRate += row.hourlyRate;
+      if (!acc[row.type]) acc[row.type] = { type: row.type, totalNet: 0, totalHours: 0, count: 0 };
+      acc[row.type].totalNet += Number(row.gesamt) || 0;
+      acc[row.type].totalHours += Number(row.stunden) || 0;
       acc[row.type].count += 1;
       return acc;
     }, {})
   )
     .map((item) => ({
       ...item,
-      avgRate: item.count > 0 ? item.sumRate / item.count : 0
+      avgRate: item.totalHours > 0 ? item.totalNet / item.totalHours : 0
     }))
     .sort((a, b) => b.avgRate - a.avgRate);
 
@@ -3070,7 +3082,8 @@ const createProject = async () => {
           row,
           col,
           count: 0,
-          sumRate: 0,
+          totalNet: 0,
+          totalHours: 0,
           minRate: Infinity,
           maxRate: -Infinity,
           rows: []
@@ -3079,7 +3092,8 @@ const createProject = async () => {
 
       const bucket = buckets.get(key);
       bucket.count += 1;
-      bucket.sumRate += point.hourlyRate;
+      bucket.totalNet += Number(point.baseRow?.gesamt) || 0;
+      bucket.totalHours += Number(point.baseRow?.stunden) || 0;
       bucket.minRate = Math.min(bucket.minRate, point.hourlyRate);
       bucket.maxRate = Math.max(bucket.maxRate, point.hourlyRate);
       bucket.rows.push(point.baseRow);
@@ -3090,7 +3104,7 @@ const createProject = async () => {
       const north = south + latStep;
       const west = originLng + bucket.col * lngStep;
       const east = west + lngStep;
-      const avgRate = bucket.count > 0 ? bucket.sumRate / bucket.count : 0;
+      const avgRate = bucket.totalHours > 0 ? bucket.totalNet / bucket.totalHours : 0;
 
       return {
         ...bucket,
@@ -3172,7 +3186,7 @@ const createProject = async () => {
     { key: '30+', label: '30+ km', min: 30, max: Infinity }
   ].map((band) => {
     const rows = geoRowsWithDistance.filter((row) => row.distanceKm >= band.min && row.distanceKm < band.max);
-    const avgRate = rows.length > 0 ? rows.reduce((sum, row) => sum + row.hourlyRate, 0) / rows.length : 0;
+    const avgRate = getWeightedHourlyRate(rows);
     return {
       ...band,
       count: rows.length,
@@ -4854,6 +4868,10 @@ const createProject = async () => {
     {/* ABRECHNUNGSPOSITIONEN */}
     {(() => {
       const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
+      const getBillableOverage = (rawValue, includedCount) => {
+        const value = num(rawValue);
+        return value > includedCount ? value - includedCount : 0;
+      };
 
       const createLkSikaBuckets = () => LK_SIKA_HSW_FIELDS.reduce((acc, field) => {
         acc[field.key] = { title: field.title, total: 0, items: [] };
@@ -5084,7 +5102,7 @@ const createProject = async () => {
 
           if (laengeGrabenAns > 0) {
             // Externe Graben-Oberfläche bleibt erhalten.
-            addMuellerSurface(m.oberflaecheGraben || "Grass", laengeGrabenAns, 0.3, "(ANS)", "Graben");
+            addMuellerSurface(m.oberflaecheGraben || "Grass", laengeGrabenAns, 0.5, "(ANS)", "Graben");
 
             // Oberflächen von Montage kommen zusaetzlich mit ihrer realen Fläche (X*Y) dazu.
             if (shouldAddMontageSurfacesToAns) {
@@ -5118,11 +5136,11 @@ const createProject = async () => {
           }
 
           if (laengeGrabenAend > 0) {
-            addMuellerSurface(m.oberflaecheGrabenTausch || "Grass", laengeGrabenAend, 0.3, "(ÄND)", "Graben");
+            addMuellerSurface(m.oberflaecheGrabenTausch || "Grass", laengeGrabenAend, 0.5, "(ÄND)", "Graben");
           }
 
           if (laengeGrabenAbr > 0) {
-            addMuellerSurface(m.oberflaecheGrabenDemo || "Grass", laengeGrabenAbr, 0.3, "(ABR)", "Graben");
+            addMuellerSurface(m.oberflaecheGrabenDemo || "Grass", laengeGrabenAbr, 0.5, "(ABR)", "Graben");
           }
 
           const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
@@ -5168,9 +5186,17 @@ const createProject = async () => {
           }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ label: mastLabel, val: num(m.kabelAnAbklemmenAnzahl) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ label: mastLabel, val: num(m.netzanschlussDemoAnzahl) }); }
-          if (num(m.muffenMontierenUeber1m) > 0) { dataMueller.muffenMontierenUeber1m.total += num(m.muffenMontierenUeber1m); dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: num(m.muffenMontierenUeber1m) }); }
+          const muffenMontierenAnsAbrechenbar = getBillableOverage(m.muffenMontierenUeber1m, 2);
+          if (muffenMontierenAnsAbrechenbar > 0) {
+            dataMueller.muffenMontierenUeber1m.total += muffenMontierenAnsAbrechenbar;
+            dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: muffenMontierenAnsAbrechenbar });
+          }
           if (num(m.muffenMontierenTausch) > 0) { dataMueller.muffenMontierenTausch.total += num(m.muffenMontierenTausch); dataMueller.muffenMontierenTausch.items.push({ label: mastLabel, val: num(m.muffenMontierenTausch) }); }
-          if (num(m.muffenMontierenDemo) > 0) { dataMueller.muffenMontierenDemo.total += num(m.muffenMontierenDemo); dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: num(m.muffenMontierenDemo) }); }
+          const muffenMontierenAbrAbrechenbar = getBillableOverage(m.muffenMontierenDemo, 1);
+          if (muffenMontierenAbrAbrechenbar > 0) {
+            dataMueller.muffenMontierenDemo.total += muffenMontierenAbrAbrechenbar;
+            dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: muffenMontierenAbrAbrechenbar });
+          }
           if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ label: mastLabel, val: num(m.muffenDemo) }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
@@ -5275,7 +5301,7 @@ const createProject = async () => {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 style={{ color: '#fff', borderBottom: '2px solid #38bdf8', paddingBottom: '5px' }}>{title}</h3>
+            <h3 className="abrechnung-col-title">{title}</h3>
             {list.map((cat, idx) => (
               <details key={`${title}-${idx}`} style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
@@ -5900,7 +5926,7 @@ const createProject = async () => {
 
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Ø Stundenlohn (Filter)</div>
+                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gewichteter Stundenlohn (Filter)</div>
                 <strong style={{ color: getProfitabilityColor(overviewAverageRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{overviewAverageRate.toFixed(2)} EUR/h</strong>
               </div>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
@@ -6175,7 +6201,7 @@ const createProject = async () => {
                           >
                             <Popup>
                               Rasterzelle<br />
-                              Ø Stundenlohn: {cell.avgRate.toFixed(2)} EUR/h<br />
+                              Gewichteter Stundenlohn: {cell.avgRate.toFixed(2)} EUR/h<br />
                               Baustellen: {cell.count}<br />
                               Min/Max: {cell.minRate.toFixed(2)} / {cell.maxRate.toFixed(2)} EUR/h
                             </Popup>

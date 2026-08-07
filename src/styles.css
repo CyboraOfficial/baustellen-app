@@ -134,6 +134,12 @@ hr {
   margin-bottom: 12px;
 }
 
+.abrechnung-col-title {
+  color: #000;
+  border-bottom: 2px solid #38bdf8;
+  padding-bottom: 5px;
+}
+
 .map-area {
   position: absolute;
   top: 0;
