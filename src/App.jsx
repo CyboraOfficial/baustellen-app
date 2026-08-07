@@ -4854,6 +4854,10 @@ const createProject = async () => {
     {/* ABRECHNUNGSPOSITIONEN */}
     {(() => {
       const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
+      const getBillableOverage = (rawValue, includedCount) => {
+        const value = num(rawValue);
+        return value > includedCount ? value - includedCount : 0;
+      };
 
       const createLkSikaBuckets = () => LK_SIKA_HSW_FIELDS.reduce((acc, field) => {
         acc[field.key] = { title: field.title, total: 0, items: [] };
@@ -5168,9 +5172,17 @@ const createProject = async () => {
           }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ label: mastLabel, val: num(m.kabelAnAbklemmenAnzahl) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ label: mastLabel, val: num(m.netzanschlussDemoAnzahl) }); }
-          if (num(m.muffenMontierenUeber1m) > 0) { dataMueller.muffenMontierenUeber1m.total += num(m.muffenMontierenUeber1m); dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: num(m.muffenMontierenUeber1m) }); }
+          const muffenMontierenAnsAbrechenbar = getBillableOverage(m.muffenMontierenUeber1m, 2);
+          if (muffenMontierenAnsAbrechenbar > 0) {
+            dataMueller.muffenMontierenUeber1m.total += muffenMontierenAnsAbrechenbar;
+            dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: muffenMontierenAnsAbrechenbar });
+          }
           if (num(m.muffenMontierenTausch) > 0) { dataMueller.muffenMontierenTausch.total += num(m.muffenMontierenTausch); dataMueller.muffenMontierenTausch.items.push({ label: mastLabel, val: num(m.muffenMontierenTausch) }); }
-          if (num(m.muffenMontierenDemo) > 0) { dataMueller.muffenMontierenDemo.total += num(m.muffenMontierenDemo); dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: num(m.muffenMontierenDemo) }); }
+          const muffenMontierenAbrAbrechenbar = getBillableOverage(m.muffenMontierenDemo, 1);
+          if (muffenMontierenAbrAbrechenbar > 0) {
+            dataMueller.muffenMontierenDemo.total += muffenMontierenAbrAbrechenbar;
+            dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: muffenMontierenAbrAbrechenbar });
+          }
           if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
           if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ label: mastLabel, val: num(m.muffenDemo) }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
@@ -5275,7 +5287,7 @@ const createProject = async () => {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 style={{ color: '#fff', borderBottom: '2px solid #38bdf8', paddingBottom: '5px' }}>{title}</h3>
+            <h3 className="abrechnung-col-title">{title}</h3>
             {list.map((cat, idx) => (
               <details key={`${title}-${idx}`} style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
