@@ -5080,6 +5080,7 @@ const createProject = async () => {
           const laengeGrabenAns = num(m.grabenTiefeBreite) + ansMindestEinheiten;
           const laengeGrabenAend = num(m.grabenTiefeBreiteTausch);
           const laengeGrabenAbr = num(m.grabenTiefeBreiteDemo);
+          const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
 
           const basisMast = (form.masten || []).find((mast) => {
             if (mast?.id && m?.id) return mast.id === m.id;
@@ -5100,7 +5101,7 @@ const createProject = async () => {
 
             const shouldAddMontageSurfacesToAns = isMontageRelatedAction(m.aktion);
 
-          if (laengeGrabenAns > 0) {
+          if (laengeGrabenAns > 0 && countGrubenAns > 0) {
             // Externe Graben-Oberfläche bleibt erhalten.
             addMuellerSurface(m.oberflaecheGraben || "Grass", laengeGrabenAns, 0.5, "(ANS)", "Graben");
 
@@ -5114,7 +5115,7 @@ const createProject = async () => {
                 }
               });
             }
-          } else if (shouldAddMontageSurfacesToAns) {
+          } else if (shouldAddMontageSurfacesToAns && countGrubenAns > 0) {
             // Ohne Graben: Montage-Oberflächen trotzdem mit realer Fläche ausweisen.
             // Falls keine messbare Fläche hinterlegt ist, Position mit 0 sichtbar halten.
             const surfaceEntries = Object.entries(mergedLampAreasByType);
@@ -5143,17 +5144,9 @@ const createProject = async () => {
             addMuellerSurface(m.oberflaecheGrabenDemo || "Grass", laengeGrabenAbr, 0.5, "(ABR)", "Graben");
           }
 
-          const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
           const countGrubenAend = num(m.montagegrubeTausch);
           const countGrubenAbr = num(m.montagegrubeDemo);
 
-          if (countGrubenAns > 0) {
-            if (!dataMueller.surfaces["Montagegruben ANS (Stk)"]) {
-              dataMueller.surfaces["Montagegruben ANS (Stk)"] = { title: "Montagegruben ANS (Stk)", total: 0, items: [] };
-            }
-            dataMueller.surfaces["Montagegruben ANS (Stk)"].total += countGrubenAns;
-            dataMueller.surfaces["Montagegruben ANS (Stk)"].items.push({ label: mastLabel, val: countGrubenAns });
-          }
           if (countGrubenAend > 0) {
             if (!dataMueller.surfaces["Montagegruben ÄND (Stk)"]) {
               dataMueller.surfaces["Montagegruben ÄND (Stk)"] = { title: "Montagegruben ÄND (Stk)", total: 0, items: [] };
