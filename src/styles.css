@@ -1303,6 +1303,13 @@ textarea.aufmass-autogrow {
   border-top: 1px dashed #1e293b;
   padding-top: 5px;
   margin-top: 2px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.aufmass-kabel-field {
+  flex: 0 0 250px;
 }
 
 /* Sondersachen Dropdown */
@@ -1313,6 +1320,23 @@ textarea.aufmass-autogrow {
   flex: 1;
   max-width: 220px;
   border: 1px solid #334155;
+}
+
+.aufmass-sondersachen-content .aufmass-row-justify > span:first-child {
+  flex: 0 0 72px;
+}
+
+.aufmass-sondersachen-stack {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aufmass-sondersachen-stack .aufmass-sondersachen-dropdown {
+  width: 100%;
+  max-width: none;
 }
 
 .aufmass-sondersachen-summary {

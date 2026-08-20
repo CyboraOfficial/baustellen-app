@@ -1024,6 +1024,11 @@ const generiereAufmassDaten = (masten) => {
       sondersacheRinnenflussX: m.sondersacheRinnenflussX || "",
       sondersacheRinnenflussY: m.sondersacheRinnenflussY || "",
       sondersacheRinnenfluss: m.sondersacheRinnenfluss || (calculateArea(m.sondersacheRinnenflussX, m.sondersacheRinnenflussY) > 0 ? String(calculateArea(m.sondersacheRinnenflussX, m.sondersacheRinnenflussY)) : ""),
+      sondersacheMuellerRasenkante: m.sondersacheMuellerRasenkante || "",
+      sondersacheMuellerBordstein: m.sondersacheMuellerBordstein || "",
+      sondersacheMuellerRinnenflussX: m.sondersacheMuellerRinnenflussX || "",
+      sondersacheMuellerRinnenflussY: m.sondersacheMuellerRinnenflussY || "",
+      sondersacheMuellerRinnenfluss: m.sondersacheMuellerRinnenfluss || (calculateArea(m.sondersacheMuellerRinnenflussX, m.sondersacheMuellerRinnenflussY) > 0 ? String(calculateArea(m.sondersacheMuellerRinnenflussX, m.sondersacheMuellerRinnenflussY)) : ""),
       mastTypAlt: m.mastTypAlt || "",
       mastTypNeu: m.mastTypNeu || "",
       grabenTiefeBreite: m.grabenTiefeBreite || "",
@@ -1454,6 +1459,11 @@ const updateAufmass = (index, field, value) => {
       const flaeche = calculateArea(naechsterMast.sondersacheRinnenflussX, naechsterMast.sondersacheRinnenflussY);
       naechsterMast.sondersacheRinnenfluss = flaeche > 0 ? String(flaeche) : "";
       neueMasten[index] = naechsterMast;
+    } else if (field === 'sondersacheMuellerRinnenflussX' || field === 'sondersacheMuellerRinnenflussY') {
+      const naechsterMast = { ...aktuellerMast, [field]: value };
+      const flaeche = calculateArea(naechsterMast.sondersacheMuellerRinnenflussX, naechsterMast.sondersacheMuellerRinnenflussY);
+      naechsterMast.sondersacheMuellerRinnenfluss = flaeche > 0 ? String(flaeche) : "";
+      neueMasten[index] = naechsterMast;
     } else {
       neueMasten[index] = { ...aktuellerMast, [field]: value };
     }
@@ -1783,6 +1793,11 @@ const handleInitialisiereAufmass = () => {
     sondersacheRinnenfluss: "",
     sondersacheRinnenflussX: "",
     sondersacheRinnenflussY: "",
+    sondersacheMuellerRasenkante: "",
+    sondersacheMuellerBordstein: "",
+    sondersacheMuellerRinnenfluss: "",
+    sondersacheMuellerRinnenflussX: "",
+    sondersacheMuellerRinnenflussY: "",
     oberflaeche: normalizeSurfaceType(m.oberflaeche || "Grass"),
     oberflaechenExtra: normalizeExtraSurfaces(m.oberflaechenExtra),
     oberflaecheGraben: "Grass",
@@ -4688,15 +4703,16 @@ const createProject = async () => {
                   </div>
 
                   <div className="aufmass-kabel-zone">
-                    <div className="aufmass-row-justify">
+                    <div className="aufmass-kabel-field">
                       <div className="aufmass-flex-center" style={{ gap: '4px' }}>
                         <span>🔗 Kabel:</span>
                         <input type="text" inputMode="decimal" className="mast-input-base" style={{ padding: '2px 4px', height: '24px', width: '55px', borderRadius: '4px', textAlign: 'center' }} placeholder="0" value={m.aufmassKabel || ""} onChange={(e) => updateAufmass(originalIndex, 'aufmassKabel', e.target.value)} />
                         <span className="aufmass-text-subtle">m</span>
                       </div>
-
+                    </div>
+                    <div className="aufmass-sondersachen-stack">
                       <details className="aufmass-sondersachen-dropdown">
-                        <summary className="aufmass-sondersachen-summary">🛠️ Sondersachen</summary>
+                        <summary className="aufmass-sondersachen-summary">🛠️ Sondersachen HSW</summary>
                         <div className="aufmass-sondersachen-content">
                           <div className="aufmass-row-justify">
                             <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rasenkanten:</span>
@@ -4726,6 +4742,37 @@ const createProject = async () => {
                           </div>
                         </div>
                       </details>
+                    <details className="aufmass-sondersachen-dropdown">
+                      <summary className="aufmass-sondersachen-summary">🛠️ Sondersachen Müller</summary>
+                      <div className="aufmass-sondersachen-content">
+                        <div className="aufmass-row-justify">
+                          <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rasenkanten:</span>
+                          <div className="aufmass-flex-center" style={{ gap: '3px' }}>
+                            <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerRasenkante || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRasenkante', e.target.value)} />
+                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>Stk</span>
+                          </div>
+                        </div>
+                        <div className="aufmass-row-justify">
+                          <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Bordsteine:</span>
+                          <div className="aufmass-flex-center" style={{ gap: '3px' }}>
+                            <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerBordstein || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerBordstein', e.target.value)} />
+                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>Stk</span>
+                          </div>
+                        </div>
+                        <div className="aufmass-row-justify">
+                          <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rinnenfluss:</span>
+                          <div className="aufmass-flex-center" style={{ gap: '1px', flexWrap: 'nowrap', justifyContent: 'flex-end', flexShrink: 1, minWidth: 0 }}>
+                            <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerRinnenflussX || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRinnenflussX', e.target.value)} />
+                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>×</span>
+                            <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerRinnenflussY || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRinnenflussY', e.target.value)} />
+                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>m²</span>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: '2px', textAlign: 'right', fontSize: '10px', color: '#22c55e', fontWeight: 'bold' }}>
+                          Gesamtfläche: {calculateArea(m.sondersacheMuellerRinnenflussX, m.sondersacheMuellerRinnenflussY).toFixed(2)} m²
+                        </div>
+                      </div>
+                    </details>
                     </div>
                   </div>
                 </div>
@@ -5212,6 +5259,29 @@ const createProject = async () => {
               } else {
                 dataHsw.linear[s.key].items.push({ label: mastLabel, val: val });
               }
+            }
+          });
+
+          const muellerSondersachen = [
+            { key: 'sondersacheMuellerRasenkante', title: 'Rasenkantenstein (Stk)' },
+            { key: 'sondersacheMuellerBordstein', title: 'Bordstein (Stk)' },
+            { key: 'sondersacheMuellerRinnenfluss', title: 'Rinnenflussbahn (m²)' }
+          ];
+          muellerSondersachen.forEach(s => {
+            const val = num(m[s.key]);
+            if (val <= 0) return;
+            if (!dataMueller.linear[s.key]) dataMueller.linear[s.key] = { title: s.title, total: 0, items: [] };
+            dataMueller.linear[s.key].total += val;
+            if (s.key === 'sondersacheMuellerRinnenfluss') {
+              dataMueller.linear[s.key].items.push({
+                label: mastLabel,
+                val,
+                x: num(m.sondersacheMuellerRinnenflussX),
+                y: num(m.sondersacheMuellerRinnenflussY),
+                area: val
+              });
+            } else {
+              dataMueller.linear[s.key].items.push({ label: mastLabel, val });
             }
           });
 
