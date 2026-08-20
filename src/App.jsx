@@ -323,6 +323,7 @@ const ICONS = {
   "In Bearbeitung": createIcon("blue"),
   "Fertig für Abrechnung": createIcon("violet"),
   "Proformarechnung weggeschickt": createIcon("grey"),
+  "Proforma WN weggeschickt": createIcon("grey"),
   Abgerechnet: createIcon("black"),
 };
 
@@ -333,6 +334,7 @@ const STATUS_COLORS = {
   "In Bearbeitung": "#3498db",
   "Fertig für Abrechnung": "#9b59b6",
   "Proformarechnung weggeschickt": "#757575",
+  "Proforma WN weggeschickt": "#757575",
   Abgerechnet: "#000000",
 };
 
@@ -790,6 +792,7 @@ export default function App() {
     { value: "In Bearbeitung", label: "In Bearbeitung" },
     { value: "Fertig für Abrechnung", label: "Fertig für Abrechnung" },
     { value: "Proformarechnung weggeschickt", label: "Proformarechnung weggeschickt" },
+    { value: "Proforma WN weggeschickt", label: "Proforma WN weggeschickt" },
     { value: "Abgerechnet", label: "Abgerechnet" }
   ];
   const TYPE_FILTER_OPTIONS = [
@@ -2609,6 +2612,7 @@ const createProject = async () => {
       "In Bearbeitung",
       "Fertig für Abrechnung",
       "Proformarechnung weggeschickt",
+      "Proforma WN weggeschickt",
       "Abgerechnet",
       ...projects.map((p) => p.status).filter(Boolean)
     ]))
@@ -3746,7 +3750,7 @@ const createProject = async () => {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999", flexShrink: 0 }} />
                   <select value={form.status} onChange={(e) => handleStatusChange(e.target.value)}>
-                    <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Abgerechnet</option>
+                    <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Proforma WN weggeschickt</option><option>Abgerechnet</option>
                   </select>
                 </div>
                 <label>PGK</label>
