@@ -652,6 +652,98 @@ const normalizeDateValue = (value) => {
 const getTodayDateString = () => formatDateToDDMMYYYY(new Date());
 const getCurrentYearStartDateString = () => formatDateToDDMMYYYY(new Date(new Date().getFullYear(), 0, 1));
 
+const startOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const addDays = (date, days) => {
+  const d = startOfDay(date);
+  d.setDate(d.getDate() + days);
+  return d;
+};
+
+const isWeekendDay = (date) => {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+const getMondayOfWeek = (date) => {
+  const d = startOfDay(date);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  return addDays(d, diffToMonday);
+};
+
+const diffInDays = (from, to) => Math.round((startOfDay(to).getTime() - startOfDay(from).getTime()) / 86400000);
+
+// Zaehlt den Startwerktag als Tag 1 und ueberspringt Wochenenden.
+const addWorkDaysToDate = (startDate, workDaysCount) => {
+  let date = startOfDay(startDate);
+  while (isWeekendDay(date)) date = addDays(date, 1);
+
+  let remaining = Math.max(1, Math.round(workDaysCount || 1));
+  let counted = 1;
+  while (counted < remaining) {
+    date = addDays(date, 1);
+    if (!isWeekendDay(date)) counted += 1;
+  }
+  return date;
+};
+
+const countWorkDaysInclusive = (start, end) => {
+  let count = 0;
+  let d = startOfDay(start);
+  const endDay = startOfDay(end);
+  while (d.getTime() <= endDay.getTime()) {
+    if (!isWeekendDay(d)) count += 1;
+    d = addDays(d, 1);
+  }
+  return count;
+};
+
+const BZP_COLOR_PALETTE = [
+  '#0284c7', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777',
+  '#0891b2', '#65a30d', '#ea580c', '#4f46e5', '#be123c', '#0d9488'
+];
+
+// Zwei Zeitraeume "beruehren" sich, wenn sie sich ueberlappen oder direkt aneinandergrenzen.
+const rangesTouch = (aStart, aEnd, bStart, bEnd) =>
+  addDays(aEnd, 1).getTime() >= bStart.getTime() && addDays(bEnd, 1).getTime() >= aStart.getTime();
+
+const getTouchingEntryColors = (crews, scheduleEntries, crewId, start, end, excludeEntryId) => {
+  const crewIndex = crews.findIndex((c) => c.id === crewId);
+  const neighborCrewIds = new Set([crewId]);
+  if (crewIndex > 0) neighborCrewIds.add(crews[crewIndex - 1].id);
+  if (crewIndex >= 0 && crewIndex < crews.length - 1) neighborCrewIds.add(crews[crewIndex + 1].id);
+
+  const colors = new Set();
+  scheduleEntries.forEach((entry) => {
+    if (entry.id === excludeEntryId || !entry.color || !neighborCrewIds.has(entry.crew)) return;
+    const eStart = startOfDay(new Date(entry.start_date));
+    const eEnd = startOfDay(new Date(entry.end_date));
+    if (rangesTouch(start, end, eStart, eEnd)) colors.add(entry.color);
+  });
+  return colors;
+};
+
+// Waehlt eine Palettenfarbe, die keinen im selben oder benachbarten Truppen-Zeitraum beruehrenden Eintrag trifft.
+const pickEntryColor = (crews, scheduleEntries, crewId, start, end, excludeEntryId) => {
+  const used = getTouchingEntryColors(crews, scheduleEntries, crewId, start, end, excludeEntryId);
+  return BZP_COLOR_PALETTE.find((color) => !used.has(color)) || BZP_COLOR_PALETTE[Math.floor(Math.random() * BZP_COLOR_PALETTE.length)];
+};
+
+const getISOWeekNumber = (date) => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+  return 1 + Math.round((d.getTime() - firstThursday.getTime()) / (7 * 86400000));
+};
+
 const getProfitabilityColor = (hourlyRate, minRate = 35, maxRate = 95) => {
   const rate = Number(hourlyRate) || 0;
   const safeMin = Number(minRate) || 0;
@@ -704,6 +796,489 @@ function MapClickHandler({ mode, onPick, setAddress }) {
   });
 
   return null;
+}
+
+const BZP_DAY_WIDTH = 34;
+const BZP_ROW_HEIGHT = 46;
+const BZP_HEADER_HEIGHT = 40;
+const BZP_WEEK_ROW_HEIGHT = 22;
+const BZP_LABEL_WIDTH = 170;
+const BZP_VISIBLE_WEEKS = 14;
+const BZP_HANDLE_WIDTH = 8;
+
+function BauzeitenplanModal({
+  open,
+  onClose,
+  projectRows,
+  crews,
+  scheduleEntries,
+  onAddCrew,
+  onDeleteCrew,
+  onReorderCrews,
+  onCreateEntry,
+  onUpdateEntry,
+  onDeleteEntry,
+  onCreateFreetextEntry,
+  onOpenProject,
+  setToast
+}) {
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState("name-asc");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [newCrewName, setNewCrewName] = useState("");
+  const [draggingId, setDraggingId] = useState(null);
+  const [draggingCrewId, setDraggingCrewId] = useState(null);
+  const [livePreview, setLivePreview] = useState(null);
+  const [selection, setSelection] = useState(null);
+  const [freetextPrompt, setFreetextPrompt] = useState(null);
+  const dragMovedRef = useRef(false);
+
+  if (!open) return null;
+
+  const visibleDayCount = BZP_VISIBLE_WEEKS * 7;
+  const rangeStart = addDays(getMondayOfWeek(new Date()), weekOffset * 7);
+  const days = Array.from({ length: visibleDayCount }, (_, i) => addDays(rangeStart, i));
+  const todayISO = startOfDay(new Date()).getTime();
+
+  const filteredRows = projectRows
+    .filter((row) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return row.name.toLowerCase().includes(q) || (row.address || "").toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (sortKey === "name-asc") return a.name.localeCompare(b.name);
+      if (sortKey === "name-desc") return b.name.localeCompare(a.name);
+      if (sortKey === "weeks-desc") return b.zeitbedarfWeeks - a.zeitbedarfWeeks;
+      if (sortKey === "weeks-asc") return a.zeitbedarfWeeks - b.zeitbedarfWeeks;
+      if (sortKey === "remaining-desc") return b.remainingWorkDays - a.remainingWorkDays;
+      if (sortKey === "created-desc") return String(b.created).localeCompare(String(a.created));
+      return 0;
+    });
+
+  const handleAddCrew = () => {
+    const name = newCrewName.trim();
+    if (!name) return;
+    onAddCrew(name);
+    setNewCrewName("");
+  };
+
+  const handleDrop = (e, crewId) => {
+    e.preventDefault();
+    const projectId = e.dataTransfer.getData('text/plain');
+    if (!projectId) return;
+    const rowEl = e.currentTarget;
+    const rect = rowEl.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const dayIndex = Math.max(0, Math.floor(offsetX / BZP_DAY_WIDTH));
+    const dropDate = addDays(rangeStart, dayIndex);
+    onCreateEntry(projectId, crewId, dropDate);
+  };
+
+  // Verschieben/Verlaengern/Verkuerzen eines bestehenden Kalendereintrags per Pointer-Drag.
+  const beginEntryDrag = (e, entry, mode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const originalStart = startOfDay(new Date(entry.start_date));
+    const originalEnd = startOfDay(new Date(entry.end_date));
+    dragMovedRef.current = false;
+
+    const computeRange = (clientX) => {
+      const deltaDays = Math.round((clientX - startX) / BZP_DAY_WIDTH);
+      let newStart = originalStart;
+      let newEnd = originalEnd;
+      if (mode === 'move') {
+        newStart = addDays(originalStart, deltaDays);
+        newEnd = addDays(originalEnd, deltaDays);
+      } else if (mode === 'resize-left') {
+        newStart = addDays(originalStart, deltaDays);
+        if (newStart.getTime() > originalEnd.getTime()) newStart = originalEnd;
+      } else if (mode === 'resize-right') {
+        newEnd = addDays(originalEnd, deltaDays);
+        if (newEnd.getTime() < originalStart.getTime()) newEnd = originalStart;
+      }
+      return { newStart, newEnd };
+    };
+
+    const onMove = (moveEvent) => {
+      const { newStart, newEnd } = computeRange(moveEvent.clientX);
+      if (newStart.getTime() !== originalStart.getTime() || newEnd.getTime() !== originalEnd.getTime()) {
+        dragMovedRef.current = true;
+      }
+      setLivePreview({ entryId: entry.id, start: newStart, end: newEnd });
+    };
+
+    const onUp = (upEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setLivePreview(null);
+      const { newStart, newEnd } = computeRange(upEvent.clientX);
+      if (newStart.getTime() !== originalStart.getTime() || newEnd.getTime() !== originalEnd.getTime()) {
+        onUpdateEntry(entry.id, { start_date: newStart.toISOString(), end_date: newEnd.toISOString() });
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  // Freitext-Eintrag durch Aufziehen eines Zeitraums auf einer leeren Truppen-Zeile anlegen.
+  const beginRowSelection = (e, crewId) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startDayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor((e.clientX - rect.left) / BZP_DAY_WIDTH)));
+    let currentDayIndex = startDayIndex;
+    setSelection({ crewId, from: startDayIndex, to: startDayIndex });
+
+    const onMove = (moveEvent) => {
+      currentDayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor((moveEvent.clientX - rect.left) / BZP_DAY_WIDTH)));
+      setSelection({ crewId, from: Math.min(startDayIndex, currentDayIndex), to: Math.max(startDayIndex, currentDayIndex) });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setSelection(null);
+      const from = Math.min(startDayIndex, currentDayIndex);
+      const to = Math.max(startDayIndex, currentDayIndex);
+      setFreetextPrompt({ crewId, from, to, text: '' });
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const submitFreetextPrompt = () => {
+    if (!freetextPrompt) return;
+    const text = freetextPrompt.text.trim();
+    if (text) {
+      onCreateFreetextEntry(freetextPrompt.crewId, addDays(rangeStart, freetextPrompt.from), addDays(rangeStart, freetextPrompt.to), text);
+    }
+    setFreetextPrompt(null);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.7)', zIndex: 12000,
+        display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px'
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '98vw', height: '96vh', display: 'flex', flexDirection: 'column',
+          background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: '#e2e8f0'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
+          <h3 style={{ margin: 0 }}>Bauzeitenplan</h3>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => setWeekOffset((v) => v - 1)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>‹ Vorherige</button>
+            <button onClick={() => setWeekOffset(0)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Heute</button>
+            <button onClick={() => setWeekOffset((v) => v + 1)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Nächste ›</button>
+            <button onClick={onClose} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Schließen</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', marginTop: '12px', flex: 1, minHeight: 0 }}>
+          {/* Linke Liste: Baustellen */}
+          <div style={{ width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <input
+              type="text"
+              placeholder="Baustelle suchen..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="mast-input-base"
+              style={{ width: '100%', marginBottom: '6px' }}
+            />
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="mast-input-base" style={{ width: '100%', marginBottom: '6px' }}>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="weeks-desc">Zeitbedarf (viel zuerst)</option>
+              <option value="weeks-asc">Zeitbedarf (wenig zuerst)</option>
+              <option value="remaining-desc">Offene Werktage (viel zuerst)</option>
+              <option value="created-desc">Erstellt (neu zuerst)</option>
+            </select>
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+              Baustellen per Drag & Drop einer Truppe im Kalender zuordnen. Freie Fläche im Kalender aufziehen für Freitext.
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', background: '#111827' }}>
+              {filteredRows.length === 0 && (
+                <div style={{ padding: '12px', color: '#94a3b8', fontSize: '12px' }}>Keine Baustellen mit Zeitbedarf gefunden.</div>
+              )}
+              {filteredRows.map((row) => {
+                const assignedCount = scheduleEntries.filter((entry) => entry.project === row.id).length;
+                return (
+                  <div
+                    key={row.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', row.id);
+                      e.dataTransfer.effectAllowed = 'copy';
+                      setDraggingId(row.id);
+                    }}
+                    onDragEnd={() => setDraggingId(null)}
+                    style={{
+                      padding: '8px 10px', borderBottom: '1px solid #1f2937', cursor: 'grab',
+                      opacity: draggingId === row.id ? 0.4 : 1
+                    }}
+                    title={row.address}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px' }}>
+                      <strong style={{ fontSize: '13px' }}>{row.name}</strong>
+                      {assignedCount > 0 && (
+                        <span style={{ fontSize: '10px', background: '#0284c7', borderRadius: '999px', padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                          {assignedCount}x geplant
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>{row.address}</div>
+                    <div style={{ fontSize: '11px', color: '#93c5fd', marginTop: '2px' }}>
+                      Zeitbedarf: {row.zeitbedarfWeeks > 0 ? `${row.zeitbedarfWeeks} Wochen (${row.workDays} WT)` : '–'}
+                    </div>
+                    {row.workDays > 0 && (
+                      <div style={{ fontSize: '11px', marginTop: '2px', color: row.remainingWorkDays > 0 ? '#fbbf24' : '#4ade80' }}>
+                        {row.scheduledWorkDays} / {row.workDays} WT verplant
+                        {row.remainingWorkDays > 0 ? ` · ${row.remainingWorkDays} WT offen` : ' · vollständig verplant'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Rechte Seite: Truppenverwaltung + Kalender */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Neue Truppe anlegen..."
+                value={newCrewName}
+                onChange={(e) => setNewCrewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddCrew(); }}
+                className="mast-input-base"
+                style={{ width: '220px' }}
+              />
+              <button onClick={handleAddCrew} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                + Truppe anlegen
+              </button>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto', border: '1px solid #334155', borderRadius: '8px', background: '#111827', display: 'flex' }}>
+              {/* Sticky Trupp-Namen links */}
+              <div style={{ width: BZP_LABEL_WIDTH, flexShrink: 0, position: 'sticky', left: 0, background: '#111827', zIndex: 2, borderRight: '1px solid #334155' }}>
+                <div style={{ height: BZP_WEEK_ROW_HEIGHT + BZP_HEADER_HEIGHT, borderBottom: '1px solid #334155' }} />
+                {crews.length === 0 && (
+                  <div style={{ padding: '10px', color: '#94a3b8', fontSize: '12px' }}>Noch keine Truppen angelegt.</div>
+                )}
+                {crews.map((crew) => (
+                  <div
+                    key={crew.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/x-bzp-crew', crew.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                      setDraggingCrewId(crew.id);
+                    }}
+                    onDragEnd={() => setDraggingCrewId(null)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const draggedId = e.dataTransfer.getData('application/x-bzp-crew');
+                      if (!draggedId || draggedId === crew.id) return;
+                      const currentOrder = crews.map((c) => c.id);
+                      const fromIndex = currentOrder.indexOf(draggedId);
+                      const toIndex = currentOrder.indexOf(crew.id);
+                      if (fromIndex === -1 || toIndex === -1) return;
+                      const newOrder = [...currentOrder];
+                      newOrder.splice(fromIndex, 1);
+                      newOrder.splice(toIndex, 0, draggedId);
+                      onReorderCrews(newOrder);
+                    }}
+                    style={{
+                      height: BZP_ROW_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0 8px', borderBottom: '1px solid #1f2937', cursor: 'grab',
+                      opacity: draggingCrewId === crew.id ? 0.4 : 1
+                    }}
+                    title="Zum Umsortieren ziehen"
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>{crew.name}</span>
+                    <button
+                      onClick={() => onDeleteCrew(crew.id)}
+                      title="Truppe löschen"
+                      style={{ background: 'transparent', color: '#f87171', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Kalender-Bereich */}
+              <div style={{ overflowX: 'auto', flex: 1, minWidth: 0 }}>
+                <div style={{ width: visibleDayCount * BZP_DAY_WIDTH, position: 'relative' }}>
+                  <div style={{ height: BZP_WEEK_ROW_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: 0, background: '#111827', zIndex: 1 }}>
+                    {Array.from({ length: BZP_VISIBLE_WEEKS }, (_, w) => days[w * 7]).map((monday, w) => (
+                      <div
+                        key={w}
+                        style={{
+                          width: BZP_DAY_WIDTH * 7, flexShrink: 0, textAlign: 'center', fontSize: '10px',
+                          fontWeight: 600, color: '#93c5fd', borderLeft: '1px solid #334155',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        KW {getISOWeekNumber(monday)}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ height: BZP_HEADER_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: BZP_WEEK_ROW_HEIGHT, background: '#111827', zIndex: 1 }}>
+                    {days.map((day, i) => {
+                      const isMonday = day.getDay() === 1;
+                      const isToday = startOfDay(day).getTime() === todayISO;
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            width: BZP_DAY_WIDTH, flexShrink: 0, textAlign: 'center', fontSize: '10px',
+                            color: isWeekendDay(day) ? '#64748b' : '#cbd5e1',
+                            borderLeft: isMonday ? '1px solid #334155' : 'none',
+                            background: isToday ? 'rgba(2,132,199,0.25)' : 'transparent',
+                            display: 'flex', flexDirection: 'column', justifyContent: 'center'
+                          }}
+                        >
+                          <div>{String(day.getDate()).padStart(2, '0')}.{String(day.getMonth() + 1).padStart(2, '0')}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {crews.map((crew) => (
+                    <div
+                      key={crew.id}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, crew.id)}
+                      onPointerDown={(e) => beginRowSelection(e, crew.id)}
+                      style={{ height: BZP_ROW_HEIGHT, position: 'relative', borderBottom: '1px solid #1f2937', display: 'flex', cursor: 'crosshair' }}
+                    >
+                      {days.map((day, i) => (
+                        <div key={i} style={{
+                          width: BZP_DAY_WIDTH, flexShrink: 0, height: '100%',
+                          background: isWeekendDay(day) ? 'rgba(148,163,184,0.06)' : 'transparent',
+                          borderLeft: day.getDay() === 1 ? '1px solid #1f2937' : 'none'
+                        }} />
+                      ))}
+
+                      {selection && selection.crewId === crew.id && (
+                        <div style={{
+                          position: 'absolute', left: selection.from * BZP_DAY_WIDTH,
+                          width: (selection.to - selection.from + 1) * BZP_DAY_WIDTH,
+                          top: 5, bottom: 5, background: 'rgba(226,232,240,0.25)',
+                          border: '1px dashed #e2e8f0', borderRadius: '6px', pointerEvents: 'none'
+                        }} />
+                      )}
+
+                      {scheduleEntries
+                        .filter((entry) => entry.crew === crew.id)
+                        .map((entry) => {
+                          const isPreview = livePreview && livePreview.entryId === entry.id;
+                          const start = isPreview ? livePreview.start : startOfDay(new Date(entry.start_date));
+                          const end = isPreview ? livePreview.end : startOfDay(new Date(entry.end_date));
+                          const left = diffInDays(rangeStart, start) * BZP_DAY_WIDTH;
+                          const width = (diffInDays(start, end) + 1) * BZP_DAY_WIDTH;
+                          if (left + width < 0 || left > visibleDayCount * BZP_DAY_WIDTH) return null;
+                          const label = entry.expand?.project?.name || entry.notes || '(ohne Titel)';
+                          const barColor = entry.color || '#0284c7';
+                          const hasProject = !!entry.expand?.project?.id;
+                          return (
+                            <div
+                              key={entry.id}
+                              title={label}
+                              style={{
+                                position: 'absolute', left, width: Math.max(width, BZP_DAY_WIDTH), top: 5, bottom: 5,
+                                background: barColor, borderRadius: '6px', overflow: 'hidden',
+                                boxShadow: isPreview ? '0 0 0 2px #e2e8f0' : 'none'
+                              }}
+                            >
+                              <div
+                                onPointerDown={(e) => beginEntryDrag(e, entry, 'resize-left')}
+                                style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: BZP_HANDLE_WIDTH, cursor: 'ew-resize' }}
+                              />
+                              <div
+                                onPointerDown={(e) => beginEntryDrag(e, entry, 'move')}
+                                onClick={() => {
+                                  if (!dragMovedRef.current && hasProject) onOpenProject(entry.expand.project.id);
+                                }}
+                                title={hasProject ? `${label} (klicken zum Öffnen)` : label}
+                                style={{
+                                  position: 'absolute', left: BZP_HANDLE_WIDTH, right: BZP_HANDLE_WIDTH, top: 0, bottom: 0,
+                                  cursor: hasProject ? 'pointer' : 'grab', display: 'flex', alignItems: 'center', overflow: 'hidden'
+                                }}
+                              >
+                                <span style={{
+                                  fontSize: '11px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden',
+                                  flex: 1, minWidth: 0, paddingLeft: '4px', paddingRight: '18px'
+                                }}>{label}</span>
+                              </div>
+                              <button
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => { e.stopPropagation(); onDeleteEntry(entry.id); }}
+                                title="Einplanung entfernen"
+                                style={{
+                                  position: 'absolute', right: BZP_HANDLE_WIDTH, top: 0, bottom: 0, width: '16px', padding: 0,
+                                  background: 'transparent', border: 'none', color: '#fecaca', cursor: 'pointer', fontSize: '11px',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                              >
+                                ✕
+                              </button>
+                              <div
+                                onPointerDown={(e) => beginEntryDrag(e, entry, 'resize-right')}
+                                style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: BZP_HANDLE_WIDTH, cursor: 'ew-resize' }}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {freetextPrompt && (
+          <div
+            onClick={() => setFreetextPrompt(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', zIndex: 12100, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '16px', width: '320px' }}
+            >
+              <h4 style={{ margin: '0 0 10px 0' }}>Freitext-Eintrag</h4>
+              <input
+                type="text"
+                autoFocus
+                placeholder="z. B. Urlaub, Wartung..."
+                value={freetextPrompt.text}
+                onChange={(e) => setFreetextPrompt((prev) => ({ ...prev, text: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitFreetextPrompt(); if (e.key === 'Escape') setFreetextPrompt(null); }}
+                className="mast-input-base"
+                style={{ width: '100%', marginBottom: '12px' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button onClick={() => setFreetextPrompt(null)} style={{ backgroundColor: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Abbrechen</button>
+                <button onClick={submitFreetextPrompt} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>Anlegen</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -776,6 +1351,9 @@ export default function App() {
     return Number.isFinite(saved) && saved > 0 ? saved : 14;
   });
   const [settingsChartView, setSettingsChartView] = useState("timeline");
+  const [bauzeitenplanOpen, setBauzeitenplanOpen] = useState(false);
+  const [crews, setCrews] = useState([]);
+  const [scheduleEntries, setScheduleEntries] = useState([]);
   const [settingsCompanyLat, setSettingsCompanyLat] = useState(() => {
     const saved = String(localStorage.getItem('settings_company_lat') || '').trim();
     // Migrate previous default to Bundesstrasse 168 in 59909 Bestwig.
@@ -1354,6 +1932,157 @@ Weitere Infos: ${form.notes || ""}
   useEffect(() => {
     loadProjects();
   }, []);
+
+  const loadCrews = async () => {
+    try {
+      const records = await pb.collection('crews').getFullList({ sort: 'sortOrder,name', requestKey: null });
+      setCrews(records);
+    } catch (error) {
+      console.error("Fehler beim Laden der Truppen:", error);
+    }
+  };
+
+  const loadScheduleEntries = async () => {
+    try {
+      const records = await pb.collection('schedule_entries').getFullList({ expand: 'project,crew', requestKey: null });
+      setScheduleEntries(records);
+    } catch (error) {
+      console.error("Fehler beim Laden des Bauzeitenplans:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadCrews();
+    loadScheduleEntries();
+  }, []);
+
+  const addCrew = async (name) => {
+    try {
+      const record = await pb.collection('crews').create({ name, active: true, sortOrder: crews.length });
+      setCrews((prev) => [...prev, record]);
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Anlegen der Truppe");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
+
+  const deleteCrew = async (crewId) => {
+    if (!window.confirm("Truppe wirklich löschen? Zugehörige Einplanungen im Bauzeitenplan werden ebenfalls entfernt.")) return;
+    try {
+      await pb.collection('crews').delete(crewId);
+      setCrews((prev) => prev.filter((c) => c.id !== crewId));
+      setScheduleEntries((prev) => prev.filter((entry) => entry.crew !== crewId));
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Löschen der Truppe");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
+
+  const reorderCrews = async (orderedIds) => {
+    const previousCrews = crews;
+    const reordered = orderedIds
+      .map((id, index) => {
+        const crew = crews.find((c) => c.id === id);
+        return crew ? { ...crew, sortOrder: index } : null;
+      })
+      .filter(Boolean);
+    setCrews(reordered);
+    try {
+      await Promise.all(reordered.map((crew, index) => pb.collection('crews').update(crew.id, { sortOrder: index })));
+    } catch (error) {
+      console.error(error);
+      setCrews(previousCrews);
+      setToast("Fehler beim Speichern der Truppen-Reihenfolge");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
+
+  const createScheduleEntry = async (projectId, crewId, startDate) => {
+    const projectRow = bzpProjectRows.find((row) => row.id === projectId);
+    const workDays = projectRow?.workDays || 1;
+    let start = startOfDay(startDate);
+    while (isWeekendDay(start)) start = addDays(start, 1);
+    const endDate = addWorkDaysToDate(start, workDays);
+    const color = pickEntryColor(crews, scheduleEntries, crewId, start, endDate);
+    try {
+      const record = await pb.collection('schedule_entries').create({
+        project: projectId,
+        crew: crewId,
+        start_date: start.toISOString(),
+        end_date: endDate.toISOString(),
+        color
+      });
+      const enrichedEntry = {
+        ...record,
+        expand: {
+          project: projects.find((p) => p.id === projectId) || null,
+          crew: crews.find((c) => c.id === crewId) || null
+        }
+      };
+      setScheduleEntries((prev) => [...prev, enrichedEntry]);
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Einplanen der Baustelle");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
+
+  const updateScheduleEntry = async (entryId, updates) => {
+    const existing = scheduleEntries.find((entry) => entry.id === entryId);
+    if (!existing) return;
+    const start = startOfDay(new Date(updates.start_date));
+    const end = startOfDay(new Date(updates.end_date));
+    const color = pickEntryColor(crews, scheduleEntries, existing.crew, start, end, entryId);
+    try {
+      const record = await pb.collection('schedule_entries').update(entryId, {
+        start_date: start.toISOString(),
+        end_date: end.toISOString(),
+        color
+      });
+      setScheduleEntries((prev) => prev.map((entry) => (entry.id === entryId ? { ...entry, ...record, expand: entry.expand } : entry)));
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Verschieben der Einplanung");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
+
+  const createFreetextEntry = async (crewId, startDate, endDate, text) => {
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate);
+    const color = pickEntryColor(crews, scheduleEntries, crewId, start, end);
+    try {
+      const record = await pb.collection('schedule_entries').create({
+        crew: crewId,
+        start_date: start.toISOString(),
+        end_date: end.toISOString(),
+        notes: text,
+        color
+      });
+      const enrichedEntry = {
+        ...record,
+        expand: { project: null, crew: crews.find((c) => c.id === crewId) || null }
+      };
+      setScheduleEntries((prev) => [...prev, enrichedEntry]);
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Anlegen des Freitext-Eintrags");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
+
+  const deleteScheduleEntry = async (entryId) => {
+    try {
+      await pb.collection('schedule_entries').delete(entryId);
+      setScheduleEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Entfernen der Einplanung");
+      setTimeout(() => setToast(null), 2500);
+    }
+  };
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -2926,6 +3655,31 @@ const createProject = async () => {
     : 1;
   const dynamicTimeFactor = Math.min(2.5, Math.max(0.5, dynamicTimeFactorRaw));
 
+  const bzpProjectRows = projects
+    .filter((project) => isKonzeptProjectType(project?.type) && String(project?.status || "").trim().toLowerCase() === "offen")
+    .map((project) => {
+      const masten = parseProjectMasten(project);
+      const { mastenMontage, mastenTausch, mastenDemontage } = countProjectMastActionsDetailed(masten);
+      const relevantMastenCount = mastenMontage + mastenTausch + mastenDemontage;
+      const estimatedFullDays = estimateFullDaysFromActionCounts({ mastenMontage, mastenTausch, mastenDemontage });
+      const adjustedFullDays = relevantMastenCount > 0 ? Math.max(1, Math.ceil(estimatedFullDays * dynamicTimeFactor)) : 0;
+      const workDays = adjustedFullDays > 0 ? adjustedFullDays : 1;
+      const scheduledWorkDays = scheduleEntries
+        .filter((entry) => entry.project === project.id)
+        .reduce((sum, entry) => sum + countWorkDaysInclusive(new Date(entry.start_date), new Date(entry.end_date)), 0);
+      return {
+        id: project.id,
+        name: project?.name || "(ohne Namen)",
+        address: project?.address || "",
+        status: project?.status || "",
+        created: project?.created || "",
+        workDays,
+        zeitbedarfWeeks: adjustedFullDays > 0 ? Number((adjustedFullDays / WORK_DAYS_PER_WEEK).toFixed(2)) : 0,
+        scheduledWorkDays,
+        remainingWorkDays: Math.max(0, workDays - scheduledWorkDays)
+      };
+    });
+
   const ordersExportRows = projects
     .map((project) => {
       const masten = parseProjectMasten(project);
@@ -3658,6 +4412,9 @@ const createProject = async () => {
           + Neue Baustelle
         </button>
         <button onClick={handleBack}>← Zurück </button>
+        <button onClick={() => setBauzeitenplanOpen(true)} style={{ backgroundColor: '#0f766e' }}>
+          Bauzeitenplan
+        </button>
         <button onClick={() => setSettingsOpen(true)} style={{ backgroundColor: '#2c3e50' }}>
           Einstellungen
         </button>
@@ -3966,6 +4723,35 @@ const createProject = async () => {
                 </div>
                 <label>PGK</label>
                 <input value={form.pgk} onChange={(e) => setForm({ ...form, pgk: e.target.value })} />
+                {mode === "detail" && (
+                  <>
+                    <label>Terminierung (Bauzeitenplan)</label>
+                    {(() => {
+                      const projectSchedule = scheduleEntries
+                        .filter((entry) => entry.project === selectedProject?.id)
+                        .slice()
+                        .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+                      if (projectSchedule.length === 0) {
+                        return (
+                          <div style={{ color: "#888", fontSize: "13px", marginBottom: "10px" }}>
+                            Noch nicht im Bauzeitenplan eingeplant.
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+                          {projectSchedule.map((entry) => (
+                            <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", background: "#f4f6f8", border: "1px solid #e0e0e0", borderRadius: "6px", padding: "6px 10px" }}>
+                              <span style={{ width: 10, height: 10, borderRadius: "50%", background: entry.color || "#0284c7", flexShrink: 0 }} />
+                              <strong>{entry.expand?.crew?.name || "Unbekannte Truppe"}</strong>
+                              <span>{formatDateToDDMMYYYY(new Date(entry.start_date))} – {formatDateToDDMMYYYY(new Date(entry.end_date))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
                 <label>Notizen</label>
                 <textarea ref={notesRef} value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} style={{ resize: "vertical", overflow: "hidden", minHeight: "60px" }} />
                 {mode === "create" ? (
@@ -5991,6 +6777,28 @@ const createProject = async () => {
         </div>
       )}
       </main>
+
+      <BauzeitenplanModal
+        open={bauzeitenplanOpen}
+        onClose={() => setBauzeitenplanOpen(false)}
+        projectRows={bzpProjectRows}
+        crews={crews}
+        scheduleEntries={scheduleEntries}
+        onAddCrew={addCrew}
+        onDeleteCrew={deleteCrew}
+        onReorderCrews={reorderCrews}
+        onCreateEntry={createScheduleEntry}
+        onUpdateEntry={updateScheduleEntry}
+        onDeleteEntry={deleteScheduleEntry}
+        onCreateFreetextEntry={createFreetextEntry}
+        onOpenProject={(projectId) => {
+          const project = projects.find((p) => p.id === projectId);
+          if (!project) return;
+          setBauzeitenplanOpen(false);
+          openProject(project);
+        }}
+        setToast={setToast}
+      />
 
       {settingsOpen && (
         <div

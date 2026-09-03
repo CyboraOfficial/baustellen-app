@@ -465,14 +465,19 @@ hr {
 
 .header-bar {
   display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .header-bar button {
-  flex: 1;
-  padding: 10px;
-  border-radius: 10px;
+  flex: 1 1 auto;
+  min-width: fit-content;
+  padding: 7px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* --- Animationen --- */
