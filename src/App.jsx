@@ -868,6 +868,23 @@ const [user, setUser] = useState(pb.authStore.model);
 const [loginEmail, setLoginEmail] = useState("");
 const [loginPass, setLoginPass] = useState("");
 
+useEffect(() => {
+  if (!pb.authStore.isValid) {
+    pb.authStore.clear();
+    setUser(null);
+    return;
+  }
+
+  pb.collection('users').authRefresh()
+    .then(() => setUser(pb.authStore.model))
+    .catch((error) => {
+      if (error?.status === 401) {
+        pb.authStore.clear();
+        setUser(null);
+      }
+    });
+}, []);
+
 const updateMast = (index, field, value) => {
   setForm(prev => {
     const newMasten = [...(prev.masten || [])];

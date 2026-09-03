@@ -45,7 +45,7 @@
     ]
   },
   "scripts": {
-    "dev": "vite",
+     "dev": "concurrently \"node scripts/start-pocketbase.js\" \"wait-on http://127.0.0.1:8090/api/health && vite\"",
     "electron": "electron .",
     "start": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
