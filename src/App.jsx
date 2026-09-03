@@ -3655,8 +3655,9 @@ const createProject = async () => {
     : 1;
   const dynamicTimeFactor = Math.min(2.5, Math.max(0.5, dynamicTimeFactorRaw));
 
+  const BZP_ALLOWED_STATUSES = new Set(["offen", "in bearbeitung"]);
   const bzpProjectRows = projects
-    .filter((project) => isKonzeptProjectType(project?.type) && String(project?.status || "").trim().toLowerCase() === "offen")
+    .filter((project) => isKonzeptProjectType(project?.type) && BZP_ALLOWED_STATUSES.has(String(project?.status || "").trim().toLowerCase()))
     .map((project) => {
       const masten = parseProjectMasten(project);
       const { mastenMontage, mastenTausch, mastenDemontage } = countProjectMastActionsDetailed(masten);
