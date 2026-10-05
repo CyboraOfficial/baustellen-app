@@ -14,6 +14,134 @@ body,
   box-sizing: border-box;
 }
 
+.app-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(24px, 7vh, 72px) 16px 20px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(3px);
+  animation: app-dialog-fade-in 140ms ease-out;
+}
+
+.app-dialog {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  width: min(460px, 100%);
+  padding: 24px;
+  color: #1f2937;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  animation: app-dialog-pop-in 160ms ease-out;
+}
+
+.app-dialog-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-radius: 12px;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.app-dialog-copy h2 {
+  margin: 2px 0 8px;
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.app-dialog-copy p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.app-dialog-related-link {
+  display: inline-block;
+  margin: 12px 0 0;
+  padding: 0;
+  color: #1d4ed8;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-dialog-related-link:hover {
+  color: #1e40af;
+  background: transparent;
+}
+
+.app-dialog-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.app-dialog-button {
+  min-width: 104px;
+  margin: 0;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.app-dialog-button:active {
+  transform: translateY(1px);
+}
+
+.app-dialog-button-primary,
+.app-dialog-button-primary:hover {
+  color: #fff;
+  background: #2563eb;
+}
+
+.app-dialog-button-primary:hover {
+  background: #1d4ed8;
+}
+
+.app-dialog-button-secondary,
+.app-dialog-button-secondary:hover {
+  color: #374151;
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.app-dialog-button-secondary:hover {
+  background: #e5e7eb;
+}
+
+@keyframes app-dialog-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes app-dialog-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Statusfarben fuer die lokal eingebundene Leaflet-Markerdatei. */
 .leaflet-marker-icon-green {
   filter: hue-rotate(273deg) saturate(1.45);

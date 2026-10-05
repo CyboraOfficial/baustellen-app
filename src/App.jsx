@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Rectangle, useMapEvents, ZoomControl } from "react-leaflet";
 import "leaflet.markercluster";
@@ -824,6 +825,8 @@ function BauzeitenplanModal({
 }) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("name-asc");
+  const [selectedTypeFilters, setSelectedTypeFilters] = useState(["Anfahrschaden", "Konzept"]);
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [newCrewName, setNewCrewName] = useState("");
   const [draggingId, setDraggingId] = useState(null);
@@ -832,6 +835,18 @@ function BauzeitenplanModal({
   const [selection, setSelection] = useState(null);
   const [freetextPrompt, setFreetextPrompt] = useState(null);
   const dragMovedRef = useRef(false);
+  const projectTypeFilterRef = useRef(null);
+
+  useEffect(() => {
+    if (!typeFilterOpen) return undefined;
+    const handleOutsideClick = (event) => {
+      if (projectTypeFilterRef.current && !projectTypeFilterRef.current.contains(event.target)) {
+        setTypeFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [typeFilterOpen]);
 
   if (!open) return null;
 
@@ -839,12 +854,35 @@ function BauzeitenplanModal({
   const rangeStart = addDays(getMondayOfWeek(new Date()), weekOffset * 7);
   const days = Array.from({ length: visibleDayCount }, (_, i) => addDays(rangeStart, i));
   const todayISO = startOfDay(new Date()).getTime();
+  const typeFilterOptions = [
+    { value: "Alle", label: "Alle" },
+    ...Array.from(new Set(projectRows.map((row) => row.type).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, "de"))
+      .map((type) => ({ value: type, label: type }))
+  ];
+  const typeFilterSummary = selectedTypeFilters.includes("Alle") || selectedTypeFilters.length === 0
+    ? "Alle"
+    : selectedTypeFilters.length === 1
+      ? selectedTypeFilters[0]
+      : `${selectedTypeFilters.length} ausgewählt`;
+
+  const toggleProjectTypeFilter = (value) => {
+    if (value === "Alle") {
+      setSelectedTypeFilters(["Alle"]);
+      return;
+    }
+    const allTypes = typeFilterOptions.map((option) => option.value).filter((type) => type !== "Alle");
+    const current = selectedTypeFilters.includes("Alle") ? allTypes : selectedTypeFilters;
+    const next = current.includes(value) ? current.filter((type) => type !== value) : [...current, value];
+    setSelectedTypeFilters(next.length === 0 || allTypes.every((type) => next.includes(type)) ? ["Alle"] : next);
+  };
 
   const filteredRows = projectRows
     .filter((row) => {
       const q = search.trim().toLowerCase();
-      if (!q) return true;
-      return row.name.toLowerCase().includes(q) || (row.address || "").toLowerCase().includes(q);
+      const matchesSearch = !q || row.name.toLowerCase().includes(q) || (row.address || "").toLowerCase().includes(q);
+      const matchesType = selectedTypeFilters.includes("Alle") || selectedTypeFilters.length === 0 || selectedTypeFilters.includes(row.type);
+      return matchesSearch && matchesType;
     })
     .sort((a, b) => {
       if (sortKey === "name-asc") return a.name.localeCompare(b.name);
@@ -993,6 +1031,39 @@ function BauzeitenplanModal({
               className="mast-input-base"
               style={{ width: '100%', marginBottom: '6px' }}
             />
+            <div className="filter-multi" ref={projectTypeFilterRef} style={{ marginBottom: '6px' }}>
+              <label className="filter-multi-label" style={{ color: '#94a3b8' }}>Auftragstyp</label>
+              <button
+                type="button"
+                onClick={() => setTypeFilterOpen((previous) => !previous)}
+                className="filter-multi-toggle filter-multi-toggle-export"
+              >
+                <span className="filter-multi-toggle-text">{typeFilterSummary}</span>
+                <span className="filter-multi-arrow">▾</span>
+              </button>
+              {typeFilterOpen && (
+                <div className="filter-multi-menu filter-multi-menu-export">
+                  {typeFilterOptions.map((option) => {
+                    const checked = selectedTypeFilters.includes("Alle") || selectedTypeFilters.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className="filter-multi-option"
+                        onDoubleClick={() => setSelectedTypeFilters(option.value === "Alle" ? ["Alle"] : [option.value])}
+                      >
+                        <input
+                          type="checkbox"
+                          className="filter-multi-checkbox"
+                          checked={checked}
+                          onChange={() => toggleProjectTypeFilter(option.value)}
+                        />
+                        <span className="filter-multi-option-text">{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="mast-input-base" style={{ width: '100%', marginBottom: '6px' }}>
               <option value="name-asc">Name (A-Z)</option>
               <option value="name-desc">Name (Z-A)</option>
@@ -1035,8 +1106,11 @@ function BauzeitenplanModal({
                       )}
                     </div>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>{row.address}</div>
+                    <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '2px' }}>
+                      Auftragstyp: {row.type}
+                    </div>
                     <div style={{ fontSize: '11px', color: '#93c5fd', marginTop: '2px' }}>
-                      Zeitbedarf: {row.zeitbedarfWeeks > 0 ? `${row.zeitbedarfWeeks} Wochen (${row.workDays} WT)` : '–'}
+                      Zeitbedarf: {row.isKonzept ? (row.zeitbedarfWeeks > 0 ? `${row.zeitbedarfWeeks} Wochen (${row.workDays} WT)` : '–') : '1 WT'}
                     </div>
                     {row.workDays > 0 && (
                       <div style={{ fontSize: '11px', marginTop: '2px', color: row.remainingWorkDays > 0 ? '#fbbf24' : '#4ade80' }}>
@@ -1381,9 +1455,38 @@ export default function App() {
   });
 
   const [originalProject, setOriginalProject] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [toast, setToastValue] = useState(null);
+  const [toastProjectId, setToastProjectId] = useState(null);
   const [alertToast, setAlertToast] = useState({ show: false, message: "" });
+  const [appDialog, setAppDialog] = useState(null);
+  const appDialogResolverRef = useRef(null);
   const [tempFiles, setTempFiles] = useState([]);
+
+  const setToast = (message) => {
+    setToastValue(message);
+    setToastProjectId(null);
+  };
+
+  const setProjectToast = (message, projectId) => {
+    setToastValue(message);
+    setToastProjectId(projectId || null);
+  };
+
+  const showAppMessage = (message, title = "Hinweis") => {
+    setAppDialog({ title, message, requiresConfirmation: false });
+  };
+
+  const requestAppConfirmation = (message, title = "Bitte bestätigen", relatedProjectId = null) => new Promise((resolve) => {
+    appDialogResolverRef.current = resolve;
+    setAppDialog({ title, message, requiresConfirmation: true, relatedProjectId });
+  });
+
+  const closeAppDialog = (confirmed = false) => {
+    const resolve = appDialogResolverRef.current;
+    appDialogResolverRef.current = null;
+    setAppDialog(null);
+    resolve?.(confirmed);
+  };
 
   const leuchtenOptionen = [
     "Trilux Cuvia",
@@ -1664,8 +1767,8 @@ const generiereAufmassDaten = (masten) => {
   });
 };
 
-const resetAufmassVonMasten = () => {
-  if (!window.confirm("Wirklich alles zurücksetzen?")) return;
+const resetAufmassVonMasten = async () => {
+  if (!await requestAppConfirmation("Wirklich alles zurücksetzen?", "Aufmaß zurücksetzen?", selectedProject?.id || null)) return;
 
   setForm(prev => ({
     ...prev,
@@ -1795,8 +1898,7 @@ const handleLogin = async (e) => {
     }
 
   } catch (err) {
-    // Hier kannst du jetzt auch deinen neuen alertToast nutzen, falls du das möchtest!
-    alert("Login fehlgeschlagen: " + err.message);
+    showAppMessage("Login fehlgeschlagen: " + err.message, "Anmeldung fehlgeschlagen");
   }
 };
 
@@ -1969,7 +2071,7 @@ Weitere Infos: ${form.notes || ""}
   };
 
   const deleteCrew = async (crewId) => {
-    if (!window.confirm("Truppe wirklich löschen? Zugehörige Einplanungen im Bauzeitenplan werden ebenfalls entfernt.")) return;
+    if (!await requestAppConfirmation("Truppe wirklich löschen? Zugehörige Einplanungen im Bauzeitenplan werden ebenfalls entfernt.", "Truppe löschen?")) return;
     try {
       await pb.collection('crews').delete(crewId);
       setCrews((prev) => prev.filter((c) => c.id !== crewId));
@@ -2004,7 +2106,7 @@ Weitere Infos: ${form.notes || ""}
     const projectRow = bzpProjectRows.find((row) => row.id === projectId);
     const workDays = projectRow?.remainingWorkDays ?? 0;
     if (workDays <= 0) {
-      setToast("Die Baustelle ist bereits vollständig verplant");
+      setProjectToast("Die Baustelle ist bereits vollständig verplant", projectId);
       setTimeout(() => setToast(null), 2500);
       return;
     }
@@ -2030,7 +2132,7 @@ Weitere Infos: ${form.notes || ""}
       setScheduleEntries((prev) => [...prev, enrichedEntry]);
     } catch (error) {
       console.error(error);
-      setToast("Fehler beim Einplanen der Baustelle");
+      setProjectToast("Fehler beim Einplanen der Baustelle", projectId);
       setTimeout(() => setToast(null), 2500);
     }
   };
@@ -2080,6 +2182,11 @@ Weitere Infos: ${form.notes || ""}
   };
 
   const deleteScheduleEntry = async (entryId) => {
+    const entry = scheduleEntries.find((item) => item.id === entryId);
+    if (!entry) return;
+    const projectId = entry.project || entry.expand?.project?.id || null;
+    const projectName = entry.expand?.project?.name || projects.find((project) => project.id === projectId)?.name || "diese Einplanung";
+    if (!await requestAppConfirmation(`Die Einplanung „${projectName}" wirklich aus dem Bauzeitenplan entfernen?`, "Einplanung entfernen?", projectId)) return;
     try {
       await pb.collection('schedule_entries').delete(entryId);
       setScheduleEntries((prev) => prev.filter((entry) => entry.id !== entryId));
@@ -2535,7 +2642,7 @@ const updateNachkalkulation = (field, value) => {
 
 const handleInitialisiereAufmass = () => {
   if (!form.masten || form.masten.length === 0) {
-    alert("Bitte erstelle zuerst Masten im Masten-Tab!");
+    showAppMessage("Bitte erstelle zuerst Masten im Masten-Tab!");
     return;
   }
   
@@ -2755,7 +2862,7 @@ const openProject = (p) => {
 
   const exportLog = () => {
   if (!form.log || form.log.length === 0) {
-    alert("Kein Protokoll vorhanden");
+    showAppMessage("Kein Protokoll vorhanden");
     return;
   }
 
@@ -2865,6 +2972,10 @@ useEffect(() => {
 useEffect(() => {
   const handleKeyDown = (event) => {
     if (event.key === "Escape") {
+      if (appDialog) {
+        closeAppDialog(false);
+        return;
+      }
       // 1. Priorität: Wenn im Suchfeld etwas steht, leere es zuerst
       if (search !== "") {
         setSearch("");
@@ -2888,7 +2999,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener("keydown", handleKeyDown);
   };
-}, [search, selectedProject]); // Diese Variablen muss der Hook "beobachten"
+}, [search, selectedProject, appDialog]); // Diese Variablen muss der Hook "beobachten"
 
 useEffect(() => {
   if (!alertToast.show) return;
@@ -3197,7 +3308,7 @@ const deleteProject = async (id) => {
   }
 
   // 2. Bestätigung vom User
-  if (!window.confirm("Möchtest du dieses Projekt wirklich unwiderruflich löschen?")) {
+  if (!await requestAppConfirmation("Möchtest du dieses Projekt wirklich unwiderruflich löschen?", "Projekt endgültig löschen?", id)) {
     return;
   }
 
@@ -3280,7 +3391,7 @@ const createProject = async () => {
     // Liste neu laden
     await loadProjects();
     
-    setToast("Baustelle gespeichert!");
+    setProjectToast("Baustelle gespeichert!", record.id);
   } catch (err) {
     console.error("PocketBase Speicherfehler:", err);
     setToast("Fehler: " + err.message);
@@ -3670,14 +3781,15 @@ const createProject = async () => {
 
   const BZP_ALLOWED_STATUSES = new Set(["offen", "in bearbeitung"]);
   const bzpProjectRows = projects
-    .filter((project) => isKonzeptProjectType(project?.type) && BZP_ALLOWED_STATUSES.has(String(project?.status || "").trim().toLowerCase()))
+    .filter((project) => BZP_ALLOWED_STATUSES.has(String(project?.status || "").trim().toLowerCase()))
     .map((project) => {
+      const isKonzept = isKonzeptProjectType(project?.type);
       const masten = parseProjectMasten(project);
       const { mastenMontage, mastenTausch, mastenDemontage } = countProjectMastActionsDetailed(masten);
       const relevantMastenCount = mastenMontage + mastenTausch + mastenDemontage;
       const estimatedFullDays = estimateFullDaysFromActionCounts({ mastenMontage, mastenTausch, mastenDemontage });
-      const adjustedFullDays = relevantMastenCount > 0 ? Math.max(1, Math.ceil(estimatedFullDays * dynamicTimeFactor)) : 0;
-      const workDays = adjustedFullDays > 0 ? adjustedFullDays : 1;
+      const adjustedFullDays = isKonzept && relevantMastenCount > 0 ? Math.max(1, Math.ceil(estimatedFullDays * dynamicTimeFactor)) : 0;
+      const workDays = isKonzept && adjustedFullDays > 0 ? adjustedFullDays : 1;
       const scheduledWorkDays = scheduleEntries
         .filter((entry) => entry.project === project.id)
         .reduce((sum, entry) => sum + countWorkDaysInclusive(new Date(entry.start_date), new Date(entry.end_date)), 0);
@@ -3685,6 +3797,8 @@ const createProject = async () => {
         id: project.id,
         name: project?.name || "(ohne Namen)",
         address: project?.address || "",
+        type: project?.type || "Ohne Auftragstyp",
+        isKonzept,
         status: project?.status || "",
         created: project?.created || "",
         workDays,
@@ -4262,6 +4376,26 @@ const createProject = async () => {
 
   // Prüfe: Ist der Tab korrekt UND sind wir in der Detailansicht (Projekt offen)?
   const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung") && !!selectedProject;
+  const dialogRelatedProject = appDialog?.relatedProjectId
+    ? projects.find((project) => project.id === appDialog.relatedProjectId)
+      || (selectedProject?.id === appDialog.relatedProjectId ? selectedProject : null)
+    : null;
+  const toastRelatedProject = toastProjectId
+    ? projects.find((project) => project.id === toastProjectId)
+      || (selectedProject?.id === toastProjectId ? selectedProject : null)
+    : null;
+  const openDialogRelatedProject = () => {
+    if (!dialogRelatedProject) return;
+    closeAppDialog(false);
+    setBauzeitenplanOpen(false);
+    openProject(dialogRelatedProject);
+  };
+  const openToastRelatedProject = () => {
+    if (!toastRelatedProject) return;
+    setToast(null);
+    setBauzeitenplanOpen(false);
+    openProject(toastRelatedProject);
+  };
 
   return (
   <div className="app-layout">
@@ -4664,7 +4798,7 @@ const createProject = async () => {
             setForm(updatedRecord);
           }
 
-          setToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`);
+          setProjectToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`, p.id);
           setTimeout(() => setToast(null), 2500);
 
         } catch (err) {
@@ -4975,7 +5109,7 @@ const createProject = async () => {
 
   <button 
     style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', height: '32px', padding: '0 15px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', marginLeft: 'auto' }}
-    onClick={() => {
+    onClick={async () => {
       const batchIdsInput = document.getElementById('batch-ids');
       const rawInput = batchIdsInput?.value || "";
 
@@ -5016,7 +5150,7 @@ const createProject = async () => {
           ? `Für Mast ${duplicateList} existiert bereits ein Eintrag. Möchtest du ihn trotzdem hinzufügen? Er wird dann als ${duplicateList}a, ${duplicateList}b usw. angelegt.`
           : `Für die Masten ${duplicateList} existieren bereits Einträge. Möchtest du sie trotzdem hinzufügen? Sie werden dann mit a/b-Suffixen angelegt.`;
 
-        if (!window.confirm(confirmMessage)) {
+        if (!await requestAppConfirmation(confirmMessage, "Doppelte Mastnummern", selectedProject?.id || null)) {
           return;
         }
       }
@@ -6669,7 +6803,7 @@ const createProject = async () => {
           if (mode === "create") {
             setTempFiles(tempFiles.filter((_, idx) => idx !== i));
           } else {
-            if (window.confirm(`Datei "${f}" wirklich löschen?`)) {
+            if (await requestAppConfirmation(`Datei "${f}" wirklich löschen?`, "Datei löschen?", selectedProject?.id || null)) {
               try {
                 // Das Suffix "-" entfernt den Wert f aus dem Array in PocketBase
                 const updatedRecord = await pb.collection('projects').update(selectedProject.id, {
@@ -6683,7 +6817,7 @@ const createProject = async () => {
                 setTimeout(() => setToast(null), 1500);
               } catch (err) {
                 console.error("Fehler beim Löschen:", err);
-                alert("Konnte Datei nicht löschen: " + err.message);
+                showAppMessage("Konnte Datei nicht löschen: " + err.message, "Datei konnte nicht gelöscht werden");
               }
             }
           }
@@ -6780,30 +6914,81 @@ const createProject = async () => {
     />
   )}
 </MapContainer>
+        {appDialog && typeof document !== "undefined" && createPortal(
+          <div className="app-dialog-backdrop" onClick={() => closeAppDialog(false)}>
+            <section
+              className="app-dialog"
+              role={appDialog.requiresConfirmation ? "alertdialog" : "dialog"}
+              aria-modal="true"
+              aria-labelledby="app-dialog-title"
+              aria-describedby="app-dialog-message"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="app-dialog-icon" aria-hidden="true">{appDialog.requiresConfirmation ? "?" : "i"}</div>
+              <div className="app-dialog-copy">
+                <h2 id="app-dialog-title">{appDialog.title}</h2>
+                <p id="app-dialog-message">{appDialog.message}</p>
+                {dialogRelatedProject && (
+                  <button type="button" className="app-dialog-related-link" onClick={openDialogRelatedProject}>
+                    Baustelle öffnen: {dialogRelatedProject.name}
+                  </button>
+                )}
+              </div>
+              <div className="app-dialog-actions">
+                {appDialog.requiresConfirmation && (
+                  <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => closeAppDialog(false)}>
+                    Abbrechen
+                  </button>
+                )}
+                <button type="button" autoFocus className="app-dialog-button app-dialog-button-primary" onClick={() => closeAppDialog(appDialog.requiresConfirmation)}>
+                  {appDialog.requiresConfirmation ? "Bestätigen" : "Verstanden"}
+                </button>
+              </div>
+            </section>
+          </div>,
+          document.body
+        )}
         {toast && (
-        <div style={{
+        <div
+          role={toastRelatedProject ? "button" : "status"}
+          tabIndex={toastRelatedProject ? 0 : undefined}
+          onClick={toastRelatedProject ? openToastRelatedProject : undefined}
+          onKeyDown={toastRelatedProject ? (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openToastRelatedProject();
+            }
+          } : undefined}
+          aria-label={toastRelatedProject ? `${toast} Baustelle öffnen: ${toastRelatedProject.name}` : undefined}
+          style={{
           position: 'fixed',
-          bottom: '20px',
-          right: '20px',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          maxWidth: 'min(560px, calc(100vw - 32px))',
           backgroundColor: toast.startsWith('✅') ? '#2ecc71' : '#3498db', // Blau für Info/Update
           color: 'white',
           padding: '12px 24px',
           borderRadius: '8px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 10000,
+          zIndex: 14000,
           fontSize: '16px',
           fontWeight: 'bold',
+          cursor: toastRelatedProject ? 'pointer' : 'default',
           animation: 'slideIn 0.3s ease-out'
         }}>
           {toast}
+          {toastRelatedProject && <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', textDecoration: 'underline' }}>↗ Baustelle öffnen: {toastRelatedProject.name}</span>}
         </div>
       )}
       {/* DER ROT-TOAST POPUP */}
       {alertToast.show && (
         <div style={{
           position: 'fixed',
-          bottom: '20px',
-          right: '20px',
+          top: '76px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          maxWidth: 'min(560px, calc(100vw - 32px))',
           background: '#ef4444',
           color: 'white',
           padding: '12px 20px',
