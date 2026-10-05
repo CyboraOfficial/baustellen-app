@@ -319,6 +319,7 @@ const createIcon = (color) =>
 
 const ICONS = {
   Offen: createIcon("green"),
+  Geplant: createIcon("yellow"),
   Klärung: createIcon("red"),
   "Westnetznummer fehlt": createIcon("orange"),
   "In Bearbeitung": createIcon("blue"),
@@ -330,6 +331,7 @@ const ICONS = {
 
 const STATUS_COLORS = {
   Offen: "#06c200",
+  Geplant: "#f1c40f",
   Klärung: "#ff0000",
   "Westnetznummer fehlt": "#e68a00",
   "In Bearbeitung": "#3498db",
@@ -1380,6 +1382,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [selectedStatusFilters, setSelectedStatusFilters] = useState([
     "Offen",
+    "Geplant",
     "Klärung",
     "Westnetznummer fehlt",
     "In Bearbeitung",
@@ -1426,6 +1429,14 @@ export default function App() {
   });
   const [settingsChartView, setSettingsChartView] = useState("timeline");
   const [bauzeitenplanOpen, setBauzeitenplanOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('notif_dismissed_keys') || '{}');
+      // Altes Array-Format: als jetzt verworfen übernehmen
+      return Array.isArray(saved) ? Object.fromEntries(saved.map((k) => [k, Date.now()])) : saved;
+    } catch { return {}; }
+  });
   const [crews, setCrews] = useState([]);
   const [scheduleEntries, setScheduleEntries] = useState([]);
   const [settingsCompanyLat, setSettingsCompanyLat] = useState(() => {
@@ -1496,6 +1507,7 @@ export default function App() {
   const STATUS_FILTER_OPTIONS = [
     { value: "Alle", label: "Alle" },
     { value: "Offen", label: "Offen" },
+    { value: "Geplant", label: "Geplant" },
     { value: "Klärung", label: "Klärung" },
     { value: "Westnetznummer fehlt", label: "Westnetznummer fehlt" },
     { value: "In Bearbeitung", label: "In Bearbeitung" },
@@ -1504,7 +1516,7 @@ export default function App() {
     { value: "Proforma WN weggeschickt", label: "Proforma WN weggeschickt" },
     { value: "Abgerechnet", label: "Abgerechnet" }
   ];
-  const UNBILLED_STATUS_VALUES = ["Offen", "Klärung", "Westnetznummer fehlt", "In Bearbeitung", "Fertig für Abrechnung"];
+  const UNBILLED_STATUS_VALUES = ["Offen", "Geplant", "Klärung", "Westnetznummer fehlt", "In Bearbeitung", "Fertig für Abrechnung"];
   const TYPE_FILTER_OPTIONS = [
     { value: "Alle", label: "Alle" },
     { value: "Konzept", label: "Konzept" },
@@ -2130,6 +2142,11 @@ Weitere Infos: ${form.notes || ""}
         }
       };
       setScheduleEntries((prev) => [...prev, enrichedEntry]);
+      const currentProject = projects.find((p) => p.id === projectId);
+      if (currentProject && currentProject.status !== "Geplant") {
+        const updatedProject = await pb.collection('projects').update(projectId, { status: "Geplant" });
+        setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...updatedProject } : p)));
+      }
     } catch (error) {
       console.error(error);
       setProjectToast("Fehler beim Einplanen der Baustelle", projectId);
@@ -3671,6 +3688,7 @@ const createProject = async () => {
     "Alle",
     ...Array.from(new Set([
       "Offen",
+      "Geplant",
       "Klärung",
       "Westnetznummer fehlt",
       "In Bearbeitung",
@@ -3779,7 +3797,7 @@ const createProject = async () => {
     : 1;
   const dynamicTimeFactor = Math.min(2.5, Math.max(0.5, dynamicTimeFactorRaw));
 
-  const BZP_ALLOWED_STATUSES = new Set(["offen", "in bearbeitung"]);
+  const BZP_ALLOWED_STATUSES = new Set(["offen", "geplant", "in bearbeitung"]);
   const bzpProjectRows = projects
     .filter((project) => BZP_ALLOWED_STATUSES.has(String(project?.status || "").trim().toLowerCase()))
     .map((project) => {
@@ -3953,36 +3971,9 @@ const createProject = async () => {
     localStorage.setItem('settings_geo_cell_size_km', String(settingsGeoCellSizeKm));
   }, [settingsGeoCellSizeKm]);
 
-  const proformaReminderCheckedRef = React.useRef(false);
-
   useEffect(() => {
-    if (!projectsLoaded) return;
-    if (proformaReminderCheckedRef.current) return;
-    if (!(Number(proformaReminderDays) > 0)) return;
-
-    proformaReminderCheckedRef.current = true;
-
-    const nowMs = Date.now();
-    const msThreshold = Number(proformaReminderDays) * 24 * 60 * 60 * 1000;
-
-    const overdueItems = projects
-      .filter((p) => isProformaStatus(p?.status))
-      .map((p) => ({
-        id: p.id,
-        name: p.name || "Unbenannt",
-        sentAt: getProformaSentTimestampFromAufmass(p)
-      }))
-      .filter((item) => item.sentAt && (nowMs - item.sentAt.getTime()) >= msThreshold);
-
-    if (overdueItems.length === 0) return;
-
-    const firstName = overdueItems[0]?.name || "Projekt";
-    const baseMsg = overdueItems.length === 1
-      ? `⏰ Erinnerung: Proforma bei "${firstName}" seit ${proformaReminderDays} Tagen offen.`
-      : `⏰ Erinnerung: ${overdueItems.length} Proforma-Rechnungen sind seit mindestens ${proformaReminderDays} Tagen offen.`;
-
-    setAlertToast({ show: true, message: baseMsg });
-  }, [projectsLoaded, projects, proformaReminderDays]);
+    localStorage.setItem('notif_dismissed_keys', JSON.stringify(dismissedNotificationKeys));
+  }, [dismissedNotificationKeys]);
 
   const exportAnalyticsToExcel = () => {
     if (analyticsRows.length === 0) {
@@ -4395,6 +4386,72 @@ const createProject = async () => {
     setToast(null);
     setBauzeitenplanOpen(false);
     openProject(toastRelatedProject);
+  };
+
+  const notifToday = startOfDay(new Date());
+  const notifPlanStatuses = new Set(["offen", "geplant", "in bearbeitung"]);
+  const notifications = [];
+  projects.forEach((p) => {
+    const status = String(p?.status || "").trim().toLowerCase();
+    if (notifPlanStatuses.has(status)) {
+      const entries = scheduleEntries.filter((e) => e.project === p.id);
+      if (entries.length > 0) {
+        const row = bzpProjectRows.find((r) => r.id === p.id);
+        const allDone = row && row.remainingWorkDays === 0
+          && entries.every((e) => startOfDay(new Date(e.end_date)) < notifToday);
+        if (allDone) {
+          notifications.push({
+            key: `done:${p.id}`, type: "done", project: p, newStatus: "Fertig für Abrechnung",
+            text: "Alle geplanten Tage sind abgeschlossen. Status auf „Fertig für Abrechnung“ setzen?"
+          });
+        } else if (status !== "in bearbeitung" && entries.some((e) => startOfDay(new Date(e.start_date)) <= notifToday)) {
+          notifications.push({
+            key: `start:${p.id}`, type: "start", project: p, newStatus: "In Bearbeitung",
+            text: "Der geplante Termin ist erreicht. Status auf „In Bearbeitung“ setzen?"
+          });
+        }
+      }
+    }
+    if (status === "fertig für abrechnung" && (p?.status_changed_at || p?.updated)) {
+      const updatedAt = new Date(p.status_changed_at || p.updated);
+      if (!Number.isNaN(updatedAt.getTime()) && (Date.now() - updatedAt.getTime()) >= 14 * 86400000) {
+        notifications.push({
+          key: `billing:${p.id}:${updatedAt.getTime()}`, type: "billing", project: p,
+          text: "Seit mindestens 2 Wochen „Fertig für Abrechnung“ – muss noch abgerechnet werden."
+        });
+      }
+    }
+    if (Number(proformaReminderDays) > 0 && isProformaStatus(p?.status)) {
+      const sentAt = getProformaSentTimestampFromAufmass(p);
+      if (sentAt && (Date.now() - sentAt.getTime()) >= Number(proformaReminderDays) * 86400000) {
+        notifications.push({
+          key: `proforma:${p.id}:${sentAt.getTime()}`, type: "proforma", project: p,
+          text: `Proforma-Rechnung seit mindestens ${proformaReminderDays} Tagen offen.`
+        });
+      }
+    }
+  });
+  const visibleNotifications = notifications.filter((n) => {
+    const dismissedAt = dismissedNotificationKeys[n.key];
+    return !dismissedAt || (Date.now() - dismissedAt) >= 7 * 86400000;
+  });
+  const unreadNotificationCount = visibleNotifications.length;
+  const closeNotifications = () => setNotificationsOpen(false);
+  const confirmNotificationStatus = async (n) => {
+    try {
+      const updated = await pb.collection('projects').update(n.project.id, { status: n.newStatus });
+      setProjects((prev) => prev.map((p) => (p.id === n.project.id ? { ...p, ...updated } : p)));
+      setToast(`Status von "${n.project.name || "Baustelle"}" auf ${n.newStatus} gesetzt`);
+    } catch (error) {
+      console.error(error);
+      setToast("Fehler beim Ändern des Status");
+    }
+    setTimeout(() => setToast(null), 2500);
+  };
+  const openNotificationProject = (n) => {
+    closeNotifications();
+    setBauzeitenplanOpen(false);
+    openProject(n.project);
   };
 
   return (
@@ -4889,7 +4946,7 @@ const createProject = async () => {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999", flexShrink: 0 }} />
                   <select value={form.status} onChange={(e) => handleStatusChange(e.target.value)}>
-                    <option>Offen</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Proforma WN weggeschickt</option><option>Abgerechnet</option>
+                    <option>Offen</option><option>Geplant</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Proforma WN weggeschickt</option><option>Abgerechnet</option>
                   </select>
                 </div>
                 <label>PGK</label>
@@ -6889,6 +6946,27 @@ const createProject = async () => {
         </div>
       </button>
     </div>
+
+    <div style={{ pointerEvents: 'auto', marginBottom: '8px' }}>
+      <button
+        onClick={() => (notificationsOpen ? closeNotifications() : setNotificationsOpen(true))}
+        title="Benachrichtigungen"
+        style={{
+          width: '60px', height: '36px', padding: 0, cursor: 'pointer', position: 'relative',
+          border: '2px solid white', borderRadius: '10px', backgroundColor: 'white',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)', fontSize: '18px'
+        }}
+      >
+        🔔
+        {unreadNotificationCount > 0 && (
+          <span style={{
+            position: 'absolute', top: '-6px', right: '-6px', minWidth: '18px', height: '18px',
+            borderRadius: '9px', background: '#e11d48', color: 'white', fontSize: '11px',
+            fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px'
+          }}>{unreadNotificationCount}</span>
+        )}
+      </button>
+    </div>
   </div>
   
   {/* Ab hier bleibt alles wie es war */}
@@ -6914,6 +6992,51 @@ const createProject = async () => {
     />
   )}
 </MapContainer>
+        {notificationsOpen && typeof document !== "undefined" && createPortal(
+          <div className="app-dialog-backdrop" onClick={closeNotifications}>
+            <section
+              className="app-dialog"
+              role="dialog"
+              aria-modal="true"
+              style={{ maxWidth: '560px', width: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h2 style={{ margin: 0 }}>Benachrichtigungen</h2>
+                <button
+                  type="button"
+                  aria-label="Schließen"
+                  title="Schließen"
+                  onClick={closeNotifications}
+                  style={{ margin: 0, padding: 0, width: '28px', height: '28px', minWidth: 0, borderRadius: '6px', background: 'transparent', color: '#6b7280', fontSize: '18px', lineHeight: 1 }}
+                >✕</button>
+              </div>
+              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {visibleNotifications.length === 0 && <p style={{ margin: 0 }}>Keine offenen Benachrichtigungen.</p>}
+                {visibleNotifications.map((n) => {
+                  const unread = true;
+                  return (
+                    <div key={n.key} style={{ border: '1px solid #cbd5e1', borderLeft: `4px solid ${unread ? '#e11d48' : '#cbd5e1'}`, borderRadius: '8px', padding: '10px' }}>
+                      <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {unread && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48', display: 'inline-block' }} />}
+                        {n.project.name || "Unbenannt"}
+                      </div>
+                      <div style={{ margin: '4px 0 8px', fontSize: '13px' }}>{n.text}</div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {n.newStatus && (
+                          <button type="button" className="app-dialog-button app-dialog-button-primary" onClick={() => confirmNotificationStatus(n)}>Bestätigen</button>
+                        )}
+                        <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => openNotificationProject(n)}>Auftrag öffnen</button>
+                        <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => setDismissedNotificationKeys((prev) => ({ ...prev, [n.key]: Date.now() }))}>Verwerfen</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>,
+          document.body
+        )}
         {appDialog && typeof document !== "undefined" && createPortal(
           <div className="app-dialog-backdrop" onClick={() => closeAppDialog(false)}>
             <section
