@@ -2002,7 +2002,12 @@ Weitere Infos: ${form.notes || ""}
 
   const createScheduleEntry = async (projectId, crewId, startDate) => {
     const projectRow = bzpProjectRows.find((row) => row.id === projectId);
-    const workDays = projectRow?.workDays || 1;
+    const workDays = projectRow?.remainingWorkDays ?? 0;
+    if (workDays <= 0) {
+      setToast("Die Baustelle ist bereits vollständig verplant");
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
     let start = startOfDay(startDate);
     while (isWeekendDay(start)) start = addDays(start, 1);
     const endDate = addWorkDaysToDate(start, workDays);
