@@ -1401,6 +1401,7 @@ export default function App() {
     { value: "Proforma WN weggeschickt", label: "Proforma WN weggeschickt" },
     { value: "Abgerechnet", label: "Abgerechnet" }
   ];
+  const UNBILLED_STATUS_VALUES = ["Offen", "Klärung", "Westnetznummer fehlt", "In Bearbeitung", "Fertig für Abrechnung"];
   const TYPE_FILTER_OPTIONS = [
     { value: "Alle", label: "Alle" },
     { value: "Konzept", label: "Konzept" },
@@ -2104,20 +2105,27 @@ Weitere Infos: ${form.notes || ""}
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  const toggleMultiFilterValue = (value, selectedValues, setSelectedValues) => {
+  const isMultiFilterChecked = (value, selectedValues) =>
+    selectedValues.includes(value) || selectedValues.includes("Alle");
+
+  const toggleMultiFilterValue = (value, selectedValues, setSelectedValues, options = []) => {
     if (value === "Alle") {
       setSelectedValues(["Alle"]);
       return;
     }
 
-    const withoutAlle = selectedValues.filter((v) => v !== "Alle");
-    if (withoutAlle.includes(value)) {
-      const next = withoutAlle.filter((v) => v !== value);
-      setSelectedValues(next.length === 0 ? ["Alle"] : next);
-      return;
+    const allValues = options.map((o) => o.value).filter((v) => v !== "Alle");
+    // Bei "Alle" sind alle Optionen markiert
+    const current = selectedValues.includes("Alle") ? allValues : selectedValues;
+    let next;
+    if (current.includes(value)) {
+      next = current.filter((v) => v !== value);
+    } else {
+      next = [...current, value];
     }
 
-    setSelectedValues([...withoutAlle, value]);
+    const everythingSelected = allValues.length > 0 && allValues.every((v) => next.includes(v));
+    setSelectedValues(next.length === 0 || everythingSelected ? ["Alle"] : next);
   };
 
   const getMultiFilterSummary = (selectedValues, options) => {
@@ -4466,13 +4474,36 @@ const createProject = async () => {
                 onClick={() => setStatusFilterOpen((prev) => !prev)}
                 className="filter-multi-toggle"
               >
-                <span className="filter-multi-toggle-text">{getMultiFilterSummary(selectedStatusFilters, STATUS_FILTER_OPTIONS)}</span>
+                <span className="filter-multi-toggle-text">{!selectedStatusFilters.includes("Alle") &&
+                  selectedStatusFilters.length === UNBILLED_STATUS_VALUES.length &&
+                  UNBILLED_STATUS_VALUES.every((v) => selectedStatusFilters.includes(v))
+                    ? "Nicht abgerechnet"
+                    : getMultiFilterSummary(selectedStatusFilters, STATUS_FILTER_OPTIONS)}</span>
                 <span className="filter-multi-arrow">▾</span>
               </button>
               {statusFilterOpen && (
                 <div className="filter-multi-menu">
+                  <label
+                    className="filter-multi-option"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSelectedStatusFilters(UNBILLED_STATUS_VALUES);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="filter-multi-checkbox"
+                      readOnly
+                      checked={
+                        !selectedStatusFilters.includes("Alle") &&
+                        selectedStatusFilters.length === UNBILLED_STATUS_VALUES.length &&
+                        UNBILLED_STATUS_VALUES.every((v) => selectedStatusFilters.includes(v))
+                      }
+                    />
+                    <span className="filter-multi-option-text">Nicht abgerechnet</span>
+                  </label>
                   {STATUS_FILTER_OPTIONS.map((option) => {
-                    const checked = selectedStatusFilters.includes(option.value);
+                    const checked = isMultiFilterChecked(option.value, selectedStatusFilters);
                     return (
                       <label
                         key={option.value}
@@ -4483,7 +4514,7 @@ const createProject = async () => {
                           type="checkbox"
                           className="filter-multi-checkbox"
                           checked={checked}
-                          onChange={() => toggleMultiFilterValue(option.value, selectedStatusFilters, setSelectedStatusFilters)}
+                          onChange={() => toggleMultiFilterValue(option.value, selectedStatusFilters, setSelectedStatusFilters, STATUS_FILTER_OPTIONS)}
                         />
                         <span className="filter-multi-option-text">{option.label}</span>
                       </label>
@@ -4505,7 +4536,7 @@ const createProject = async () => {
               {typeFilterOpen && (
                 <div className="filter-multi-menu">
                   {TYPE_FILTER_OPTIONS.map((option) => {
-                    const checked = selectedTypeFilters.includes(option.value);
+                    const checked = isMultiFilterChecked(option.value, selectedTypeFilters);
                     return (
                       <label
                         key={option.value}
@@ -4516,7 +4547,7 @@ const createProject = async () => {
                           type="checkbox"
                           className="filter-multi-checkbox"
                           checked={checked}
-                          onChange={() => toggleMultiFilterValue(option.value, selectedTypeFilters, setSelectedTypeFilters)}
+                          onChange={() => toggleMultiFilterValue(option.value, selectedTypeFilters, setSelectedTypeFilters, TYPE_FILTER_OPTIONS)}
                         />
                         <span className="filter-multi-option-text">{option.label}</span>
                       </label>
@@ -6112,7 +6143,7 @@ const createProject = async () => {
             return catGrabenName;
           };
 
-          const addMuellerSurface = (surfaceType, xVal, yVal, labelSuffix, detailLabel = "") => {
+          const addMuellerSurface = (surfaceType, xVal, yVal, labelSuffix, detailLabel = "", detailDimensions = null) => {
             const width = num(xVal);
             const height = num(yVal);
             const area = width * height;
@@ -6123,8 +6154,8 @@ const createProject = async () => {
             dataMueller.surfaces[catGrabenName].items.push({
               label: detailLabel ? `${mastLabel} (${detailLabel})` : mastLabel,
               val: area,
-              x: width,
-              y: height,
+              x: detailDimensions ? num(detailDimensions.x) : width,
+              y: detailDimensions ? num(detailDimensions.y) : height,
               area
             });
           };
@@ -6155,7 +6186,7 @@ const createProject = async () => {
           if (countGrubenAns > 0) {
             normalizeExtraSurfaces(m.montagegrubeOberflaechenAns).forEach((entry) => {
               const area = calculateArea(entry.x, entry.y);
-              if (area > 0) addMuellerSurface(entry.typ, area, 1, "(ANS)", "Montagegrube");
+              if (area > 0) addMuellerSurface(entry.typ, area, 1, "(ANS)", "Montagegrube", { x: entry.x, y: entry.y });
             });
           }
 
@@ -6165,13 +6196,13 @@ const createProject = async () => {
           if (countGrubenAend > 0) {
             normalizeExtraSurfaces(m.montagegrubeOberflaechenAend).forEach((entry) => {
               const area = calculateArea(entry.x, entry.y);
-              if (area > 0) addMuellerSurface(entry.typ, area, 1, "(ÄND)", "Montagegrube");
+              if (area > 0) addMuellerSurface(entry.typ, area, 1, "(ÄND)", "Montagegrube", { x: entry.x, y: entry.y });
             });
           }
           if (countGrubenAbr > 0) {
             normalizeExtraSurfaces(m.montagegrubeOberflaechenAbr).forEach((entry) => {
               const area = calculateArea(entry.x, entry.y);
-              if (area > 0) addMuellerSurface(entry.typ, area, 1, "(ABR)", "Montagegrube");
+              if (area > 0) addMuellerSurface(entry.typ, area, 1, "(ABR)", "Montagegrube", { x: entry.x, y: entry.y });
             });
           }
 
@@ -7591,14 +7622,14 @@ const createProject = async () => {
                       {ordersExportTypeFilterOpen && (
                         <div className="filter-multi-menu filter-multi-menu-export">
                           {orderExportTypeOptions.map((option) => {
-                            const checked = ordersExportTypeFilter.includes(option.value);
+                            const checked = isMultiFilterChecked(option.value, ordersExportTypeFilter);
                             return (
                               <label key={option.value} className="filter-multi-option">
                                 <input
                                   type="checkbox"
                                   className="filter-multi-checkbox"
                                   checked={checked}
-                                  onChange={() => toggleMultiFilterValue(option.value, ordersExportTypeFilter, setOrdersExportTypeFilter)}
+                                  onChange={() => toggleMultiFilterValue(option.value, ordersExportTypeFilter, setOrdersExportTypeFilter, orderExportTypeOptions)}
                                 />
                                 <span className="filter-multi-option-text">{option.label}</span>
                               </label>
@@ -7621,14 +7652,14 @@ const createProject = async () => {
                       {ordersExportStatusFilterOpen && (
                         <div className="filter-multi-menu filter-multi-menu-export">
                           {orderExportStatusOptions.map((option) => {
-                            const checked = ordersExportStatusFilter.includes(option.value);
+                            const checked = isMultiFilterChecked(option.value, ordersExportStatusFilter);
                             return (
                               <label key={option.value} className="filter-multi-option">
                                 <input
                                   type="checkbox"
                                   className="filter-multi-checkbox"
                                   checked={checked}
-                                  onChange={() => toggleMultiFilterValue(option.value, ordersExportStatusFilter, setOrdersExportStatusFilter)}
+                                  onChange={() => toggleMultiFilterValue(option.value, ordersExportStatusFilter, setOrdersExportStatusFilter, orderExportStatusOptions)}
                                 />
                                 <span className="filter-multi-option-text">{option.label}</span>
                               </label>
