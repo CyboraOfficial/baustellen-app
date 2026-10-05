@@ -6219,11 +6219,19 @@ const createProject = async () => {
             dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: muffenMontierenAbrAbrechenbar });
           }
           if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
-          if (num(m.muffenDemo) > 0) { dataMueller.muffenDemo.total += num(m.muffenDemo); dataMueller.muffenDemo.items.push({ label: mastLabel, val: num(m.muffenDemo) }); }
+          const netzanschlussDemoCount = num(m.netzanschlussDemoAnzahl);
+          const endmuffenDemoCount = num(m.endmuffenDemo);
+          const muffenDemoCount = num(m.muffenDemo);
+          // Ein demontierter Netzanschluss enthält genau eine Muffe: bevorzugt die eingetragene Endmuffe, sonst die Verbindungsmuffe.
+          const includedEndmuffen = Math.min(endmuffenDemoCount, netzanschlussDemoCount);
+          const endmuffenAbrAbrechenbar = endmuffenDemoCount - includedEndmuffen;
+          const includedMuffen = Math.max(0, netzanschlussDemoCount - includedEndmuffen);
+          const muffenDemoAbrechenbar = Math.max(0, muffenDemoCount - includedMuffen);
+          if (muffenDemoAbrechenbar > 0) { dataMueller.muffenDemo.total += muffenDemoAbrechenbar; dataMueller.muffenDemo.items.push({ label: mastLabel, val: muffenDemoAbrechenbar }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
           if (num(m.endmuffenAns) > 0) { dataMueller.endmuffenAns.total += num(m.endmuffenAns); dataMueller.endmuffenAns.items.push({ label: mastLabel, val: num(m.endmuffenAns) }); }
           if (num(m.endmuffenTausch) > 0) { dataMueller.endmuffenAend.total += num(m.endmuffenTausch); dataMueller.endmuffenAend.items.push({ label: mastLabel, val: num(m.endmuffenTausch) }); }
-          if (num(m.endmuffenDemo) > 0) { dataMueller.endmuffenAbr.total += num(m.endmuffenDemo); dataMueller.endmuffenAbr.items.push({ label: mastLabel, val: num(m.endmuffenDemo) }); }
+          if (endmuffenAbrAbrechenbar > 0) { dataMueller.endmuffenAbr.total += endmuffenAbrAbrechenbar; dataMueller.endmuffenAbr.items.push({ label: mastLabel, val: endmuffenAbrAbrechenbar }); }
         });
       }
 
