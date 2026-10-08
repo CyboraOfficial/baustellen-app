@@ -2,7 +2,7 @@
   "name": "baustellen-app",
   "private": true,
   "license": "UNLICENSED",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "App zur Verwaltung von Baustellen",
   "author": "CyboraOfficial",
   "main": "electron/main.js",
