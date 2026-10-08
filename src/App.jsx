@@ -3634,11 +3634,12 @@ const createProject = async () => {
     const raw = String(value).trim();
     if (!raw) return null;
 
-    const direct = new Date(raw);
-    if (!Number.isNaN(direct.getTime())) return direct;
-
+    // Deutsches Format zuerst, sonst interpretiert new Date() "dd.mm.yyyy" als mm.dd.yyyy.
     const m = raw.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:,?\s+(\d{1,2}):(\d{2}))?/);
-    if (!m) return null;
+    if (!m) {
+      const direct = new Date(raw);
+      return Number.isNaN(direct.getTime()) ? null : direct;
+    }
 
     const day = Number(m[1]);
     const month = Number(m[2]);
