@@ -6,12 +6,16 @@ contextBridge.exposeInMainWorld("desktopAPI", {
   updateProject: (project) => ipcRenderer.invoke("projects:update", project),
   deleteProject: (id) => ipcRenderer.invoke('projects:delete', id),
   chooseBaseFolder: () => ipcRenderer.invoke("settings:chooseBaseFolder"),
+  getDownloadFolder: () => ipcRenderer.invoke("settings:getDownloadFolder"),
+  setDownloadFolder: (folder) => ipcRenderer.invoke("settings:setDownloadFolder", folder),
+  chooseDownloadFolder: () => ipcRenderer.invoke("settings:chooseDownloadFolder"),
   openPath: (filePath) => ipcRenderer.invoke("shell:openPath", filePath),
   showItemInFolder: (filePath) => ipcRenderer.invoke("shell:showItemInFolder", filePath),
   uploadFile: (data) => ipcRenderer.invoke("upload-file", data),
   openFile: (filePath) => ipcRenderer.invoke("open-file", filePath),
   deleteFile: (data) => ipcRenderer.invoke('delete-file', data),
-  openProjectFolder: (name) => ipcRenderer.invoke('open-project-folder', name),
+  saveProjectFile: (data) => ipcRenderer.invoke('files:saveProjectFile', data),
+  openFileInBrowser: (data) => ipcRenderer.invoke('files:openInBrowser', data),
   
   // --- UPDATER EVENTS ---
   onUpdateAvailable: (callback) => {

@@ -2,7 +2,7 @@
   "name": "baustellen-app",
   "private": true,
   "license": "UNLICENSED",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "App zur Verwaltung von Baustellen",
   "author": "CyboraOfficial",
   "main": "electron/main.js",
@@ -45,7 +45,7 @@
     ]
   },
   "scripts": {
-     "dev": "concurrently \"node scripts/start-pocketbase.js\" \"wait-on http://127.0.0.1:8090/api/health && vite\"",
+    "dev": "concurrently \"node scripts/start-pocketbase.js\" \"wait-on http://127.0.0.1:8090/api/health && vite\"",
     "electron": "electron .",
     "start": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
@@ -55,11 +55,13 @@
     "electron:dev": "concurrently \"npm run dev\" \"electron .\""
   },
   "dependencies": {
+    "@kenjiuno/msgreader": "^1.28.0",
     "browser-image-compression": "^2.0.2",
     "electron-updater": "^6.8.3",
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "leaflet.markercluster": "^1.5.3",
+    "pdfjs-dist": "^3.11.174",
     "pocketbase": "^0.26.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

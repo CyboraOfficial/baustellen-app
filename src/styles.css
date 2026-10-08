@@ -328,6 +328,38 @@ hr {
   background: #f9fafb;
 }
 
+.project-file-name {
+  display: block;
+  flex: 1;
+  width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-file-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 5px;
+}
+
+.project-file-action {
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  color: #fff;
+  background: #2c3e50;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.project-file-action:hover {
+  background: #34495e;
+}
+
 .project-card strong {
   display: block;
   font-size: 16px;

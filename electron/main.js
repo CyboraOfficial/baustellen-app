@@ -4,6 +4,8 @@ const { app, BrowserWindow, session, ipcMain, dialog, shell } = require('electro
 const path = require('path'); // Pfad separat importieren, damit .join() sicher definiert ist
 const fs = require("fs");
 const os = require('os');
+const { randomUUID } = require('crypto');
+const http = require('http');
 const userDataPath = path.join(os.homedir(), 'Desktop', 'Baustellen');
 const { autoUpdater } = require("electron-updater");
 
@@ -475,6 +477,161 @@ ipcMain.handle("settings:chooseBaseFolder", async () => {
   return { ok: true, basePath: selected };
 });
 
+ipcMain.handle("settings:getDownloadFolder", async () => {
+  const config = getConfig();
+  const downloadPath = config.downloadPath && fs.existsSync(config.downloadPath)
+    ? config.downloadPath
+    : basePath;
+  return { path: downloadPath || "" };
+});
+
+ipcMain.handle("settings:setDownloadFolder", async (_event, folder) => {
+  try {
+    const downloadPath = path.resolve(String(folder || "").trim().replace(/^"|"$/g, ""));
+    if (!folder || !String(folder).trim()) return { ok: false, error: "Bitte einen Pfad eingeben." };
+    ensureDir(downloadPath);
+    saveConfig({ ...getConfig(), downloadPath });
+    return { ok: true, path: downloadPath };
+  } catch (error) {
+    return { ok: false, error: error.message || "Ordner konnte nicht angelegt werden." };
+  }
+});
+
+ipcMain.handle("settings:chooseDownloadFolder", async () => {
+  const config = getConfig();
+  const currentPath = config.downloadPath && fs.existsSync(config.downloadPath) ? config.downloadPath : basePath;
+  const result = await dialog.showOpenDialog({
+    title: "Standard-Speicherort für Datei-Downloads wählen",
+    defaultPath: currentPath || app.getPath("downloads"),
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || !result.filePaths?.[0]) return { ok: false };
+
+  const downloadPath = result.filePaths[0];
+  saveConfig({ ...config, downloadPath });
+  return { ok: true, path: downloadPath };
+});
+
+ipcMain.handle("files:saveProjectFile", async (_, { fileName, data }) => {
+  const config = getConfig();
+  const downloadPath = config.downloadPath && fs.existsSync(config.downloadPath)
+    ? config.downloadPath
+    : basePath;
+  if (!downloadPath || !fs.existsSync(downloadPath)) {
+    throw new Error("Der Standard-Speicherort für Downloads ist nicht verfügbar.");
+  }
+
+  const requestedFileName = String(fileName || "");
+  const baseFileName = path.basename(requestedFileName);
+  const safeFileName = baseFileName.replace(/[<>:"|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/g, "");
+  if (!safeFileName || safeFileName === "." || safeFileName === ".." || baseFileName !== requestedFileName) {
+    throw new Error("Ungültiger Dateiname.");
+  }
+
+  let fileBuffer;
+  if (data instanceof ArrayBuffer) {
+    fileBuffer = Buffer.from(data);
+  } else if (ArrayBuffer.isView(data)) {
+    fileBuffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  } else {
+    throw new Error("Die Datei enthält keine gültigen Binärdaten.");
+  }
+
+  ensureDir(downloadPath);
+  const parsedFileName = path.parse(safeFileName);
+  let destinationPath = path.join(downloadPath, safeFileName);
+  let duplicateIndex = 1;
+  while (fs.existsSync(destinationPath)) {
+    destinationPath = path.join(downloadPath, `${parsedFileName.name} (${duplicateIndex})${parsedFileName.ext}`);
+    duplicateIndex += 1;
+  }
+  fs.writeFileSync(destinationPath, fileBuffer);
+  return { success: true, path: destinationPath };
+});
+
+ipcMain.handle("files:openInBrowser", async (_, { fileName, data }) => {
+  const requestedFileName = String(fileName || "");
+  const baseFileName = path.basename(requestedFileName);
+  const safeFileName = baseFileName.replace(/[<>:"|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/g, "");
+  if (!safeFileName || safeFileName === "." || safeFileName === ".." || baseFileName !== requestedFileName) {
+    throw new Error("Ungültiger Dateiname.");
+  }
+
+  let fileBuffer;
+  if (data instanceof ArrayBuffer) {
+    fileBuffer = Buffer.from(data);
+  } else if (ArrayBuffer.isView(data)) {
+    fileBuffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  } else {
+    throw new Error("Die Datei enthält keine gültigen Binärdaten.");
+  }
+
+  const previewFolder = path.join(app.getPath("temp"), "baustellen-app-previews");
+  ensureDir(previewFolder);
+  const previewPath = path.join(previewFolder, `${randomUUID()}-${safeFileName}`);
+  fs.writeFileSync(previewPath, fileBuffer);
+
+  const extension = path.extname(safeFileName).toLowerCase();
+  const contentTypes = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+    ".txt": "text/plain; charset=utf-8",
+    ".log": "text/plain; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".htm": "text/html; charset=utf-8",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav"
+  };
+  const token = randomUUID();
+  const server = http.createServer((request, response) => {
+    if (request.method !== "GET" || request.url !== `/${token}/${encodeURIComponent(safeFileName)}`) {
+      response.writeHead(404).end();
+      return;
+    }
+
+    response.writeHead(200, {
+      "Content-Type": contentTypes[extension] || "application/octet-stream",
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(safeFileName)}`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store"
+    });
+    fs.createReadStream(previewPath).pipe(response);
+  });
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Lokaler Browser-Viewer konnte nicht gestartet werden.");
+    await shell.openExternal(`http://127.0.0.1:${address.port}/${token}/${encodeURIComponent(safeFileName)}`);
+  } catch (error) {
+    server.close();
+    fs.rmSync(previewPath, { force: true });
+    throw new Error(`Datei konnte nicht im Browser geöffnet werden: ${error.message}`);
+  }
+
+  const cleanupTimer = setTimeout(() => {
+    server.close((error) => {
+      if (error) console.error("Lokaler Browser-Viewer konnte nicht beendet werden:", error);
+    });
+    fs.rm(previewPath, { force: true }, (error) => {
+      if (error) console.error("Temporäre Browser-Vorschau konnte nicht gelöscht werden:", error);
+    });
+  }, 30 * 60 * 1000);
+  cleanupTimer.unref();
+  return { success: true };
+});
+
 ipcMain.handle("shell:openPath", async (_, filePath) => {
   return shell.openPath(filePath);
 });
@@ -539,18 +696,6 @@ ipcMain.handle('delete-file', async (event, { projectName, fileName }) => {
 });
 
 // 2. Den Ordner der Baustelle im Explorer öffnen
-ipcMain.handle('open-project-folder', async (event, projectName) => {
-  try {
-    const folderPath = path.join(userDataPath, projectName);
-    if (fs.existsSync(folderPath)) {
-      require('electron').shell.openPath(folderPath);
-      return { success: true };
-    }
-    return { success: false, error: "Ordner nicht gefunden" };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
 
 const searchLocation = async () => {
   if (!searchAddress) return;

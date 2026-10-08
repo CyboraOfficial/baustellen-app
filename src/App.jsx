@@ -10,6 +10,7 @@ import { useMap } from "react-leaflet";
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
 import * as XLSX from 'xlsx';
+import FileViewer from './FileViewer';
 
 const enableLeafletHeatWillReadFrequently = () => {
   const HeatLayer = L?.HeatLayer;
@@ -1377,6 +1378,11 @@ export default function App() {
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
+  const [fileViewer, setFileViewer] = useState(null);
+  const [downloadFolder, setDownloadFolder] = useState("");
+  const [downloadFolderLoading, setDownloadFolderLoading] = useState(false);
+  const [downloadFolderError, setDownloadFolderError] = useState("");
+  const [downloadFolderPopupOpen, setDownloadFolderPopupOpen] = useState(false);
 
   /* 🔍 FILTER */
   const [search, setSearch] = useState("");
@@ -1839,6 +1845,69 @@ const getProjectFileUrl = async (project, fileName) => {
   } catch (err) {
     console.warn("Datei-Token konnte nicht geladen werden, nutze Fallback-URL.", err);
     return fallbackUrl;
+  }
+};
+
+const downloadProjectFile = async (project, fileName) => {
+  try {
+    const url = await getProjectFileUrl(project, fileName);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Download fehlgeschlagen (HTTP ${response.status}).`);
+    const data = await response.arrayBuffer();
+
+    if (window.desktopAPI?.saveProjectFile) {
+      const result = await window.desktopAPI.saveProjectFile({ fileName, data });
+      if (!result?.success) throw new Error(result?.error || "Datei konnte nicht gespeichert werden.");
+      setToast(`Datei gespeichert: ${result.path}`);
+    } else {
+      const objectUrl = URL.createObjectURL(new Blob([data], {
+        type: response.headers.get("content-type") || "application/octet-stream"
+      }));
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      setToast("Download gestartet");
+    }
+  } catch (error) {
+    console.error("Datei konnte nicht heruntergeladen werden:", error);
+    setToast(`❌ ${error.message || "Datei konnte nicht heruntergeladen werden"}`);
+  }
+  window.setTimeout(() => setToast(null), 3500);
+};
+
+const openProjectFileInBrowser = async (project, fileName) => {
+  let browserWindow;
+  try {
+    if (!window.desktopAPI?.openFileInBrowser) {
+      browserWindow = window.open("", "_blank");
+      if (!browserWindow) throw new Error("Der Browser hat das neue Fenster blockiert.");
+      browserWindow.document.title = fileName;
+    }
+
+    const url = await getProjectFileUrl(project, fileName);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Datei konnte nicht geladen werden (HTTP ${response.status}).`);
+    const data = await response.arrayBuffer();
+
+    if (window.desktopAPI?.openFileInBrowser) {
+      const result = await window.desktopAPI.openFileInBrowser({ fileName, data });
+      if (!result?.success) throw new Error("Datei konnte nicht im Browser geöffnet werden.");
+    } else {
+      const previewUrl = URL.createObjectURL(new Blob([data], {
+        type: response.headers.get("content-type") || "application/octet-stream"
+      }));
+      browserWindow.location.replace(previewUrl);
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 30 * 60 * 1000);
+    }
+  } catch (error) {
+    browserWindow?.close();
+    console.error("Datei konnte nicht im Browser geöffnet werden:", error);
+    setToast(`❌ ${error.message || "Datei konnte nicht im Browser geöffnet werden"}`);
+    window.setTimeout(() => setToast(null), 3500);
   }
 };
 
@@ -3955,6 +4024,16 @@ const createProject = async () => {
   }, [proformaReminderDays]);
 
   useEffect(() => {
+    if (!window.desktopAPI?.getDownloadFolder) return;
+    window.desktopAPI.getDownloadFolder()
+      .then((result) => setDownloadFolder(result?.path || ""))
+      .catch((error) => {
+        console.error("Download-Speicherort konnte nicht geladen werden:", error);
+        setDownloadFolderError("Der Speicherort konnte nicht geladen werden.");
+      });
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('settings_company_lat', String(settingsCompanyLat || ''));
   }, [settingsCompanyLat]);
 
@@ -4373,7 +4452,7 @@ const createProject = async () => {
   };
 
   // Prüfe: Ist der Tab korrekt UND sind wir in der Detailansicht (Projekt offen)?
-  const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung") && !!selectedProject;
+  const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung" || activeTab === "Dateien") && !!selectedProject;
   const dialogRelatedProject = appDialog?.relatedProjectId
     ? projects.find((project) => project.id === appDialog.relatedProjectId)
       || (selectedProject?.id === appDialog.relatedProjectId ? selectedProject : null)
@@ -6742,25 +6821,9 @@ const createProject = async () => {
 
               {activeTab === "Dateien" && (
   <>
-    {/* Kopfzeile mit Ordner-Button */}
+    {/* Kopfzeile */}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
       <h4 style={{ margin: 0 }}>Projektdateien</h4>
-      {mode !== "create" && selectedProject && (
-        <button 
-          onClick={() => window.desktopAPI.openProjectFolder(selectedProject.name)}
-          style={{ 
-            padding: "4px 10px", 
-            cursor: "pointer", 
-            backgroundColor: "#2c3e50", 
-            color: "white", 
-            border: "none", 
-            borderRadius: "4px",
-            fontSize: "12px"
-          }}
-        >
-          📂 Ordner öffnen
-        </button>
-      )}
     </div>
 
     {/* Drag & Drop Zone */}
@@ -6826,38 +6889,44 @@ const createProject = async () => {
   const displayName = mode === "create" ? f.name : f;
 
   return (
-    <div key={i} style={{ 
+    <div key={i} className="project-file-row" style={{
       display: "flex", 
       justifyContent: "space-between", 
-      alignItems: "center", 
+      gap: "10px",
+      alignItems: "center",
       padding: "6px 10px", 
       backgroundColor: "white", 
       border: "1px solid #eee", 
       borderRadius: "4px",
       marginBottom: "5px" 
     }}>
-      <span 
+      <button
+  className="project-file-name"
+  type="button"
   onClick={async () => {
     if (mode !== "create") {
       try {
         const url = await getProjectFileUrl(selectedProject, f);
-
-        // WICHTIG: Hier "window.desktopAPI" nutzen, statt "window.electron"
-        if (window.desktopAPI && window.desktopAPI.send) {
-          console.log("Sende an Hauptprozess via desktopAPI...");
-          window.desktopAPI.send('open-external-file', url);
-        } else {
-          console.log("desktopAPI nicht gefunden, nutze Fallback");
-          window.open(url, '_blank', 'noopener,noreferrer');
-        }
+        setFileViewer({
+          fileName: f,
+          fileNames: selectedProject.files || [],
+          projectName: selectedProject.name,
+          projectId: selectedProject.id,
+          url
+        });
       } catch (err) {
-        console.error("Datei konnte nicht geoeffnet werden:", err);
-        setToast("❌ Datei konnte nicht geöffnet werden");
+        console.error("Dateivorschau konnte nicht geöffnet werden:", err);
+        setToast("❌ Dateivorschau konnte nicht geöffnet werden");
         setTimeout(() => setToast(null), 2500);
       }
     }
   }}
   style={{ 
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    font: "inherit",
+    textAlign: "left",
     cursor: mode !== "create" ? "pointer" : "default", 
     color: "#3498db",
     textDecoration: mode !== "create" ? "underline" : "none",
@@ -6869,9 +6938,32 @@ const createProject = async () => {
   }}
 >
   📄 {displayName}
-</span>
+</button>
+
+{mode !== "create" && (
+  <div className="project-file-actions">
+    <button
+      type="button"
+      className="project-file-action"
+      title="Datei herunterladen"
+      aria-label={`${displayName} herunterladen`}
+      onClick={() => downloadProjectFile(selectedProject, f)}
+    >
+      ↓
+    </button>
+    <button
+      type="button"
+      className="project-file-action"
+      title="Im regulären Browser öffnen"
+      aria-label={`${displayName} im Browser öffnen`}
+      onClick={() => openProjectFileInBrowser(selectedProject, f)}
+    >
+      ↗
+    </button>
+  </div>
+)}
       
-      {/* LÖSCH-KNOPF */}
+{/* LÖSCH-KNOPF */}
       <button 
         onClick={async (e) => {
           e.stopPropagation(); 
@@ -7202,6 +7294,7 @@ const createProject = async () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0 }}>Einstellungen & Nachkalkulation</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" title="Download-Speicherort" aria-label="Download-Speicherort festlegen" onClick={() => setDownloadFolderPopupOpen(true)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 10px', cursor: 'pointer' }}>📁</button>
                 <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Nachkalkulation Excel Export
                 </button>
@@ -7215,6 +7308,74 @@ const createProject = async () => {
                   Schließen
                 </button>
               </div>
+
+            {downloadFolderPopupOpen && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDownloadFolderPopupOpen(false)}>
+              <section role="dialog" aria-label="Download-Speicherort" onClick={(e) => e.stopPropagation()} style={{ width: 'min(560px, 92vw)', padding: '16px', background: '#0f172a', border: '1px solid #38bdf8', borderRadius: '12px', color: '#e2e8f0' }}>
+              <h4 style={{ margin: '0 0 4px', color: '#e2e8f0', fontSize: '14px' }}>
+                📁 Standard-Speicherort für Downloads
+              </h4>
+              <p style={{ margin: '0 0 10px', color: '#94a3b8', fontSize: '12px' }}>
+                {window.desktopAPI?.setDownloadFolder
+                  ? 'Pfad eintragen oder Ordner auswählen. Downloads werden danach ohne Rückfrage in diesen Ordner gespeichert.'
+                  : 'Nur in der Desktop-App (Electron) verfügbar. Im normalen Browser entscheidet der Browser über den Speicherort.'}
+              </p>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={downloadFolder}
+                  onChange={(e) => setDownloadFolder(e.target.value)}
+                  placeholder={downloadFolderLoading ? 'Wird geladen …' : 'z. B. C:\\Baustellen\\Downloads'}
+                  disabled={!window.desktopAPI?.setDownloadFolder}
+                  className="mast-input-base"
+                  style={{ flex: 1, minWidth: 0, color: '#e2e8f0' }}
+                />
+                <button
+                  type="button"
+                  disabled={!window.desktopAPI?.setDownloadFolder || downloadFolderLoading}
+                  onClick={async () => {
+                    setDownloadFolderError("");
+                    const result = await window.desktopAPI.setDownloadFolder(downloadFolder);
+                    if (result?.ok) {
+                      setDownloadFolder(result.path);
+                      setToast(`Speicherort gespeichert: ${result.path}`);
+                    } else {
+                      setDownloadFolderError(result?.error || 'Speicherort konnte nicht gespeichert werden.');
+                    }
+                    setTimeout(() => setToast(null), 2500);
+                  }}
+                  style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', whiteSpace: 'nowrap', opacity: window.desktopAPI?.setDownloadFolder ? 1 : 0.5 }}
+                >
+                  Speichern
+                </button>
+                <button
+                  type="button"
+                  disabled={!window.desktopAPI?.chooseDownloadFolder || downloadFolderLoading}
+                  onClick={async () => {
+                    setDownloadFolderLoading(true);
+                    setDownloadFolderError("");
+                    try {
+                      const result = await window.desktopAPI.chooseDownloadFolder();
+                      if (result?.ok && result.path) setDownloadFolder(result.path);
+                    } catch (error) {
+                      console.error('Download-Speicherort konnte nicht festgelegt werden:', error);
+                      setDownloadFolderError('Download-Speicherort konnte nicht festgelegt werden.');
+                    } finally {
+                      setDownloadFolderLoading(false);
+                    }
+                  }}
+                  style={{ backgroundColor: '#2c3e50', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', whiteSpace: 'nowrap', opacity: window.desktopAPI?.chooseDownloadFolder ? 1 : 0.5 }}
+                >
+                  Ordner auswählen
+                </button>
+              </div>
+              {downloadFolderError && <div role="alert" style={{ color: '#fca5a5', fontSize: '12px', marginTop: '6px' }}>{downloadFolderError}</div>}
+              <div style={{ textAlign: 'right', marginTop: '12px' }}>
+                <button type="button" onClick={() => setDownloadFolderPopupOpen(false)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Schließen</button>
+              </div>
+              </section>
+            </div>
+            )}
             </div>
 
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
@@ -8084,6 +8245,30 @@ const createProject = async () => {
         </div>
       )}
       </>
+    )}
+    {fileViewer && (
+      <FileViewer
+        fileName={fileViewer.fileName}
+        fileNames={fileViewer.fileNames}
+        projectName={fileViewer.projectName}
+        url={fileViewer.url}
+        onClose={() => setFileViewer(null)}
+        onNavigate={async (fileName) => {
+          const project = projects.find((item) => item.id === fileViewer.projectId);
+          if (!project) {
+            setToast("❌ Baustelle für diese Datei wurde nicht gefunden");
+            return;
+          }
+          try {
+            const url = await getProjectFileUrl(project, fileName);
+            setFileViewer((current) => current ? { ...current, fileName, url } : current);
+          } catch (error) {
+            console.error("Dateivorschau konnte nicht gewechselt werden:", error);
+            setToast("❌ Datei konnte nicht geöffnet werden");
+            setTimeout(() => setToast(null), 2500);
+          }
+        }}
+      />
     )}
     </div>
   );
