@@ -23,6 +23,7 @@
         "releaseType": "release"
       }
     ],
+    "npmRebuild": false,
     "win": {
       "target": "nsis",
       "icon": "public/icon.ico",
