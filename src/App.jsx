@@ -1722,6 +1722,8 @@ const generiereAufmassDaten = (masten) => {
       aktion: m.aktion || "Montage",
       aufmassKabel: m.aufmassKabel || "",
       aufmassMuffen: m.aufmassMuffen || "",
+      kabelanschlussAend: m.kabelanschlussAend || "",
+      kabelanschlussAbr: m.kabelanschlussAbr || "",
       handarbeitStd: m.handarbeitStd || "",
       aufmassNotiz: m.aufmassNotiz || "",
       montageTyp: m.montageTyp || "Fundament",
@@ -2671,6 +2673,8 @@ const handleInitialisiereAufmass = () => {
     lichtpunkthoeheNeu: m.lichtpunkthoehe || "", 
     aufmassKabel: "",
     aufmassMuffen: "",
+    kabelanschlussAend: "",
+    kabelanschlussAbr: "",
     sondersacheRasenkante: "",
     sondersacheBordstein: "",
     sondersacheRinnenfluss: "",
@@ -2788,6 +2792,8 @@ const openProject = (p) => {
     lichtpunkthoehe: m.lichtpunkthoehe || "", // 👈 NEU: Lichtpunkthöhe initialisieren
     aufmassKabel: m.aufmassKabel || "",
     aufmassMuffen: m.aufmassMuffen || "",
+    kabelanschlussAend: m.kabelanschlussAend || "",
+    kabelanschlussAbr: m.kabelanschlussAbr || "",
     handarbeitStd: m.handarbeitStd || "",
     aufmassNotiz: m.aufmassNotiz || "",
     montageTyp: m.montageTyp || "Fundament",
@@ -5826,7 +5832,7 @@ const createProject = async () => {
 
                       <div className="aufmass-anschluss-col-right">
                         <div className="aufmass-row-justify">
-                          <span style={{ fontSize: '11px' }}>Anschluss über 1m (Stk):</span>
+                          <span style={{ fontSize: '11px' }}>Netzanschluss &gt;1m (Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '40px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.netzanschlussUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussUeber1m', e.target.value)} />
                         </div>
                         {Number(m.netzanschlussUeber1m) > 0 && (
@@ -5863,7 +5869,11 @@ const createProject = async () => {
                         <span style={{ color: '#f43f5e' }}>Netzanschluss demontieren (Stk):</span>
                         <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.netzanschlussDemoAnzahl || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussDemoAnzahl', e.target.value)} />
                       </div>
-                      {Number(m.netzanschlussDemoAnzahl) > 0 && (
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#f43f5e' }}>Kabelanschluss ABR (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.kabelanschlussAbr || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelanschlussAbr', e.target.value)} />
+                      </div>
+                      {(Number(m.netzanschlussDemoAnzahl) > 0 || Number(m.kabelanschlussAbr) > 0) && (
                         <div className="aufmass-demo-block">
                           <span>Muffen montieren (Neu-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenDemo', e.target.value)} />
@@ -5872,7 +5882,7 @@ const createProject = async () => {
                         </div>
                       )}
 
-                      {Number(m.netzanschlussDemoAnzahl) > 0 && (
+                      {(Number(m.netzanschlussDemoAnzahl) > 0 || Number(m.kabelanschlussAbr) > 0) && (
                       <details className="aufmass-position-details aufmass-position-details-demo" style={{ marginTop: '6px' }}>
                         <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#fda4af' }}>📦 Positionen ABR</summary>
                         <div className="aufmass-demo-block" style={{ marginTop: '4px' }}>
@@ -5901,7 +5911,11 @@ const createProject = async () => {
                         <span style={{ color: '#a855f7' }}>Kabel an-/abklemmen (Stk):</span>
                         <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.kabelAnAbklemmenAnzahl || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelAnAbklemmenAnzahl', e.target.value)} />
                       </div>
-                      {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
+                      <div className="aufmass-row-justify">
+                        <span style={{ color: '#a855f7' }}>Kabelanschluss ÄND (Stk):</span>
+                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.kabelanschlussAend || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelanschlussAend', e.target.value)} />
+                      </div>
+                      {(Number(m.kabelAnAbklemmenAnzahl) > 0 || Number(m.kabelanschlussAend) > 0) && (
                         <div className="aufmass-tausch-block">
                           <span>Muffen montieren (Neu-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenTausch', e.target.value)} />
@@ -5910,7 +5924,7 @@ const createProject = async () => {
                         </div>
                       )}
 
-                      {Number(m.kabelAnAbklemmenAnzahl) > 0 && (
+                      {(Number(m.kabelAnAbklemmenAnzahl) > 0 || Number(m.kabelanschlussAend) > 0) && (
                       <details className="aufmass-position-details aufmass-position-details-tausch" style={{ marginTop: '6px' }}>
                         <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#d8b4fe' }}>📦 Positionen ÄND</summary>
                         <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
@@ -6127,10 +6141,6 @@ const createProject = async () => {
     {/* ABRECHNUNGSPOSITIONEN */}
     {(() => {
       const num = (val) => Number(String(val || '').replace(',', '.')) || 0;
-      const getBillableOverage = (rawValue, includedCount) => {
-        const value = num(rawValue);
-        return value > includedCount ? value - includedCount : 0;
-      };
 
       const createLkSikaBuckets = () => LK_SIKA_HSW_FIELDS.reduce((acc, field) => {
         acc[field.key] = { title: field.title, total: 0, items: [] };
@@ -6148,6 +6158,8 @@ const createProject = async () => {
         stoerungseinsatzGefahrImVerzug: { title: "Störungseinsatz Gefahr im Verzug", total: 0, items: [] },
         mitarbeiterUndGeraete: { title: "Mitarbeiter und Geräte", total: 0, items: [] },
         kabel: { title: "Kabel An-/Abklemmen (Stk)", total: 0, items: [] },
+        kabelanschlussAend: { title: "Kabelanschluss ÄND (Stk)", total: 0, items: [] },
+        kabelanschlussAbr: { title: "Kabelanschluss ABR (Stk)", total: 0, items: [] },
         muffenMontierenUeber1m: { title: "Muffen montieren ANS(Stk)", total: 0, items: [] },
         muffenMontierenTausch: { title: "Muffen montieren ÄND(Stk)", total: 0, items: [] },
         muffenMontierenDemo: { title: "Muffen montieren ABR(Stk)", total: 0, items: [] },
@@ -6158,6 +6170,7 @@ const createProject = async () => {
         endmuffenAend: { title: "Endmuffen ÄND (Stk)", total: 0, items: [] },
         endmuffenAbr: { title: "Endmuffen ABR (Stk)", total: 0, items: [] },
         netzAns: { title: "Netzanschluss montieren ANS", total: 0, items: [] },
+        kabelanschlussAns: { title: "Kabelanschluss ANS", total: 0, items: [] },
         netzDemo: { title: "Netzanschluss demontieren (Stk)", total: 0, items: [] },
         grabenAns: { title: "Graben ANS (m)", total: 0, items: [] },
         grabenAend: { title: "Graben ÄND (m)", total: 0, items: [] },
@@ -6427,38 +6440,40 @@ const createProject = async () => {
           if (num(m.grabenKabelverlegen) > 0) { dataMueller.kabelverlegenAns.total += num(m.grabenKabelverlegen); dataMueller.kabelverlegenAns.items.push({ label: mastLabel, val: num(m.grabenKabelverlegen) }); }
           if (num(m.grabenKabelverlegenTausch) > 0) { dataMueller.kabelverlegenAend.total += num(m.grabenKabelverlegenTausch); dataMueller.kabelverlegenAend.items.push({ label: mastLabel, val: num(m.grabenKabelverlegenTausch) }); }
           if (num(m.grabenKabelverlegenDemo) > 0) { dataMueller.kabelverlegenAbr.total += num(m.grabenKabelverlegenDemo); dataMueller.kabelverlegenAbr.items.push({ label: mastLabel, val: num(m.grabenKabelverlegenDemo) }); }
-          const netzanschlussAnsTotal = num(m.netzanschlussBis1m) + num(m.netzanschlussUeber1m);
+          const netzanschlussAnsTotal = num(m.netzanschlussBis1m);
           if (netzanschlussAnsTotal > 0) {
             dataMueller.netzAns.total += netzanschlussAnsTotal;
             dataMueller.netzAns.items.push({ label: mastLabel, val: netzanschlussAnsTotal });
           }
+          const kabelanschlussAnsTotal = num(m.netzanschlussUeber1m);
+          if (kabelanschlussAnsTotal > 0) {
+            dataMueller.kabelanschlussAns.total += kabelanschlussAnsTotal;
+            dataMueller.kabelanschlussAns.items.push({ label: mastLabel, val: kabelanschlussAnsTotal });
+          }
           if (num(m.kabelAnAbklemmenAnzahl) > 0) { dataMueller.kabel.total += num(m.kabelAnAbklemmenAnzahl); dataMueller.kabel.items.push({ label: mastLabel, val: num(m.kabelAnAbklemmenAnzahl) }); }
+          if (num(m.kabelanschlussAend) > 0) { dataMueller.kabelanschlussAend.total += num(m.kabelanschlussAend); dataMueller.kabelanschlussAend.items.push({ label: mastLabel, val: num(m.kabelanschlussAend) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ label: mastLabel, val: num(m.netzanschlussDemoAnzahl) }); }
-          const muffenMontierenAnsAbrechenbar = getBillableOverage(m.muffenMontierenUeber1m, 2);
-          if (muffenMontierenAnsAbrechenbar > 0) {
-            dataMueller.muffenMontierenUeber1m.total += muffenMontierenAnsAbrechenbar;
-            dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: muffenMontierenAnsAbrechenbar });
+          if (num(m.kabelanschlussAbr) > 0) { dataMueller.kabelanschlussAbr.total += num(m.kabelanschlussAbr); dataMueller.kabelanschlussAbr.items.push({ label: mastLabel, val: num(m.kabelanschlussAbr) }); }
+          const muffenMontierenAnsCount = num(m.muffenMontierenBis1m) + num(m.muffenMontierenUeber1m);
+          if (muffenMontierenAnsCount > 0) {
+            dataMueller.muffenMontierenUeber1m.total += muffenMontierenAnsCount;
+            dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: muffenMontierenAnsCount });
           }
           if (num(m.muffenMontierenTausch) > 0) { dataMueller.muffenMontierenTausch.total += num(m.muffenMontierenTausch); dataMueller.muffenMontierenTausch.items.push({ label: mastLabel, val: num(m.muffenMontierenTausch) }); }
-          const muffenMontierenAbrAbrechenbar = getBillableOverage(m.muffenMontierenDemo, 1);
-          if (muffenMontierenAbrAbrechenbar > 0) {
-            dataMueller.muffenMontierenDemo.total += muffenMontierenAbrAbrechenbar;
-            dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: muffenMontierenAbrAbrechenbar });
+          const muffenMontierenAbrCount = num(m.muffenMontierenDemo);
+          if (muffenMontierenAbrCount > 0) {
+            dataMueller.muffenMontierenDemo.total += muffenMontierenAbrCount;
+            dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: muffenMontierenAbrCount });
           }
           if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
           const netzanschlussDemoCount = num(m.netzanschlussDemoAnzahl);
           const endmuffenDemoCount = num(m.endmuffenDemo);
           const muffenDemoCount = num(m.muffenDemo);
-          // Ein demontierter Netzanschluss enthält genau eine Muffe: bevorzugt die eingetragene Endmuffe, sonst die Verbindungsmuffe.
-          const includedEndmuffen = Math.min(endmuffenDemoCount, netzanschlussDemoCount);
-          const endmuffenAbrAbrechenbar = endmuffenDemoCount - includedEndmuffen;
-          const includedMuffen = Math.max(0, netzanschlussDemoCount - includedEndmuffen);
-          const muffenDemoAbrechenbar = Math.max(0, muffenDemoCount - includedMuffen);
-          if (muffenDemoAbrechenbar > 0) { dataMueller.muffenDemo.total += muffenDemoAbrechenbar; dataMueller.muffenDemo.items.push({ label: mastLabel, val: muffenDemoAbrechenbar }); }
+          if (muffenDemoCount > 0) { dataMueller.muffenDemo.total += muffenDemoCount; dataMueller.muffenDemo.items.push({ label: mastLabel, val: muffenDemoCount }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
           if (num(m.endmuffenAns) > 0) { dataMueller.endmuffenAns.total += num(m.endmuffenAns); dataMueller.endmuffenAns.items.push({ label: mastLabel, val: num(m.endmuffenAns) }); }
           if (num(m.endmuffenTausch) > 0) { dataMueller.endmuffenAend.total += num(m.endmuffenTausch); dataMueller.endmuffenAend.items.push({ label: mastLabel, val: num(m.endmuffenTausch) }); }
-          if (endmuffenAbrAbrechenbar > 0) { dataMueller.endmuffenAbr.total += endmuffenAbrAbrechenbar; dataMueller.endmuffenAbr.items.push({ label: mastLabel, val: endmuffenAbrAbrechenbar }); }
+          if (endmuffenDemoCount > 0) { dataMueller.endmuffenAbr.total += endmuffenDemoCount; dataMueller.endmuffenAbr.items.push({ label: mastLabel, val: endmuffenDemoCount }); }
         });
       }
 
@@ -6539,7 +6554,9 @@ const createProject = async () => {
           ...(dataObj.kabelverlegenAend.total > 0 ? [dataObj.kabelverlegenAend] : []),
           ...(dataObj.kabelverlegenAbr.total > 0 ? [dataObj.kabelverlegenAbr] : []),
           ...(dataObj.netzAns.total > 0 ? [dataObj.netzAns] : []),
+          ...(dataObj.kabelanschlussAns.total > 0 ? [dataObj.kabelanschlussAns] : []),
           ...(dataObj.kabel.total > 0 ? [dataObj.kabel] : []),
+          ...(dataObj.kabelanschlussAend.total > 0 ? [dataObj.kabelanschlussAend] : []),
           ...(dataObj.muffenMontierenUeber1m.total > 0 ? [dataObj.muffenMontierenUeber1m] : []),
           ...(dataObj.muffenMontierenTausch.total > 0 ? [dataObj.muffenMontierenTausch] : []),
           ...(dataObj.muffenMontierenDemo.total > 0 ? [dataObj.muffenMontierenDemo] : []),
@@ -6551,6 +6568,7 @@ const createProject = async () => {
           ...(dataObj.endmuffenAbr.total > 0 ? [dataObj.endmuffenAbr] : []),
           ...(dataObj.handarbeitStd.total > 0 ? [dataObj.handarbeitStd] : []),
           ...(dataObj.netzDemo.total > 0 ? [dataObj.netzDemo] : []),
+          ...(dataObj.kabelanschlussAbr.total > 0 ? [dataObj.kabelanschlussAbr] : []),
           ...LK_SIKA_HSW_FIELDS.flatMap((field) => (dataObj[field.key]?.total > 0 ? [dataObj[field.key]] : [])),
           ...(dataObj.transport.total > 0 ? [dataObj.transport] : [])
         ];
