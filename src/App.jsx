@@ -79,7 +79,7 @@ function MarkerCluster({ projects, openProject }) {
 
       const marker = L.marker(
         [p.position.lat, p.position.lng],
-        { icon: ICONS[p.status] || ICONS.Offen }
+        { icon: createProjectStatusIcon(p) }
       );
 
       marker._id = p.id; 
@@ -324,8 +324,9 @@ const ICONS = {
   "Westnetznummer fehlt": createIcon("orange"),
   "In Bearbeitung": createIcon("blue"),
   "Fertig für Abrechnung": createIcon("violet"),
-  "Proformarechnung weggeschickt": createIcon("grey"),
-  "Proforma WN weggeschickt": createIcon("grey"),
+  "Proforma Müller": createIcon("grey"),
+  "Proforma HSW": createIcon("teal"),
+  "Proforma WN": createIcon("grey"),
   Abgerechnet: createIcon("black"),
 };
 
@@ -336,9 +337,59 @@ const STATUS_COLORS = {
   "Westnetznummer fehlt": "#e68a00",
   "In Bearbeitung": "#3498db",
   "Fertig für Abrechnung": "#9b59b6",
-  "Proformarechnung weggeschickt": "#757575",
-  "Proforma WN weggeschickt": "#757575",
+  "Proforma Müller": "#757575",
+  "Proforma HSW": "#00897b",
+  "Proforma WN": "#a1887f",
   Abgerechnet: "#000000",
+};
+
+const STATUS_ORDER = [
+  "Offen",
+  "Geplant",
+  "Klärung",
+  "Westnetznummer fehlt",
+  "In Bearbeitung",
+  "Fertig für Abrechnung",
+  "Proforma Müller",
+  "Proforma HSW",
+  "Proforma WN",
+  "Abgerechnet"
+];
+
+const getProjectStatuses = (project) => {
+  let statuses = project?.statuses;
+  if (typeof statuses === "string") {
+    try {
+      statuses = JSON.parse(statuses);
+    } catch {
+      statuses = null;
+    }
+  }
+
+  const selectedStatuses = Array.isArray(statuses)
+    ? statuses
+    : [project?.status || "Offen"];
+  return [...new Set(selectedStatuses.filter((status) => STATUS_ORDER.includes(status)))]
+    .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
+};
+
+const createProjectStatusIcon = (project) => {
+  const statuses = getProjectStatuses(project);
+  if (statuses.length <= 1) return ICONS[statuses[0]] || ICONS.Offen;
+
+  const gradientStops = statuses.map((status, index) => {
+    const offset = `${(index / statuses.length) * 100}%`;
+    const endOffset = `${((index + 1) / statuses.length) * 100}%`;
+    const color = STATUS_COLORS[status];
+    return `<stop offset="${offset}" stop-color="${color}"/><stop offset="${endOffset}" stop-color="${color}"/>`;
+  }).join("");
+  const icon = L.divIcon({
+    className: "project-status-map-icon",
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41" aria-hidden="true"><path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="url(#status-gradient)" stroke="#fff" stroke-width="1"/><circle cx="12.5" cy="12.5" r="4.5" fill="#fff" stroke="#334155" stroke-width="1"/><defs><linearGradient id="status-gradient" x1="0" y1="0" x2="0" y2="1">${gradientStops}</linearGradient></defs></svg>`,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+  });
+  return icon;
 };
 
 const DEFAULT_NACHKALKULATION = {
@@ -363,6 +414,8 @@ const DEFAULT_AUFMASS = {
   allgemein: { ...DEFAULT_AUFMASS_ALLGEMEIN },
   masten: []
 };
+
+const MAX_POCKETBASE_JSON_FIELD_BYTES = 1024 * 1024;
 
 const MIN_HOURLY_RATE = 56;
 const NORMAL_HOURLY_RATE = 59;
@@ -1512,8 +1565,9 @@ export default function App() {
     { value: "Westnetznummer fehlt", label: "Westnetznummer fehlt" },
     { value: "In Bearbeitung", label: "In Bearbeitung" },
     { value: "Fertig für Abrechnung", label: "Fertig für Abrechnung" },
-    { value: "Proformarechnung weggeschickt", label: "Proformarechnung weggeschickt" },
-    { value: "Proforma WN weggeschickt", label: "Proforma WN weggeschickt" },
+    { value: "Proforma Müller", label: "Proforma Müller" },
+    { value: "Proforma HSW", label: "Proforma HSW" },
+    { value: "Proforma WN", label: "Proforma WN" },
     { value: "Abgerechnet", label: "Abgerechnet" }
   ];
   const UNBILLED_STATUS_VALUES = ["Offen", "Geplant", "Klärung", "Westnetznummer fehlt", "In Bearbeitung", "Fertig für Abrechnung"];
@@ -1532,6 +1586,7 @@ export default function App() {
     westnetz: "",
     type: "Konzept",
     status: "Offen",
+    statuses: ["Offen"],
     pgk: "",
     notes: "",
     masten: [],
@@ -2145,8 +2200,13 @@ Weitere Infos: ${form.notes || ""}
       };
       setScheduleEntries((prev) => [...prev, enrichedEntry]);
       const currentProject = projects.find((p) => p.id === projectId);
-      if (currentProject && currentProject.status !== "Geplant") {
-        const updatedProject = await pb.collection('projects').update(projectId, { status: "Geplant" });
+      if (currentProject && !getProjectStatuses(currentProject).includes("Geplant")) {
+        const statuses = [...getProjectStatuses(currentProject), "Geplant"]
+          .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
+        const updatedProject = await pb.collection('projects').update(projectId, {
+          status: statuses[0],
+          statuses
+        });
         setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...updatedProject } : p)));
       }
     } catch (error) {
@@ -2269,7 +2329,8 @@ Weitere Infos: ${form.notes || ""}
 
   const matchesStatusFilter = (projectStatus) => {
     if (selectedStatusFilters.includes("Alle") || selectedStatusFilters.length === 0) return true;
-    return selectedStatusFilters.includes(projectStatus);
+    const statuses = Array.isArray(projectStatus) ? projectStatus : [projectStatus];
+    return statuses.some((status) => selectedStatusFilters.includes(status));
   };
 
   const keepOnlyOneStatusFilter = (value) => {
@@ -2304,7 +2365,7 @@ Weitere Infos: ${form.notes || ""}
         p.ab_mueller?.toLowerCase().includes(text) ||
         p.type?.toLowerCase().includes(text) ||
         p.pgk?.toLowerCase().includes(text)) &&
-      matchesStatusFilter(p.status) &&
+      matchesStatusFilter(getProjectStatuses(p)) &&
       matchesTypeFilter(p.type)
     );
   });
@@ -2607,6 +2668,12 @@ useLayoutEffect(() => {
 
 const handleStatusChange = (newStatus) => {
   setForm(prev => {
+    const currentStatuses = getProjectStatuses(prev);
+    const selectedStatuses = currentStatuses.includes(newStatus)
+      ? currentStatuses.filter((status) => status !== newStatus)
+      : [...currentStatuses, newStatus];
+    if (selectedStatuses.length === 0) return prev;
+    const orderedStatuses = selectedStatuses.sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
     const aktuellesAllgemein = {
       ...DEFAULT_AUFMASS_ALLGEMEIN,
@@ -2614,13 +2681,14 @@ const handleStatusChange = (newStatus) => {
     };
 
     const shouldAutoSetProformaDate =
-      !isProformaStatus(prev.status) &&
-      isProformaStatus(newStatus) &&
+      !currentStatuses.some(isProformaStatus) &&
+      orderedStatuses.some(isProformaStatus) &&
       !String(aktuellesAllgemein.proformaRechnungWeggeschicktAm || "").trim();
 
     return {
       ...prev,
-      status: newStatus,
+      status: orderedStatuses[0],
+      statuses: orderedStatuses,
       aufmass: {
         ...aktuellesAufmass,
         allgemein: {
@@ -2845,7 +2913,8 @@ const openProject = (p) => {
     address: p.address || "",
     westnetz: p.westnetz || "",
     type: p.type || "Konzept",
-    status: p.status || "Offen",
+    status: getProjectStatuses(p)[0] || "Offen",
+    statuses: getProjectStatuses(p),
     pgk: p.pgk || "",
     notes: p.notes || "",
     masten: parsedMasten,
@@ -3100,7 +3169,7 @@ useEffect(() => {
   };
 
   // 1. Normale Textfelder prüfen
-  const fields = ['name', 'address', 'westnetz', 'type', 'status', 'pgk', 'notes', 'ab_hsw', 'ab_mueller'];
+  const fields = ['name', 'address', 'westnetz', 'type', 'status', 'statuses', 'pgk', 'notes', 'ab_hsw', 'ab_mueller'];
   const hasFieldChanges = fields.some(key => String(form[key] || "") !== String(originalProject[key] || ""));
 
   // 2. Masten und Leuchten der Planung prüfen
@@ -3215,21 +3284,28 @@ const saveAction = async () => {
     const fields = [
       { id: 'name', label: 'Name' }, { id: 'address', label: 'Adresse' },
       { id: 'westnetz', label: 'Westnetz' }, { id: 'type', label: 'Typ' },
-      { id: 'status', label: 'Status' }, { id: 'pgk', label: 'PGK' },
+      { id: 'statuses', label: 'Status' },
+      { id: 'pgk', label: 'PGK' },
       { id: 'notes', label: 'Notizen' }, { id: 'ab_hsw', label: 'AB HSW' },
       { id: 'ab_mueller', label: 'AB Müller' }
     ];
 
     fields.forEach(f => {
-      if (String(originalProject[f.id] || "") !== String(form[f.id] || "")) {
+      const oldValue = f.id === "statuses"
+        ? getProjectStatuses(originalProject).join(", ")
+        : String(originalProject[f.id] || "");
+      const newValue = f.id === "statuses"
+        ? getProjectStatuses(form).join(", ")
+        : String(form[f.id] || "");
+      if (oldValue !== newValue) {
         newLogEntries.push({
           date: now,
           user: currentUser,
           action: `${f.label} geändert`,
           changes: [{
             field: f.label,
-            old: String(originalProject[f.id] || ""),
-            new: String(form[f.id] || "")
+            old: oldValue,
+            new: newValue
           }]
         });
       }
@@ -3252,6 +3328,10 @@ const saveAction = async () => {
       return;
     }
 
+    const nextLog = [...(Array.isArray(form.log) ? form.log : []), ...newLogEntries];
+    const logFitsPocketBaseField =
+      new TextEncoder().encode(JSON.stringify(nextLog)).byteLength <= MAX_POCKETBASE_JSON_FIELD_BYTES;
+
     // Payload strikt auf bekannte Collection-Felder begrenzen.
     // Wichtig: Kein leuchten-Feld senden (wurde in der Migration durch aufmass ersetzt).
     const payload = {
@@ -3260,13 +3340,14 @@ const saveAction = async () => {
       westnetz: form.westnetz || "",
       type: form.type || "Konzept",
       status: form.status || "Offen",
+      statuses: getProjectStatuses(form),
       pgk: form.pgk || "",
       notes: form.notes || "",
       ab_hsw: form.ab_hsw || "",
       ab_mueller: form.ab_mueller || "",
       masten: Array.isArray(form.masten) ? form.masten : [],
       aufmass: normalizeAufmass(form.aufmass),
-      log: [...(form.log || []), ...newLogEntries],
+      ...(logFitsPocketBaseField ? { log: nextLog } : {}),
       position: selectedPosition || originalProject?.position || null
     };
 
@@ -3295,7 +3376,15 @@ const saveAction = async () => {
       setProjects(prev => prev.map(p => p.id === updatedRecord.id ? updatedRecord : p));
     }
 
-    setToast("✅ Gespeichert");
+    if (!Array.isArray(updatedRecord.statuses)) {
+      setToast("⚠️ Mehrfachstatus nicht gespeichert: Datenbankfeld 'statuses' fehlt. PocketBase neu starten (Migration).");
+      setTimeout(() => setToast(null), 6000);
+      return;
+    }
+
+    setToast(logFitsPocketBaseField
+      ? "✅ Gespeichert"
+      : "✅ Gespeichert. Änderungsverlauf ist voll; Änderung wurde nicht protokolliert.");
     setTimeout(() => setToast(null), 1500);
 
   } catch (err) {
@@ -3381,6 +3470,7 @@ const createProject = async () => {
     formData.append('name', form.name || "Unbenanntes Projekt");
     formData.append('address', form.address || "");
     formData.append('status', form.status || "Offen");
+    formData.append('statuses', JSON.stringify(getProjectStatuses(form)));
     formData.append('type', form.type || "Konzept");
     formData.append('westnetz', form.westnetz || "");
     formData.append('ab_hsw', form.ab_hsw || "");
@@ -3650,7 +3740,7 @@ const createProject = async () => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   };
 
-  const PROFORMA_STATUS = "Proformarechnung weggeschickt";
+  const PROFORMA_STATUS = "Proforma Müller";
   const isProformaStatus = (value) => {
     const text = String(value || "").toLowerCase();
     return text.includes("proforma");
@@ -3700,10 +3790,11 @@ const createProject = async () => {
       "Westnetznummer fehlt",
       "In Bearbeitung",
       "Fertig für Abrechnung",
-      "Proformarechnung weggeschickt",
-      "Proforma WN weggeschickt",
+      "Proforma Müller",
+      "Proforma HSW",
+      "Proforma WN",
       "Abgerechnet",
-      ...projects.map((p) => p.status).filter(Boolean)
+      ...projects.flatMap((p) => getProjectStatuses(p))
     ]))
   ].map((value) => ({ value, label: value }));
 
@@ -3806,7 +3897,8 @@ const createProject = async () => {
 
   const BZP_ALLOWED_STATUSES = new Set(["offen", "geplant", "in bearbeitung"]);
   const bzpProjectRows = projects
-    .filter((project) => BZP_ALLOWED_STATUSES.has(String(project?.status || "").trim().toLowerCase()))
+    .filter((project) => getProjectStatuses(project)
+      .some((status) => BZP_ALLOWED_STATUSES.has(status.trim().toLowerCase())))
     .map((project) => {
       const isKonzept = isKonzeptProjectType(project?.type);
       const masten = parseProjectMasten(project);
@@ -3824,7 +3916,8 @@ const createProject = async () => {
         address: project?.address || "",
         type: project?.type || "Ohne Auftragstyp",
         isKonzept,
-        status: project?.status || "",
+        status: getProjectStatuses(project).join(", "),
+        statuses: getProjectStatuses(project),
         created: project?.created || "",
         workDays,
         zeitbedarfWeeks: adjustedFullDays > 0 ? Number((adjustedFullDays / WORK_DAYS_PER_WEEK).toFixed(2)) : 0,
@@ -3881,7 +3974,7 @@ const createProject = async () => {
       };
     })
     .filter((row) => ordersExportTypeFilter.includes("Alle") || ordersExportTypeFilter.length === 0 || ordersExportTypeFilter.includes(row.type))
-    .filter((row) => ordersExportStatusFilter.includes("Alle") || ordersExportStatusFilter.length === 0 || ordersExportStatusFilter.includes(row.status))
+    .filter((row) => ordersExportStatusFilter.includes("Alle") || ordersExportStatusFilter.length === 0 || row.statuses.some((status) => ordersExportStatusFilter.includes(status)))
     .filter((row) => !ordersExportDateFromISO || (row.createdDateISO && row.createdDateISO >= ordersExportDateFromISO))
     .filter((row) => !ordersExportDateToISO || (row.createdDateISO && row.createdDateISO <= ordersExportDateToISO));
 
@@ -4399,8 +4492,8 @@ const createProject = async () => {
   const notifPlanStatuses = new Set(["offen", "geplant", "in bearbeitung"]);
   const notifications = [];
   projects.forEach((p) => {
-    const status = String(p?.status || "").trim().toLowerCase();
-    if (notifPlanStatuses.has(status)) {
+    const statuses = getProjectStatuses(p).map((status) => status.trim().toLowerCase());
+    if (statuses.some((status) => notifPlanStatuses.has(status))) {
       const entries = scheduleEntries.filter((e) => e.project === p.id);
       if (entries.length > 0) {
         const row = bzpProjectRows.find((r) => r.id === p.id);
@@ -4411,7 +4504,7 @@ const createProject = async () => {
             key: `done:${p.id}`, type: "done", project: p, newStatus: "Fertig für Abrechnung",
             text: "Alle geplanten Tage sind abgeschlossen. Status auf „Fertig für Abrechnung“ setzen?"
           });
-        } else if (status !== "in bearbeitung" && entries.some((e) => startOfDay(new Date(e.start_date)) <= notifToday)) {
+        } else if (!statuses.includes("in bearbeitung") && entries.some((e) => startOfDay(new Date(e.start_date)) <= notifToday)) {
           notifications.push({
             key: `start:${p.id}`, type: "start", project: p, newStatus: "In Bearbeitung",
             text: "Der geplante Termin ist erreicht. Status auf „In Bearbeitung“ setzen?"
@@ -4419,7 +4512,7 @@ const createProject = async () => {
         }
       }
     }
-    if (status === "fertig für abrechnung" && (p?.status_changed_at || p?.updated)) {
+    if (statuses.includes("fertig für abrechnung") && (p?.status_changed_at || p?.updated)) {
       const updatedAt = new Date(p.status_changed_at || p.updated);
       if (!Number.isNaN(updatedAt.getTime()) && (Date.now() - updatedAt.getTime()) >= 14 * 86400000) {
         notifications.push({
@@ -4428,7 +4521,7 @@ const createProject = async () => {
         });
       }
     }
-    if (Number(proformaReminderDays) > 0 && isProformaStatus(p?.status)) {
+    if (Number(proformaReminderDays) > 0 && statuses.some(isProformaStatus)) {
       const sentAt = getProformaSentTimestampFromAufmass(p);
       if (sentAt && (Date.now() - sentAt.getTime()) >= Number(proformaReminderDays) * 86400000) {
         notifications.push({
@@ -4446,7 +4539,9 @@ const createProject = async () => {
   const closeNotifications = () => setNotificationsOpen(false);
   const confirmNotificationStatus = async (n) => {
     try {
-      const updated = await pb.collection('projects').update(n.project.id, { status: n.newStatus });
+      const statuses = [...new Set([...getProjectStatuses(n.project), n.newStatus])]
+        .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
+      const updated = await pb.collection('projects').update(n.project.id, { status: statuses[0], statuses });
       setProjects((prev) => prev.map((p) => (p.id === n.project.id ? { ...p, ...updated } : p)));
       setToast(`Status von "${n.project.name || "Baustelle"}" auf ${n.newStatus} gesetzt`);
     } catch (error) {
@@ -4764,8 +4859,16 @@ const createProject = async () => {
       )}
       <h3>Baustellen</h3>
               {mode === "detail" && (
-                <div style={{ background: STATUS_COLORS[form.status] || "#999", color: "white", padding: "8px 12px", borderRadius: "8px", marginBottom: "10px", fontWeight: "bold", textAlign: "center" }}>
-                  {form.status}
+                <div className="project-status-list project-status-header">
+                  {getProjectStatuses(form).map((status) => (
+                    <span
+                      key={status}
+                      className="project-status-list-dot"
+                      style={{ background: STATUS_COLORS[status] }}
+                      title={status}
+                      aria-label={status}
+                    />
+                  ))}
                 </div>
               )}
 
@@ -4883,10 +4986,19 @@ const createProject = async () => {
           // --- DRAG & DROP LOGIK ENDE ---
         >
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ width: 12, height: 12, borderRadius: "50%", background: STATUS_COLORS[p.status] || "#999", flexShrink: 0, marginTop: 2 }} />
             <strong style={{ wordBreak: "break-word", wordWrap: "break-word", overflow: "hidden" }}>{p.name}</strong>
           </div>
-          <div>{p.status}</div>
+          <div className="project-status-list">
+            {getProjectStatuses(p).map((status) => (
+              <span
+                key={status}
+                className="project-status-list-dot"
+                style={{ background: STATUS_COLORS[status] }}
+                title={status}
+                aria-label={status}
+              />
+            ))}
+          </div>
           <div style={{ fontSize: 12 }}>{p.type}</div>
           {p.ab_hsw && <div style={{ fontSize: 12 }}>AB HSW: {p.ab_hsw}</div>}
           {p.ab_mueller && <div style={{ fontSize: 12 }}>AB Müller: {p.ab_mueller}</div>}
@@ -4950,12 +5062,38 @@ const createProject = async () => {
                   <option>Konzept</option><option>Anfahrschaden</option><option>Störung</option><option>LK-Tausch</option><option>Sonstiges</option>
                 </select>
                 <label>Status</label>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: STATUS_COLORS[form.status] || "#999", flexShrink: 0 }} />
-                  <select value={form.status} onChange={(e) => handleStatusChange(e.target.value)}>
-                    <option>Offen</option><option>Geplant</option><option>Klärung</option><option>Westnetznummer fehlt</option><option>In Bearbeitung</option><option>Fertig für Abrechnung</option><option>Proformarechnung weggeschickt</option><option>Proforma WN weggeschickt</option><option>Abgerechnet</option>
-                  </select>
-                </div>
+                <details className="project-status-dropdown">
+                  <summary className="project-status-dropdown-trigger">
+                    <span className="project-status-list">
+                      {getProjectStatuses(form).map((status) => (
+                        <span key={status} className="project-status-badge" style={{ background: STATUS_COLORS[status] }}>
+                          {status}
+                        </span>
+                      ))}
+                    </span>
+                    <span aria-hidden="true">▾</span>
+                  </summary>
+                  <div className="project-status-dropdown-menu">
+                    {STATUS_ORDER.map((status) => {
+                      const selected = getProjectStatuses(form).includes(status);
+                      const onlySelectedStatus = selected && getProjectStatuses(form).length === 1;
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          className={`project-status-dropdown-option${selected ? " selected" : ""}`}
+                          aria-pressed={selected}
+                          disabled={onlySelectedStatus}
+                          onClick={() => handleStatusChange(status)}
+                        >
+                          <span className="project-status-dropdown-color" style={{ background: STATUS_COLORS[status] }} />
+                          <span>{status}</span>
+                          {selected && <span className="project-status-dropdown-check" aria-hidden="true">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
                 <label>PGK</label>
                 <input value={form.pgk} onChange={(e) => setForm({ ...form, pgk: e.target.value })} />
                 {mode === "detail" && (
