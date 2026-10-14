@@ -3137,6 +3137,7 @@ useEffect(() => {
         closeAppDialog(false);
         return;
       }
+      if (fileViewer) return;
       // 1. Priorität: Wenn im Suchfeld etwas steht, leere es zuerst
       if (search !== "") {
         setSearch("");
@@ -3160,7 +3161,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener("keydown", handleKeyDown);
   };
-}, [search, selectedProject, appDialog]); // Diese Variablen muss der Hook "beobachten"
+}, [search, selectedProject, appDialog, fileViewer]); // Diese Variablen muss der Hook "beobachten"
 
 useEffect(() => {
   if (!alertToast.show) return;
