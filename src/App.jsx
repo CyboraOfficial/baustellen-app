@@ -1427,15 +1427,25 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("Allgemein");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const mapRef = useRef(null);
+  const sidebarScrollAreaRef = useRef(null);
   const [batchAktion, setBatchAktion] = useState('Tausch');
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
+  const [projectFileEditingIndex, setProjectFileEditingIndex] = useState(null);
+  const [projectFileNameDraft, setProjectFileNameDraft] = useState("");
+  const [projectFileSavingRename, setProjectFileSavingRename] = useState(false);
   const [fileViewer, setFileViewer] = useState(null);
   const [downloadFolder, setDownloadFolder] = useState("");
   const [downloadFolderLoading, setDownloadFolderLoading] = useState(false);
   const [downloadFolderError, setDownloadFolderError] = useState("");
   const [downloadFolderPopupOpen, setDownloadFolderPopupOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    if (sidebarScrollAreaRef.current) {
+      sidebarScrollAreaRef.current.scrollTop = 0;
+    }
+  }, [mode, selectedProject?.id]);
 
   /* 🔍 FILTER */
   const [search, setSearch] = useState("");
@@ -1952,6 +1962,19 @@ const getProjectFileUrl = async (project, fileName) => {
   }
 };
 
+const getProjectFileIconType = (fileName) => {
+  const extension = fileName.split(".").pop()?.toLowerCase() || "";
+  if (extension === "pdf") return "pdf";
+  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "heic"].includes(extension)) return "image";
+  if (["xls", "xlsx", "csv", "ods"].includes(extension)) return "spreadsheet";
+  if (["ppt", "pptx", "odp"].includes(extension)) return "presentation";
+  if (["doc", "docx", "odt", "rtf", "txt", "md"].includes(extension)) return "text";
+  if (["zip", "rar", "7z", "tar", "gz"].includes(extension)) return "archive";
+  if (["mp3", "wav", "ogg", "m4a", "flac"].includes(extension)) return "audio";
+  if (["mp4", "mov", "avi", "mkv", "webm"].includes(extension)) return "video";
+  return "generic";
+};
+
 const downloadProjectFile = async (project, fileName) => {
   try {
     const url = await getProjectFileUrl(project, fileName);
@@ -1981,6 +2004,86 @@ const downloadProjectFile = async (project, fileName) => {
     setToast(`❌ ${error.message || "Datei konnte nicht heruntergeladen werden"}`);
   }
   scheduleToastDismiss(3500);
+};
+
+const renameProjectFile = async (fileName, fileIndex) => {
+  const newFileName = projectFileNameDraft.trim();
+  if (!newFileName) {
+    setToast("❌ Der Dateiname darf nicht leer sein.");
+    scheduleToastDismiss(3000);
+    return;
+  }
+  if (/[<>:"\/\\|?*\x00-\x1F]/.test(newFileName) || /[. ]$/.test(newFileName) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(newFileName)) {
+    setToast("❌ Der Dateiname enthält Zeichen, die unter Windows nicht erlaubt sind.");
+    scheduleToastDismiss(3000);
+    return;
+  }
+  if (newFileName === fileName) {
+    setProjectFileEditingIndex(null);
+    return;
+  }
+
+  const currentFiles = mode === "create" ? tempFiles.map((file) => file.name) : selectedProject?.files || [];
+  if (currentFiles.some((existingName, index) => index !== fileIndex && existingName.toLowerCase() === newFileName.toLowerCase())) {
+    setToast("❌ Eine Datei mit diesem Namen ist bereits vorhanden.");
+    scheduleToastDismiss(3000);
+    return;
+  }
+
+  if (mode === "create") {
+    const oldFile = tempFiles[fileIndex];
+    if (!oldFile) return;
+    const renamedFile = new File([oldFile], newFileName, { type: oldFile.type, lastModified: oldFile.lastModified });
+    setTempFiles((previous) => previous.map((file, index) => index === fileIndex ? renamedFile : file));
+    setProjectFileEditingIndex(null);
+    return;
+  }
+
+  if (!selectedProject?.id) return;
+
+  setProjectFileSavingRename(true);
+  try {
+    const url = await getProjectFileUrl(selectedProject, fileName);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Datei konnte nicht geladen werden (HTTP ${response.status}).`);
+
+    const fileBlob = await response.blob();
+    const renamedFile = new File([fileBlob], newFileName, {
+      type: fileBlob.type || "application/octet-stream",
+      lastModified: Date.now()
+    });
+    const formData = new FormData();
+    formData.append("files+", renamedFile);
+
+    const uploadedProject = await pb.collection("projects").update(selectedProject.id, formData);
+    let updatedProject;
+    try {
+      updatedProject = await pb.collection("projects").update(selectedProject.id, {
+        "files-": [fileName]
+      });
+    } catch (error) {
+      setSelectedProject(uploadedProject);
+      setOriginalProject(uploadedProject);
+      setForm(uploadedProject);
+      setProjects((previous) => previous.map((project) => project.id === uploadedProject.id ? uploadedProject : project));
+      setProjectFileEditingIndex(null);
+      throw new Error(`Die neue Datei wurde hochgeladen, aber die alte Datei konnte nicht entfernt werden. Beide Dateien sind vorhanden. ${error.message || ""}`.trim());
+    }
+
+    setSelectedProject(updatedProject);
+    setOriginalProject(updatedProject);
+    setForm(updatedProject);
+    setProjects((previous) => previous.map((project) => project.id === updatedProject.id ? updatedProject : project));
+    setProjectFileEditingIndex(null);
+    setToast("✅ Dateiname geändert.");
+    scheduleToastDismiss(2500);
+  } catch (error) {
+    console.error("Datei konnte nicht umbenannt werden:", error);
+    setToast(`❌ ${error.message || "Datei konnte nicht umbenannt werden."}`);
+    scheduleToastDismiss(3500);
+  } finally {
+    setProjectFileSavingRename(false);
+  }
 };
 
 const openProjectFileInBrowser = async (project, fileName) => {
@@ -5022,7 +5125,7 @@ const createProject = async () => {
 
     </div>
           
-    <div className="sidebar-scroll-area" style={{ 
+    <div ref={sidebarScrollAreaRef} className="sidebar-scroll-area" style={{
           flexGrow: 1, 
           overflowY: 'auto', // Nur hier wird gescrollt
           padding: '5px',
@@ -7063,61 +7166,118 @@ const createProject = async () => {
     {/* Anzeige der Dateien */}
     {(mode === "create" ? tempFiles : selectedProject?.files || []).map((f, i) => {
   const displayName = mode === "create" ? f.name : f;
+  const fileIconType = getProjectFileIconType(displayName);
+  const isEditingFileName = projectFileEditingIndex === i;
 
   return (
-    <div key={i} className="project-file-row" style={{
-      display: "flex", 
-      justifyContent: "space-between", 
-      gap: "10px",
-      alignItems: "center",
-      padding: "6px 10px", 
-      backgroundColor: "white", 
-      border: "1px solid #eee", 
-      borderRadius: "4px",
-      marginBottom: "5px" 
-    }}>
-      <button
-  className="project-file-name"
-  type="button"
-  onClick={async () => {
-    if (mode !== "create") {
-      try {
-        const url = await getProjectFileUrl(selectedProject, f);
-        setFileViewer({
-          fileName: f,
-          fileNames: selectedProject.files || [],
-          projectName: selectedProject.name,
-          projectId: selectedProject.id,
-          url
-        });
-      } catch (err) {
-        console.error("Dateivorschau konnte nicht geöffnet werden:", err);
-        setToast("❌ Dateivorschau konnte nicht geöffnet werden");
-        scheduleToastDismiss(2500);
-      }
-    }
-  }}
-  style={{ 
-    background: "transparent",
-    border: "none",
-    padding: 0,
-    font: "inherit",
-    textAlign: "left",
-    cursor: mode !== "create" ? "pointer" : "default", 
-    color: "#3498db",
-    textDecoration: mode !== "create" ? "underline" : "none",
-    flexGrow: 1,
-    minWidth: 0,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap"
-  }}
->
-  📄 {displayName}
-</button>
+    <div key={i} className="project-file-row">
+      <div className="project-file-name-area">
+        <svg className={`project-file-icon project-file-icon-${fileIconType}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10z" />
+          <path d="M13 3v7h7" />
+          {fileIconType === "image" && <><circle cx="9" cy="14" r="1.4" /><path d="m7 19 4-4 2.5 2 2.5-3 2 2" /></>}
+          {fileIconType === "spreadsheet" && <path d="M8 13h8M8 16h8M11 12v7m3-7v7M7 11h10v9H7z" />}
+          {fileIconType === "presentation" && <><path d="M7 12h10v6H7zM12 18v3m-3 0h6" /><path d="m9 16 2-2 2 1 2-2" /></>}
+          {fileIconType === "text" && <path d="M8 14h8M8 17h8M8 11h5" />}
+          {fileIconType === "pdf" && <><path d="M8 17h2a1.5 1.5 0 0 0 0-3H8v5m5-5h1.2a2.5 2.5 0 0 1 0 5H13z" /><path d="M18 14h-2v5m0-2h1.6" /></>}
+          {fileIconType === "archive" && <><path d="M10 11v2m0 2v2m4-6v2m0 2v2M8 20h8v-9H8z" /><path d="M9 7h6v4H9z" /></>}
+          {fileIconType === "audio" && <path d="M8 15v-3m3 6V9m3 9v-6m3 3v-2" />}
+          {fileIconType === "video" && <><path d="M7 12h10v7H7z" /><path d="m11 14 3 1.5-3 1.5z" /></>}
+          {fileIconType === "generic" && <path d="M8 14h8M8 17h8" />}
+        </svg>
+        {isEditingFileName ? (
+          <input
+            className="project-file-rename-input"
+            type="text"
+            value={projectFileNameDraft}
+            aria-label={`Neuer Dateiname für ${displayName}`}
+            autoFocus
+            disabled={projectFileSavingRename}
+            onChange={(event) => setProjectFileNameDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                renameProjectFile(displayName, i);
+              } else if (event.key === "Escape") {
+                setProjectFileEditingIndex(null);
+              }
+            }}
+          />
+        ) : (
+          <button
+            className="project-file-name"
+            type="button"
+            disabled={mode === "create"}
+            onClick={async () => {
+              if (mode !== "create") {
+                try {
+                  const url = await getProjectFileUrl(selectedProject, f);
+                  setFileViewer({
+                    fileName: f,
+                    fileNames: selectedProject.files || [],
+                    projectName: selectedProject.name,
+                    projectId: selectedProject.id,
+                    url
+                  });
+                } catch (err) {
+                  console.error("Dateivorschau konnte nicht geöffnet werden:", err);
+                  setToast("❌ Dateivorschau konnte nicht geöffnet werden");
+                  scheduleToastDismiss(2500);
+                }
+              }
+            }}
+          >
+            <span className="project-file-name-text">{displayName}</span>
+          </button>
+        )}
+      </div>
 
-{mode !== "create" && (
   <div className="project-file-actions">
+    {isEditingFileName ? (
+      <>
+        <button
+          type="button"
+          className="project-file-action project-file-action-save"
+          title="Dateinamen speichern"
+          aria-label="Dateinamen speichern"
+          disabled={projectFileSavingRename}
+          onClick={() => renameProjectFile(displayName, i)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m5 12 4 4L19 6" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="project-file-action project-file-action-cancel"
+          title="Umbenennen abbrechen"
+          aria-label="Umbenennen abbrechen"
+          disabled={projectFileSavingRename}
+          onClick={() => setProjectFileEditingIndex(null)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </>
+    ) : (
+      <>
+    <button
+      type="button"
+      className="project-file-action"
+      title="Dateinamen ändern"
+      aria-label={`${displayName} umbenennen`}
+      onClick={() => {
+        setProjectFileNameDraft(displayName);
+        setProjectFileEditingIndex(i);
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20z" />
+      </svg>
+    </button>
+    {mode !== "create" && (
+      <>
     <button
       type="button"
       className="project-file-action"
@@ -7125,22 +7285,35 @@ const createProject = async () => {
       aria-label={`${displayName} herunterladen`}
       onClick={() => downloadProjectFile(selectedProject, f)}
     >
-      ↓
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3" />
+      </svg>
     </button>
     <button
       type="button"
       className="project-file-action"
-      title="Im regulären Browser öffnen"
+      title="Datei in neuem Fenster öffnen"
       aria-label={`${displayName} im Browser öffnen`}
       onClick={() => openProjectFileInBrowser(selectedProject, f)}
     >
-      ↗
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M14 4h6v6m0-6-9 9" />
+        <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+      </svg>
     </button>
+      </>
+    )}
+      </>
+    )}
   </div>
-)}
       
 {/* LÖSCH-KNOPF */}
       <button 
+        type="button"
+        className="project-file-delete"
+        title="Datei löschen"
+        aria-label={`${displayName} löschen`}
+        disabled={isEditingFileName || projectFileSavingRename}
         onClick={async (e) => {
           e.stopPropagation(); 
 
@@ -7166,17 +7339,10 @@ const createProject = async () => {
             }
           }
         }}
-        style={{ 
-          background: "none", 
-          border: "none", 
-          color: "#e74c3c", 
-          cursor: "pointer", 
-          fontSize: "16px",
-          marginLeft: "10px",
-          flexShrink: 0
-        }}
       >
-        ✕
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3" />
+        </svg>
       </button>
     </div>
   );

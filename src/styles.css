@@ -435,35 +435,197 @@ hr {
 }
 
 .project-file-name {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   flex: 1;
   width: 0;
+  min-width: 0;
+  padding: 4px 0;
+  margin: 0;
+  color: #1e293b;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-file-name:hover {
+  color: #1e3a8a;
+  background: #eff6ff;
+}
+
+.project-file-name-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.project-file-name-area {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+}
+
+.project-file-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: #64748b;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.project-file-icon-pdf { color: #dc2626; }
+.project-file-icon-image { color: #7c3aed; }
+.project-file-icon-spreadsheet { color: #15803d; }
+.project-file-icon-presentation { color: #ea580c; }
+.project-file-icon-text { color: #2563eb; }
+.project-file-icon-archive { color: #a16207; }
+.project-file-icon-audio { color: #c026d3; }
+.project-file-icon-video { color: #0891b2; }
+
+.project-file-name:hover .project-file-name-text {
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.project-file-name:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.project-file-name:disabled:hover {
+  color: #1e293b;
+  background: transparent;
+}
+
+.project-file-name:disabled:hover .project-file-name-text {
+  color: #1e293b;
+  text-decoration: none;
+}
+
+.project-file-rename-input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.project-file-rename-input:focus {
+  border-color: #2563eb;
+}
+
+.project-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 7px 9px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.project-file-row:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.06);
+}
+
 .project-file-actions {
   display: flex;
+  align-items: center;
   flex-shrink: 0;
-  gap: 5px;
+  gap: 4px;
 }
 
 .project-file-action {
-  width: 32px;
-  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
   padding: 0;
-  color: #fff;
-  background: #2c3e50;
-  border: 0;
-  border-radius: 5px;
+  margin: 0;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid transparent;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
+  font-weight: 500;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.project-file-action:disabled,
+.project-file-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.project-file-action svg,
+.project-file-delete svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .project-file-action:hover {
-  background: #34495e;
+  color: #0369a1;
+  background: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+.project-file-action:active,
+.project-file-delete:active {
+  transform: scale(0.94);
+}
+
+.project-file-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  padding: 0;
+  margin: 0;
+  color: #94a3b8;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.project-file-delete:hover {
+  color: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.project-file-name:focus-visible,
+.project-file-action:focus-visible,
+.project-file-delete:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
 }
 
 .project-card strong {
