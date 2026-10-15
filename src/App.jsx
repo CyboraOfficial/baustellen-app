@@ -1525,21 +1525,51 @@ export default function App() {
   });
 
   const [originalProject, setOriginalProject] = useState(null);
-  const [toast, setToastValue] = useState(null);
-  const [toastProjectId, setToastProjectId] = useState(null);
-  const [alertToast, setAlertToast] = useState({ show: false, message: "" });
+  const [toastMessages, setToastMessages] = useState([]);
+  const toastSequenceRef = useRef(0);
+  const latestToastIdRef = useRef(null);
   const [appDialog, setAppDialog] = useState(null);
   const appDialogResolverRef = useRef(null);
   const [tempFiles, setTempFiles] = useState([]);
 
+  const pushToast = (message, projectId = null, variant = "info") => {
+    const id = ++toastSequenceRef.current;
+    latestToastIdRef.current = id;
+    setToastMessages((current) => [...current, { id, message, projectId, variant }]);
+    return id;
+  };
+
   const setToast = (message) => {
-    setToastValue(message);
-    setToastProjectId(null);
+    if (message == null) {
+      setToastMessages([]);
+      latestToastIdRef.current = null;
+      return;
+    }
+    pushToast(message);
   };
 
   const setProjectToast = (message, projectId) => {
-    setToastValue(message);
-    setToastProjectId(projectId || null);
+    pushToast(message, projectId || null);
+  };
+
+  const dismissToast = (id) => {
+    setToastMessages((current) => current.filter((item) => item.id !== id));
+    if (latestToastIdRef.current === id) latestToastIdRef.current = null;
+  };
+
+  const scheduleToastDismiss = (duration) => {
+    const id = latestToastIdRef.current;
+    if (id == null) return;
+    latestToastIdRef.current = null;
+    window.setTimeout(() => dismissToast(id), duration);
+  };
+
+  const setAlertToast = ({ show, message }) => {
+    if (show) {
+      const id = pushToast(message, null, "alert");
+      latestToastIdRef.current = null;
+      window.setTimeout(() => dismissToast(id), 6000);
+    }
   };
 
   const showAppMessage = (message, title = "Hinweis") => {
@@ -1931,7 +1961,7 @@ const downloadProjectFile = async (project, fileName) => {
     console.error("Datei konnte nicht heruntergeladen werden:", error);
     setToast(`❌ ${error.message || "Datei konnte nicht heruntergeladen werden"}`);
   }
-  window.setTimeout(() => setToast(null), 3500);
+  scheduleToastDismiss(3500);
 };
 
 const openProjectFileInBrowser = async (project, fileName) => {
@@ -1962,7 +1992,7 @@ const openProjectFileInBrowser = async (project, fileName) => {
     browserWindow?.close();
     console.error("Datei konnte nicht im Browser geöffnet werden:", error);
     setToast(`❌ ${error.message || "Datei konnte nicht im Browser geöffnet werden"}`);
-    window.setTimeout(() => setToast(null), 3500);
+    scheduleToastDismiss(3500);
   }
 };
 
@@ -2028,7 +2058,7 @@ const handleLogin = async (e) => {
 
     // Login-Erfolg direkt anzeigen
     setToast("✅ Login erfolgreich!");
-    setTimeout(() => setToast(null), 2000);
+    scheduleToastDismiss(2000);
 
     // Nach dem Login noch mal kurz die Updates triggern, um den Banner-Status zu aktualisieren
     if (window.electron || window.api) {
@@ -2151,7 +2181,7 @@ Weitere Infos: ${form.notes || ""}
   navigator.clipboard.writeText(text);
   if (setToast) {
     setToast("Vorlage kopiert!");
-    setTimeout(() => { setToast(null); }, 2000);
+    scheduleToastDismiss(2000);
   }
 };
 
@@ -2204,7 +2234,7 @@ Weitere Infos: ${form.notes || ""}
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Anlegen der Truppe");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -2217,7 +2247,7 @@ Weitere Infos: ${form.notes || ""}
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Löschen der Truppe");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -2236,7 +2266,7 @@ Weitere Infos: ${form.notes || ""}
       console.error(error);
       setCrews(previousCrews);
       setToast("Fehler beim Speichern der Truppen-Reihenfolge");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -2245,7 +2275,7 @@ Weitere Infos: ${form.notes || ""}
     const workDays = projectRow?.remainingWorkDays ?? 0;
     if (workDays <= 0) {
       setProjectToast("Die Baustelle ist bereits vollständig verplant", projectId);
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
       return;
     }
     let start = startOfDay(startDate);
@@ -2281,7 +2311,7 @@ Weitere Infos: ${form.notes || ""}
     } catch (error) {
       console.error(error);
       setProjectToast("Fehler beim Einplanen der Baustelle", projectId);
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -2301,7 +2331,7 @@ Weitere Infos: ${form.notes || ""}
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Verschieben der Einplanung");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -2325,7 +2355,7 @@ Weitere Infos: ${form.notes || ""}
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Anlegen des Freitext-Eintrags");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -2341,7 +2371,7 @@ Weitere Infos: ${form.notes || ""}
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Entfernen der Einplanung");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
     }
   };
 
@@ -3164,14 +3194,6 @@ useEffect(() => {
 }, [search, selectedProject, appDialog, fileViewer]); // Diese Variablen muss der Hook "beobachten"
 
 useEffect(() => {
-  if (!alertToast.show) return;
-  const timer = setTimeout(() => {
-    setAlertToast({ show: false, message: "" });
-  }, 6000);
-  return () => clearTimeout(timer);
-}, [alertToast.show]);
-
-useEffect(() => {
   const map = mapRef.current;
   if (!map) return;
 
@@ -3448,14 +3470,14 @@ const saveAction = async () => {
 
     if (!Array.isArray(updatedRecord.statuses)) {
       setToast("⚠️ Mehrfachstatus nicht gespeichert: Datenbankfeld 'statuses' fehlt. PocketBase neu starten (Migration).");
-      setTimeout(() => setToast(null), 6000);
+      scheduleToastDismiss(6000);
       return;
     }
 
     setToast(logFitsPocketBaseField
       ? "✅ Gespeichert"
       : "✅ Gespeichert. Änderungsverlauf ist voll; Änderung wurde nicht protokolliert.");
-    setTimeout(() => setToast(null), 1500);
+    scheduleToastDismiss(1500);
 
   } catch (err) {
     const details = err?.response?.data || err?.data || err;
@@ -3473,7 +3495,7 @@ const saveAction = async () => {
     if (mode === "detail") {
       await saveAction();
       setToast("Gespeichert!");
-      setTimeout(() => setToast(null), 1500);
+      scheduleToastDismiss(1500);
     }
     
     setMode("list");
@@ -3506,7 +3528,7 @@ const deleteProject = async (id) => {
     setSelectedProject(null);
 
     setToast("🗑️ Projekt erfolgreich gelöscht");
-    setTimeout(() => setToast(null), 2500);
+    scheduleToastDismiss(2500);
 
   } catch (err) {
     // Falls das Projekt schon weg ist (404), behandeln wir es als Erfolg
@@ -3518,7 +3540,7 @@ const deleteProject = async (id) => {
     } else {
       console.error("Fehler beim Löschen:", err);
       setToast("❌ Fehler beim Löschen");
-      setTimeout(() => setToast(null), 3000);
+      scheduleToastDismiss(3000);
     }
   }
 };
@@ -4068,14 +4090,14 @@ const createProject = async () => {
   const exportOrdersToExcel = () => {
     if (ordersExportRows.length === 0) {
       setToast("Keine Aufträge im gewählten Filter gefunden");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
       return;
     }
 
     const selectedFields = ORDER_EXPORT_FIELD_OPTIONS.filter((field) => ordersExportSelectedFields.includes(field.key));
     if (selectedFields.length === 0) {
       setToast("Bitte mindestens ein Feld für den Export auswählen");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
       return;
     }
 
@@ -4109,7 +4131,7 @@ const createProject = async () => {
     XLSX.writeFile(workbook, `Auftraege_Export_${fromPart}_bis_${toPart}.xlsx`);
 
     setToast(`✅ Auftrags-Export erstellt (${ordersExportRows.length} Aufträge)`);
-    setTimeout(() => setToast(null), 2200);
+    scheduleToastDismiss(2200);
     setOrdersExportPopupOpen(false);
   };
 
@@ -4158,7 +4180,7 @@ const createProject = async () => {
   const exportAnalyticsToExcel = () => {
     if (analyticsRows.length === 0) {
       setToast("Keine Daten fuer Excel-Export vorhanden");
-      setTimeout(() => setToast(null), 2200);
+      scheduleToastDismiss(2200);
       return;
     }
 
@@ -4551,21 +4573,17 @@ const createProject = async () => {
     ? projects.find((project) => project.id === appDialog.relatedProjectId)
       || (selectedProject?.id === appDialog.relatedProjectId ? selectedProject : null)
     : null;
-  const toastRelatedProject = toastProjectId
-    ? projects.find((project) => project.id === toastProjectId)
-      || (selectedProject?.id === toastProjectId ? selectedProject : null)
-    : null;
   const openDialogRelatedProject = () => {
     if (!dialogRelatedProject) return;
     closeAppDialog(false);
     setBauzeitenplanOpen(false);
     openProject(dialogRelatedProject);
   };
-  const openToastRelatedProject = () => {
-    if (!toastRelatedProject) return;
-    setToast(null);
+  const openToastRelatedProject = (toastMessage, project) => {
+    if (!project) return;
+    dismissToast(toastMessage.id);
     setBauzeitenplanOpen(false);
-    openProject(toastRelatedProject);
+    openProject(project);
   };
 
   const notifToday = startOfDay(new Date());
@@ -4628,7 +4646,7 @@ const createProject = async () => {
       console.error(error);
       setToast("Fehler beim Ändern des Status");
     }
-    setTimeout(() => setToast(null), 2500);
+    scheduleToastDismiss(2500);
   };
   const openNotificationProject = (n) => {
     closeNotifications();
@@ -5046,7 +5064,7 @@ const createProject = async () => {
           }
 
           setProjectToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`, p.id);
-          setTimeout(() => setToast(null), 2500);
+          scheduleToastDismiss(2500);
 
         } catch (err) {
           console.error("Upload Fehler:", err);
@@ -6750,10 +6768,10 @@ const createProject = async () => {
           try {
             await navigator.clipboard.writeText(getCategoryCopyText(cat));
             setToast(`Kopiert: ${cat.title}`);
-            setTimeout(() => setToast(null), 1500);
+            scheduleToastDismiss(1500);
           } catch {
             setToast('Kopieren fehlgeschlagen');
-            setTimeout(() => setToast(null), 2000);
+            scheduleToastDismiss(2000);
           }
         };
 
@@ -7002,7 +7020,7 @@ const createProject = async () => {
       setSelectedProject(updatedRecord);
 
       setToast("✅ Datei hinzugefügt");
-      setTimeout(() => setToast(null), 2500);
+      scheduleToastDismiss(2500);
 
     } catch (err) {
       console.error("Upload Fehler:", err);
@@ -7056,7 +7074,7 @@ const createProject = async () => {
       } catch (err) {
         console.error("Dateivorschau konnte nicht geöffnet werden:", err);
         setToast("❌ Dateivorschau konnte nicht geöffnet werden");
-        setTimeout(() => setToast(null), 2500);
+        scheduleToastDismiss(2500);
       }
     }
   }}
@@ -7121,7 +7139,7 @@ const createProject = async () => {
                 loadProjects();
 
                 setToast("Datei gelöscht!");
-                setTimeout(() => setToast(null), 1500);
+                scheduleToastDismiss(1500);
               } catch (err) {
                 console.error("Fehler beim Löschen:", err);
                 showAppMessage("Konnte Datei nicht löschen: " + err.message, "Datei konnte nicht gelöscht werden");
@@ -7321,64 +7339,72 @@ const createProject = async () => {
           </div>,
           document.body
         )}
-        {toast && (
-        <div
-          role={toastRelatedProject ? "button" : "status"}
-          tabIndex={toastRelatedProject ? 0 : undefined}
-          onClick={toastRelatedProject ? openToastRelatedProject : undefined}
-          onKeyDown={toastRelatedProject ? (event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              openToastRelatedProject();
-            }
-          } : undefined}
-          aria-label={toastRelatedProject ? `${toast} Baustelle öffnen: ${toastRelatedProject.name}` : undefined}
-          style={{
-          position: 'fixed',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          maxWidth: 'min(560px, calc(100vw - 32px))',
-          backgroundColor: toast.startsWith('✅') ? '#2ecc71' : '#3498db', // Blau für Info/Update
-          color: 'white',
-          padding: '12px 24px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 14000,
-          fontSize: '16px',
-          fontWeight: 'bold',
-          cursor: toastRelatedProject ? 'pointer' : 'default',
-          animation: 'slideIn 0.3s ease-out'
-        }}>
-          {toast}
-          {toastRelatedProject && <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', textDecoration: 'underline' }}>↗ Baustelle öffnen: {toastRelatedProject.name}</span>}
-        </div>
-      )}
-      {/* DER ROT-TOAST POPUP */}
-      {alertToast.show && (
-        <div style={{
-          position: 'fixed',
-          top: '76px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          maxWidth: 'min(560px, calc(100vw - 32px))',
-          background: '#ef4444',
-          color: 'white',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
-          fontWeight: '600',
-          fontSize: '14px',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          animation: 'slideIn 0.3s ease-out'
-        }}>
-          <span>⚠️</span>
-          <span>{alertToast.message}</span>
-        </div>
-      )}
+        {toastMessages.length > 0 && (
+          <div
+            aria-live="polite"
+            style={{
+              position: "fixed",
+              top: "20px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "min(560px, calc(100vw - 32px))",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              zIndex: 14000,
+              pointerEvents: "none",
+            }}
+          >
+            {toastMessages.map((toastMessage) => {
+              const relatedProject = toastMessage.projectId
+                ? projects.find((project) => project.id === toastMessage.projectId)
+                  || (selectedProject?.id === toastMessage.projectId ? selectedProject : null)
+                : null;
+              const isAlert = toastMessage.variant === "alert";
+              const canOpenProject = !!relatedProject;
+              return (
+                <div
+                  key={toastMessage.id}
+                  role={canOpenProject ? "button" : "status"}
+                  tabIndex={canOpenProject ? 0 : undefined}
+                  onClick={canOpenProject ? () => openToastRelatedProject(toastMessage, relatedProject) : undefined}
+                  onKeyDown={canOpenProject ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openToastRelatedProject(toastMessage, relatedProject);
+                    }
+                  } : undefined}
+                  aria-label={canOpenProject ? `${toastMessage.message} Baustelle öffnen: ${relatedProject.name}` : undefined}
+                  style={{
+                    maxWidth: "100%",
+                    backgroundColor: isAlert
+                      ? "#ef4444"
+                      : toastMessage.message.startsWith("✅") ? "#2ecc71" : "#3498db",
+                    color: "white",
+                    padding: isAlert ? "12px 20px" : "12px 24px",
+                    borderRadius: "8px",
+                    boxShadow: isAlert
+                      ? "0 4px 12px rgba(239, 68, 68, 0.3)"
+                      : "0 4px 12px rgba(0,0,0,0.15)",
+                    fontSize: isAlert ? "14px" : "16px",
+                    fontWeight: isAlert ? "600" : "bold",
+                    cursor: canOpenProject ? "pointer" : "default",
+                    animation: "slideIn 0.3s ease-out",
+                    pointerEvents: "auto",
+                  }}
+                >
+                  {isAlert && <span style={{ marginRight: "10px" }}>⚠️</span>}
+                  {toastMessage.message}
+                  {relatedProject && (
+                    <span style={{ display: "block", marginTop: "4px", fontSize: "12px", textDecoration: "underline" }}>
+                      ↗ Baustelle öffnen: {relatedProject.name}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </main>
 
       <BauzeitenplanModal
@@ -7481,7 +7507,7 @@ const createProject = async () => {
                     } else {
                       setDownloadFolderError(result?.error || 'Speicherort konnte nicht gespeichert werden.');
                     }
-                    setTimeout(() => setToast(null), 2500);
+                    scheduleToastDismiss(2500);
                   }}
                   style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', whiteSpace: 'nowrap', opacity: window.desktopAPI?.setDownloadFolder ? 1 : 0.5 }}
                 >
@@ -8404,7 +8430,7 @@ const createProject = async () => {
           } catch (error) {
             console.error("Dateivorschau konnte nicht gewechselt werden:", error);
             setToast("❌ Datei konnte nicht geöffnet werden");
-            setTimeout(() => setToast(null), 2500);
+            scheduleToastDismiss(2500);
           }
         }}
       />
