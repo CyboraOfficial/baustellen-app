@@ -1480,8 +1480,8 @@ export default function App() {
   const [chartDetailSearch, setChartDetailSearch] = useState("");
   const [chartDetailStatusFilter, setChartDetailStatusFilter] = useState("Alle");
   const [chartDetailTypeFilter, setChartDetailTypeFilter] = useState("Alle");
-  const [chartDetailDateFrom, setChartDetailDateFrom] = useState("");
-  const [chartDetailDateTo, setChartDetailDateTo] = useState("");
+  const [chartDetailDateFrom, setChartDetailDateFrom] =   useState(() => getCurrentYearStartDateString());
+    const [chartDetailDateTo, setChartDetailDateTo] = useState(() => getTodayDateString());
   const [chartDetailSortKey, setChartDetailSortKey] = useState("createdDate");
   const [chartDetailSortDir, setChartDetailSortDir] = useState("desc");
   const [ordersExportPopupOpen, setOrdersExportPopupOpen] = useState(false);
@@ -4028,8 +4028,8 @@ const createProject = async () => {
     setOrdersExportStatusFilter(["Alle"]);
     setOrdersExportTypeFilterOpen(false);
     setOrdersExportStatusFilterOpen(false);
-    setOrdersExportDateFrom("");
-    setOrdersExportDateTo("");
+    setOrdersExportDateFrom(getCurrentYearStartDateString());
+    setOrdersExportDateTo(getTodayDateString());
     setOrdersExportSelectedFields([...DEFAULT_ORDER_EXPORT_FIELDS]);
     setOrdersExportPopupOpen(true);
   };
@@ -4171,7 +4171,8 @@ const createProject = async () => {
         id: project?.id,
         name: project?.name || "",
         type: project?.type || "",
-        status: project?.status || "",
+        status: getProjectStatuses(project).join(", "),
+        statuses: getProjectStatuses(project),
         createdDateISO,
         createdDate: createdAt && !Number.isNaN(createdAt.getTime()) ? formatDateToDDMMYYYY(createdAt) : "",
         updatedDate: updatedAt && !Number.isNaN(updatedAt.getTime()) ? formatDateToDDMMYYYY(updatedAt) : "",
@@ -4630,8 +4631,8 @@ const createProject = async () => {
     setChartDetailSearch("");
     setChartDetailStatusFilter("Alle");
     setChartDetailTypeFilter("Alle");
-    setChartDetailDateFrom("");
-    setChartDetailDateTo("");
+    setChartDetailDateFrom(getCurrentYearStartDateString());
+    setChartDetailDateTo(getTodayDateString());
     setChartDetailSortKey("createdDate");
     setChartDetailSortDir("desc");
     setChartDetailOpen(true);
@@ -6952,11 +6953,52 @@ const createProject = async () => {
           ...(dataObj.transport.total > 0 ? [dataObj.transport] : [])
         ];
 
+        // Gruppierung: ANS, dann ÄND, dann ABR, übrige zuletzt. Innerhalb der Gruppe feste Reihenfolge.
+        const ABRECHNUNG_ORDER = [
+          'Graben ANS (m)', 'Graben ÄND (m)', 'Graben ABR (m)',
+          'Montagegrube ANS (Stk)', 'Montagegrube ÄND (Stk)', 'Montagegrube ABR (Stk)',
+          'Kabelverlegen ANS (m)', 'Kabelverlegen ÄND (m)', 'Kabelverlegen ABR (m)',
+          'Netzanschluss montieren ANS', 'Kabelanschluss ANS',
+          'Kabel An-/Abklemmen (Stk)', 'Kabelanschluss ÄND (Stk)',
+          'Muffen montieren ANS (Stk)', 'Muffen montieren ÄND (Stk)', 'Muffen montieren ABR (Stk)',
+          'Muffen demontieren ANS (Stk)', 'Muffen demontieren ABR (Stk)', 'Muffen demontieren ÄND (Stk)',
+          'Endmuffen ANS (Stk)', 'Endmuffen ÄND (Stk)', 'Endmuffen ABR (Stk)',
+          'Netzanschluss demontieren (Stk)', 'Kabelanschluss ABR (Stk)'
+        ];
+        const normalizeAbrTitle = (t) => String(t || '').replace(/\s+/g, '').toLowerCase();
+        const ABRECHNUNG_ORDER_INDEX = new Map(ABRECHNUNG_ORDER.map((t, i) => [normalizeAbrTitle(t), i]));
+        const ABRECHNUNG_RANK_OVERRIDES = new Map([
+          [normalizeAbrTitle('Kabel An-/Abklemmen (Stk)'), 1],
+          [normalizeAbrTitle('Netzanschluss demontieren (Stk)'), 2]
+        ]);
+        const getAbrechnungGroupRank = (cat) => {
+          const raw = String(cat?.title || '');
+          const override = ABRECHNUNG_RANK_OVERRIDES.get(normalizeAbrTitle(raw));
+          if (override !== undefined) return override;
+          const t = raw.toUpperCase();
+          if (/(?<![A-ZÄÖÜ])ANS(?![A-ZÄÖÜ])/.test(t)) return 0;
+          if (/(?<![A-ZÄÖÜ])ÄND(?![A-ZÄÖÜ])/.test(t)) return 1;
+          if (/(?<![A-ZÄÖÜ])ABR(?![A-ZÄÖÜ])/.test(t)) return 2;
+          return 3;
+        };
+        const getAbrechnungOrderIndex = (cat) => ABRECHNUNG_ORDER_INDEX.get(normalizeAbrTitle(cat?.title)) ?? 1000;
+        list.sort((a, b) => getAbrechnungGroupRank(a) - getAbrechnungGroupRank(b) || getAbrechnungOrderIndex(a) - getAbrechnungOrderIndex(b));
+
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <h3 className="abrechnung-col-title">{title}</h3>
-            {list.map((cat, idx) => (
-              <details key={`${title}-${idx}`} style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
+            {list.map((cat, idx) => {
+              const rank = getAbrechnungGroupRank(cat);
+              const groupLabels = ['ANS', 'ÄND', 'ABR'];
+              const showHeader = rank < 3 && (idx === 0 || getAbrechnungGroupRank(list[idx - 1]) !== rank);
+              const showDivider = idx > 0 && getAbrechnungGroupRank(list[idx - 1]) !== rank;
+              return (
+              <React.Fragment key={`${title}-${idx}`}>
+              {showDivider && <hr style={{ border: 0, borderTop: '1px solid #475569', margin: '8px 0 2px' }} />}
+              {showHeader && (
+                <div style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', color: '#38bdf8' }}>{groupLabels[rank]}</div>
+              )}
+              <details style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
                   <span>{cat.title}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -6999,7 +7041,9 @@ const createProject = async () => {
                   ))}
                 </div>
               </details>
-            ))}
+              </React.Fragment>
+              );
+            })}
           </div>
         );
       };
@@ -8471,7 +8515,11 @@ const createProject = async () => {
                           {orderExportTypeOptions.map((option) => {
                             const checked = isMultiFilterChecked(option.value, ordersExportTypeFilter);
                             return (
-                              <label key={option.value} className="filter-multi-option">
+                              <label
+                                key={option.value}
+                                className="filter-multi-option"
+                                onDoubleClick={() => setOrdersExportTypeFilter([option.value])}
+                              >
                                 <input
                                   type="checkbox"
                                   className="filter-multi-checkbox"
@@ -8501,7 +8549,11 @@ const createProject = async () => {
                           {orderExportStatusOptions.map((option) => {
                             const checked = isMultiFilterChecked(option.value, ordersExportStatusFilter);
                             return (
-                              <label key={option.value} className="filter-multi-option">
+                              <label
+                                key={option.value}
+                                className="filter-multi-option"
+                                onDoubleClick={() => setOrdersExportStatusFilter([option.value])}
+                              >
                                 <input
                                   type="checkbox"
                                   className="filter-multi-checkbox"
