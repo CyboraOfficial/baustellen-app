@@ -5906,7 +5906,8 @@ const createProject = async () => {
         <div className="aufmass-summen-content">
           <div>Kabel: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(String(m.aufmassKabel || '').replace(',', '.')) || 0), 0) : 0} m</strong></div>
           <div>Muffen: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) : 0} Stk</strong></div>
-        </div>
+                   <div>Endmuffen: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenAns) || 0) + (Number(m.endmuffenTausch) || 0) + (Number(m.endmuffenDemo) || 0), 0) : 0} Stk</strong></div>
+                 </div>
       </details>
       </div>
     </div>
@@ -6819,15 +6820,18 @@ const createProject = async () => {
             dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: muffenMontierenAnsCount });
           }
           if (num(m.muffenMontierenTausch) > 0) { dataMueller.muffenMontierenTausch.total += num(m.muffenMontierenTausch); dataMueller.muffenMontierenTausch.items.push({ label: mastLabel, val: num(m.muffenMontierenTausch) }); }
-          const muffenMontierenAbrCount = num(m.muffenMontierenDemo);
+          const netzanschlussDemoCount = num(m.netzanschlussDemoAnzahl);
+          // Pro Netzanschluss ist entweder 1 Verbindungsmuffe oder 1 Endmuffe inbegriffen
+          const anschluesse = Math.max(0, netzanschlussDemoCount);
+          const muffenMontierenAbrCount = Math.max(0, num(m.muffenMontierenDemo) - anschluesse);
           if (muffenMontierenAbrCount > 0) {
             dataMueller.muffenMontierenDemo.total += muffenMontierenAbrCount;
             dataMueller.muffenMontierenDemo.items.push({ label: mastLabel, val: muffenMontierenAbrCount });
           }
           if (num(m.muffenDemoMontage) > 0) { dataMueller.muffenDemoMontage.total += num(m.muffenDemoMontage); dataMueller.muffenDemoMontage.items.push({ label: mastLabel, val: num(m.muffenDemoMontage) }); }
-          const netzanschlussDemoCount = num(m.netzanschlussDemoAnzahl);
-          const endmuffenDemoCount = num(m.endmuffenDemo);
-          const muffenDemoCount = num(m.muffenDemo);
+          const verbindungGenutzt = Math.min(anschluesse, Math.max(num(m.muffenMontierenDemo), num(m.muffenDemo)));
+          const muffenDemoCount = Math.max(0, num(m.muffenDemo) - anschluesse);
+          const endmuffenDemoCount = Math.max(0, num(m.endmuffenDemo) - (anschluesse - verbindungGenutzt));
           if (muffenDemoCount > 0) { dataMueller.muffenDemo.total += muffenDemoCount; dataMueller.muffenDemo.items.push({ label: mastLabel, val: muffenDemoCount }); }
           if (num(m.muffenDemoTausch) > 0) { dataMueller.muffenDemoTausch.total += num(m.muffenDemoTausch); dataMueller.muffenDemoTausch.items.push({ label: mastLabel, val: num(m.muffenDemoTausch) }); }
           if (num(m.endmuffenAns) > 0) { dataMueller.endmuffenAns.total += num(m.endmuffenAns); dataMueller.endmuffenAns.items.push({ label: mastLabel, val: num(m.endmuffenAns) }); }

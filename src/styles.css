@@ -1746,6 +1746,24 @@ textarea.aufmass-autogrow {
   border-radius: 4px;
   cursor: pointer;
   margin: 0;
+  position: relative;
+}
+
+.aufmass-summen-details[open] {
+  background: #263448;
+}
+
+.aufmass-summen-details[open] > .aufmass-summen-content {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 170px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
 }
 
 .aufmass-summen-summary {
@@ -1755,10 +1773,25 @@ textarea.aufmass-autogrow {
 }
 
 .aufmass-summen-content {
-  padding: 4px 0 0 5px;
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 5px;
   font-size: 11px;
+  color: #94a3b8;
+  cursor: default;
+}
+
+.aufmass-summen-content > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  white-space: nowrap;
+}
+
+.aufmass-summen-content > div + div {
+  border-top: 1px solid #1e293b;
+  padding-top: 5px;
 }
 
 .aufmass-summen-val {
