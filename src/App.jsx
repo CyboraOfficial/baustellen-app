@@ -1526,21 +1526,34 @@ export default function App() {
 
   const [originalProject, setOriginalProject] = useState(null);
   const [toastMessages, setToastMessages] = useState([]);
+  const toastMessagesRef = useRef([]);
   const toastSequenceRef = useRef(0);
   const latestToastIdRef = useRef(null);
+  const toastTimersRef = useRef(new Map());
   const [appDialog, setAppDialog] = useState(null);
   const appDialogResolverRef = useRef(null);
   const [tempFiles, setTempFiles] = useState([]);
 
   const pushToast = (message, projectId = null, variant = "info") => {
+    const key = `${projectId || ""}:${message}`;
+    const existing = toastMessagesRef.current.find((item) => item.key === key);
+    if (existing) {
+      latestToastIdRef.current = existing.id;
+      return existing.id;
+    }
     const id = ++toastSequenceRef.current;
     latestToastIdRef.current = id;
-    setToastMessages((current) => [...current, { id, message, projectId, variant }]);
+    const toastMessage = { id, key, message, projectId, variant };
+    toastMessagesRef.current = [...toastMessagesRef.current, toastMessage];
+    setToastMessages(toastMessagesRef.current);
     return id;
   };
 
   const setToast = (message) => {
     if (message == null) {
+      toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      toastTimersRef.current.clear();
+      toastMessagesRef.current = [];
       setToastMessages([]);
       latestToastIdRef.current = null;
       return;
@@ -1553,7 +1566,11 @@ export default function App() {
   };
 
   const dismissToast = (id) => {
-    setToastMessages((current) => current.filter((item) => item.id !== id));
+    const timer = toastTimersRef.current.get(id);
+    if (timer) window.clearTimeout(timer);
+    toastTimersRef.current.delete(id);
+    toastMessagesRef.current = toastMessagesRef.current.filter((item) => item.id !== id);
+    setToastMessages(toastMessagesRef.current);
     if (latestToastIdRef.current === id) latestToastIdRef.current = null;
   };
 
@@ -1561,14 +1578,16 @@ export default function App() {
     const id = latestToastIdRef.current;
     if (id == null) return;
     latestToastIdRef.current = null;
-    window.setTimeout(() => dismissToast(id), duration);
+    const previousTimer = toastTimersRef.current.get(id);
+    if (previousTimer) window.clearTimeout(previousTimer);
+    const timer = window.setTimeout(() => dismissToast(id), duration);
+    toastTimersRef.current.set(id, timer);
   };
 
   const setAlertToast = ({ show, message }) => {
     if (show) {
-      const id = pushToast(message, null, "alert");
-      latestToastIdRef.current = null;
-      window.setTimeout(() => dismissToast(id), 6000);
+      pushToast(message, null, "alert");
+      scheduleToastDismiss(6000);
     }
   };
 
@@ -3494,8 +3513,6 @@ const saveAction = async () => {
   const handleBack = async () => {
     if (mode === "detail") {
       await saveAction();
-      setToast("Gespeichert!");
-      scheduleToastDismiss(1500);
     }
     
     setMode("list");
@@ -5478,6 +5495,8 @@ const createProject = async () => {
       }));
       
       setForm(prev => ({ ...prev, masten: normalizeMastLabels([...(prev.masten || []), ...neueMasten]) }));
+      setToast(`✅ ${neueMasten.length} ${neueMasten.length === 1 ? "Mast" : "Masten"} hinzugefügt`);
+      scheduleToastDismiss(2500);
 
       if (batchIdsInput) {
         batchIdsInput.value = "";
@@ -7341,30 +7360,29 @@ const createProject = async () => {
         )}
         {toastMessages.length > 0 && (
           <div
+            className="app-toast-stack"
             aria-live="polite"
-            style={{
-              position: "fixed",
-              top: "20px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: "min(560px, calc(100vw - 32px))",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              zIndex: 14000,
-              pointerEvents: "none",
-            }}
           >
             {toastMessages.map((toastMessage) => {
               const relatedProject = toastMessage.projectId
                 ? projects.find((project) => project.id === toastMessage.projectId)
                   || (selectedProject?.id === toastMessage.projectId ? selectedProject : null)
                 : null;
-              const isAlert = toastMessage.variant === "alert";
+              const message = toastMessage.message;
+              const tone = toastMessage.variant === "alert" || message.startsWith("⚠️")
+                ? "warning"
+                : message.startsWith("❌") || /fehler/i.test(message)
+                  ? "error"
+                  : message.startsWith("✅")
+                    ? "success"
+                    : "info";
+              const icon = tone === "success" ? "✓" : tone === "error" || tone === "warning" ? "!" : "i";
+              const displayMessage = message.replace(/^(✅|❌|⚠️|⏳|📡|💾)\s*/, "");
               const canOpenProject = !!relatedProject;
               return (
                 <div
                   key={toastMessage.id}
+                  className={`app-toast app-toast-${tone}`}
                   role={canOpenProject ? "button" : "status"}
                   tabIndex={canOpenProject ? 0 : undefined}
                   onClick={canOpenProject ? () => openToastRelatedProject(toastMessage, relatedProject) : undefined}
@@ -7375,31 +7393,16 @@ const createProject = async () => {
                     }
                   } : undefined}
                   aria-label={canOpenProject ? `${toastMessage.message} Baustelle öffnen: ${relatedProject.name}` : undefined}
-                  style={{
-                    maxWidth: "100%",
-                    backgroundColor: isAlert
-                      ? "#ef4444"
-                      : toastMessage.message.startsWith("✅") ? "#2ecc71" : "#3498db",
-                    color: "white",
-                    padding: isAlert ? "12px 20px" : "12px 24px",
-                    borderRadius: "8px",
-                    boxShadow: isAlert
-                      ? "0 4px 12px rgba(239, 68, 68, 0.3)"
-                      : "0 4px 12px rgba(0,0,0,0.15)",
-                    fontSize: isAlert ? "14px" : "16px",
-                    fontWeight: isAlert ? "600" : "bold",
-                    cursor: canOpenProject ? "pointer" : "default",
-                    animation: "slideIn 0.3s ease-out",
-                    pointerEvents: "auto",
-                  }}
                 >
-                  {isAlert && <span style={{ marginRight: "10px" }}>⚠️</span>}
-                  {toastMessage.message}
-                  {relatedProject && (
-                    <span style={{ display: "block", marginTop: "4px", fontSize: "12px", textDecoration: "underline" }}>
-                      ↗ Baustelle öffnen: {relatedProject.name}
-                    </span>
-                  )}
+                  <span className="app-toast-icon" aria-hidden="true">{icon}</span>
+                  <span className="app-toast-content">
+                    <span className="app-toast-message">{displayMessage}</span>
+                    {relatedProject && (
+                      <span className="app-toast-link">
+                        ↗ Baustelle öffnen: {relatedProject.name}
+                      </span>
+                    )}
+                  </span>
                 </div>
               );
             })}

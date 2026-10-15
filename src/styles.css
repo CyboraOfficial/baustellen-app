@@ -88,6 +88,108 @@ body,
   background: transparent;
 }
 
+.app-toast-stack {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 14000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.app-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #1f2937;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #2563eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  animation: app-toast-enter 180ms ease-out;
+  pointer-events: auto;
+}
+
+.app-toast[role="button"] {
+  cursor: pointer;
+}
+
+.app-toast[role="button"]:hover {
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+}
+
+.app-toast:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.app-toast-success { border-left-color: #16a34a; }
+.app-toast-error { border-left-color: #dc2626; }
+.app-toast-warning { border-left-color: #d97706; }
+
+.app-toast-icon {
+  display: grid;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.app-toast-success .app-toast-icon {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.app-toast-error .app-toast-icon {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.app-toast-warning .app-toast-icon {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.app-toast-content {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-toast-message {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.app-toast-link {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@keyframes app-toast-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .app-dialog-actions {
   grid-column: 1 / -1;
   display: flex;
