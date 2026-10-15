@@ -2613,7 +2613,17 @@ Weitere Infos: ${form.notes || ""}
     }
   };
 
+const sanitizeAufmassNumber = (value) => {
+  if (typeof value !== 'string') return value;
+  const trimmedValue = value.trim();
+  if (!trimmedValue.startsWith('-')) return value;
+  const absoluteValue = trimmedValue.slice(1).trim().replace(',', '.');
+  if (!absoluteValue || absoluteValue === '.') return '';
+  return Number.isFinite(Number(absoluteValue)) ? '0' : '';
+};
+
 const updateAufmass = (index, field, value) => {
+  const safeValue = sanitizeAufmassNumber(value);
   setForm(prev => {
     // Sicherstellen, dass die Struktur existiert
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
@@ -2622,17 +2632,17 @@ const updateAufmass = (index, field, value) => {
     if (!aktuellerMast) return prev;
 
     if (field === 'sondersacheRinnenflussX' || field === 'sondersacheRinnenflussY') {
-      const naechsterMast = { ...aktuellerMast, [field]: value };
+      const naechsterMast = { ...aktuellerMast, [field]: safeValue };
       const flaeche = calculateArea(naechsterMast.sondersacheRinnenflussX, naechsterMast.sondersacheRinnenflussY);
       naechsterMast.sondersacheRinnenfluss = flaeche > 0 ? String(flaeche) : "";
       neueMasten[index] = naechsterMast;
     } else if (field === 'sondersacheMuellerRinnenflussX' || field === 'sondersacheMuellerRinnenflussY') {
-      const naechsterMast = { ...aktuellerMast, [field]: value };
+      const naechsterMast = { ...aktuellerMast, [field]: safeValue };
       const flaeche = calculateArea(naechsterMast.sondersacheMuellerRinnenflussX, naechsterMast.sondersacheMuellerRinnenflussY);
       naechsterMast.sondersacheMuellerRinnenfluss = flaeche > 0 ? String(flaeche) : "";
       neueMasten[index] = naechsterMast;
     } else {
-      neueMasten[index] = { ...aktuellerMast, [field]: value };
+      neueMasten[index] = { ...aktuellerMast, [field]: safeValue };
     }
     
     return {
@@ -2678,7 +2688,7 @@ const updateExtraOberflaeche = (index, extraIndex, field, value) => {
 
     currentExtras[extraIndex] = {
       ...currentExtras[extraIndex],
-      [field]: field === 'typ' ? normalizeSurfaceType(value) : value
+      [field]: field === 'typ' ? normalizeSurfaceType(value) : sanitizeAufmassNumber(value)
     };
 
     neueMasten[index] = {
@@ -2746,7 +2756,7 @@ const updateMontagegrubeOberflaeche = (index, listField, extraIndex, field, valu
 
     currentList[extraIndex] = {
       ...currentList[extraIndex],
-      [field]: field === 'typ' ? normalizeSurfaceType(value) : value
+      [field]: field === 'typ' ? normalizeSurfaceType(value) : sanitizeAufmassNumber(value)
     };
 
     neueMasten[index] = { ...neueMasten[index], [listField]: currentList };
@@ -2794,7 +2804,7 @@ const updateGrabenOberflaeche = (index, listField, entryIndex, field, value) => 
 
     currentList[entryIndex] = {
       ...currentList[entryIndex],
-      [field]: field === 'typ' ? normalizeSurfaceType(value) : value
+      [field]: field === 'typ' ? normalizeSurfaceType(value) : sanitizeAufmassNumber(value)
     };
 
     neueMasten[index] = { ...neueMasten[index], [listField]: currentList };
@@ -2852,6 +2862,9 @@ const renderMontagegrubeOberflaechenEditor = (originalIndex, m, listField, visib
 };
 
 const updateAufmassAllgemein = (field, value) => {
+  const safeValue = ['tatsaechlicheWerktage', 'transport'].includes(field)
+    ? sanitizeAufmassNumber(value)
+    : value;
   setForm(prev => {
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
     return {
@@ -2861,7 +2874,7 @@ const updateAufmassAllgemein = (field, value) => {
         allgemein: {
           ...DEFAULT_AUFMASS_ALLGEMEIN,
           ...(aktuellesAufmass.allgemein || {}),
-          [field]: value
+          [field]: safeValue
         }
       }
     };
@@ -6814,7 +6827,10 @@ const createProject = async () => {
           if (num(m.kabelanschlussAend) > 0) { dataMueller.kabelanschlussAend.total += num(m.kabelanschlussAend); dataMueller.kabelanschlussAend.items.push({ label: mastLabel, val: num(m.kabelanschlussAend) }); }
           if (num(m.netzanschlussDemoAnzahl) > 0) { dataMueller.netzDemo.total += num(m.netzanschlussDemoAnzahl); dataMueller.netzDemo.items.push({ label: mastLabel, val: num(m.netzanschlussDemoAnzahl) }); }
           if (num(m.kabelanschlussAbr) > 0) { dataMueller.kabelanschlussAbr.total += num(m.kabelanschlussAbr); dataMueller.kabelanschlussAbr.items.push({ label: mastLabel, val: num(m.kabelanschlussAbr) }); }
-          const muffenMontierenAnsCount = num(m.muffenMontierenBis1m) + num(m.muffenMontierenUeber1m);
+          const muffenMontierenAnsCount = Math.max(
+            0,
+            num(m.muffenMontierenBis1m) - (Math.max(0, netzanschlussBis1mCount) * 2)
+          ) + num(m.muffenMontierenUeber1m);
           if (muffenMontierenAnsCount > 0) {
             dataMueller.muffenMontierenUeber1m.total += muffenMontierenAnsCount;
             dataMueller.muffenMontierenUeber1m.items.push({ label: mastLabel, val: muffenMontierenAnsCount });
