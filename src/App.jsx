@@ -1470,6 +1470,7 @@ export default function App() {
   const [searchTimeout, setSearchTimeout] = useState(null);
   const [searchAddress, setSearchAddress] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsModalTab, setSettingsModalTab] = useState("Einstellungen");
   const [settingsTypeFilter, setSettingsTypeFilter] = useState("Alle");
   const [settingsSortBy, setSettingsSortBy] = useState("date-desc");
   const [settingsDateFrom, setSettingsDateFrom] = useState(() => getCurrentYearStartDateString());
@@ -4954,7 +4955,10 @@ const createProject = async () => {
         <button onClick={() => setBauzeitenplanOpen(true)} style={{ backgroundColor: '#0f766e' }}>
           Bauzeitenplan
         </button>
-        <button onClick={() => setSettingsOpen(true)} style={{ backgroundColor: '#2c3e50' }}>
+        <button onClick={() => {
+          setSettingsModalTab("Einstellungen");
+          setSettingsOpen(true);
+        }} style={{ backgroundColor: '#2c3e50' }}>
           Einstellungen
         </button>
       </div>
@@ -7690,9 +7694,8 @@ const createProject = async () => {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0 }}>Einstellungen & Nachkalkulation</h3>
+              <h3 style={{ margin: 0 }}>Einstellungen</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button type="button" title="Download-Speicherort" aria-label="Download-Speicherort festlegen" onClick={() => setDownloadFolderPopupOpen(true)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 10px', cursor: 'pointer' }}>📁</button>
                 <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Nachkalkulation Excel Export
                 </button>
@@ -7776,6 +7779,42 @@ const createProject = async () => {
             )}
             </div>
 
+            <div role="tablist" aria-label="Einstellungen" style={{ display: 'flex', gap: '8px', marginTop: '12px', borderBottom: '1px solid #334155' }}>
+              {["Nachkalkulation", "Einstellungen"].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={settingsModalTab === tab}
+                  onClick={() => setSettingsModalTab(tab)}
+                  style={{
+                    background: settingsModalTab === tab ? '#0284c7' : '#1e293b',
+                    color: 'white',
+                    border: '1px solid #334155',
+                    borderBottom: settingsModalTab === tab ? '1px solid #0284c7' : '1px solid #334155',
+                    borderRadius: '6px 6px 0 0',
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {settingsModalTab === "Einstellungen" && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    title="Download-Speicherort"
+                    onClick={() => setDownloadFolderPopupOpen(true)}
+                    style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}
+                  >
+                    Download-Speicherort
+                  </button>
+                </div>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
@@ -7897,6 +7936,59 @@ const createProject = async () => {
               </div>
             </div>
 
+                <div style={{ marginTop: '12px', padding: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 8px', color: '#93c5fd' }}>Karten-Heatmap</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung:</span>
+                    {[
+                      { id: 'heat', label: 'Wärmewolke' },
+                      { id: 'raster', label: 'Raster' },
+                      { id: 'points', label: 'Punkte' }
+                    ].map((overlayMode) => (
+                      <button
+                        key={overlayMode.id}
+                        type="button"
+                        onClick={() => setSettingsGeoOverlayMode(overlayMode.id)}
+                        style={{
+                          background: settingsGeoOverlayMode === overlayMode.id ? '#0284c7' : '#1e293b',
+                          color: 'white',
+                          border: '1px solid #334155',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 600
+                        }}
+                      >
+                        {overlayMode.label}
+                      </button>
+                    ))}
+                    {settingsGeoOverlayMode === 'raster' && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8' }}>
+                        Rastergröße (km):
+                        <input
+                          type="number"
+                          min={0.1}
+                          max={25}
+                          step={0.1}
+                          value={settingsGeoCellSizeKm}
+                          onChange={(e) => {
+                            const nextValue = Number(e.target.value);
+                            if (!Number.isFinite(nextValue)) return;
+                            setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
+                          }}
+                          className="mast-input-base"
+                          style={{ width: '88px', marginTop: 0 }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settingsModalTab === "Nachkalkulation" && (
+              <div>
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
                 <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gewichteter Stundenlohn (Filter)</div>
@@ -8034,53 +8126,6 @@ const createProject = async () => {
               {settingsChartView === 'geo-heatmap' && (
                 <>
                   <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Karten-Heatmap: Stundenlohn und Entfernung zur Firma</h4>
-
-                  <div style={{ marginBottom: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung:</span>
-                    {[
-                      { id: 'heat', label: 'Wärmewolke' },
-                      { id: 'raster', label: 'Raster' },
-                      { id: 'points', label: 'Punkte' }
-                    ].map((mode) => (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => setSettingsGeoOverlayMode(mode.id)}
-                        style={{
-                          background: settingsGeoOverlayMode === mode.id ? '#0284c7' : '#1e293b',
-                          color: 'white',
-                          border: '1px solid #334155',
-                          borderRadius: '6px',
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          fontWeight: 600
-                        }}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
-
-                    {settingsGeoOverlayMode === 'raster' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Rastergröße (km):</span>
-                        <input
-                          type="number"
-                          min={0.1}
-                          max={25}
-                          step={0.1}
-                          value={settingsGeoCellSizeKm}
-                          onChange={(e) => {
-                            const nextValue = Number(e.target.value);
-                            if (!Number.isFinite(nextValue)) return;
-                            setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
-                          }}
-                          className="mast-input-base"
-                          style={{ width: '88px', marginTop: 0 }}
-                        />
-                      </div>
-                    )}
-                  </div>
 
                   {!hasCompanyCoordinates && (
                     <div style={{ marginBottom: '8px', color: '#fda4af', fontSize: '12px' }}>
@@ -8319,8 +8364,10 @@ const createProject = async () => {
                 <div style={{ color: '#94a3b8', marginTop: '8px' }}>Keine Datensätze für die aktuelle Filter-/Sortierauswahl.</div>
               )}
             </div>
+              </div>
+            )}
 
-            {chartDetailOpen && (
+            {settingsModalTab === "Nachkalkulation" && chartDetailOpen && (
               <div
                 onClick={() => setChartDetailOpen(false)}
                 style={{
