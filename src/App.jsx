@@ -11,6 +11,8 @@ import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Or
 import imageCompression from 'browser-image-compression';
 import * as XLSX from 'xlsx';
 import FileViewer from './FileViewer';
+import UserAdminPanel from './UserAdminPanel';
+import { DEFAULT_ROLE_PERMISSIONS, TAB_LEVELS, TAB_BOOL_KEYS } from './permissions';
 
 const enableLeafletHeatWillReadFrequently = () => {
   const HeatLayer = L?.HeatLayer;
@@ -404,7 +406,6 @@ const DEFAULT_AUFMASS_ALLGEMEIN = {
   transport: "",
   extraInfos: "",
   tatsaechlicheWerktage: "",
-  ansMindestansatzBeiUnter1m: false,
   einmessungWeggeschicktAm: "",
   materialbuchungErfolgtAm: "",
   proformaRechnungWeggeschicktAm: "",
@@ -877,6 +878,7 @@ function BauzeitenplanModal({
   onDeleteEntry,
   onCreateFreetextEntry,
   onOpenProject,
+  readOnly = false,
   setToast
 }) {
   const [search, setSearch] = useState("");
@@ -1067,7 +1069,7 @@ function BauzeitenplanModal({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
-          <h3 style={{ margin: 0 }}>Bauzeitenplan</h3>
+          <h3 style={{ margin: 0 }}>Bauzeitenplan{readOnly ? " (nur Ansicht)" : ""}</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => setWeekOffset((v) => v - 1)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>‹ Vorherige</button>
             <button onClick={() => setWeekOffset(0)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Heute</button>
@@ -1682,6 +1684,9 @@ export default function App() {
 const [user, setUser] = useState(pb.authStore.model);
 const [loginEmail, setLoginEmail] = useState("");
 const [loginPass, setLoginPass] = useState("");
+const [registerMode, setRegisterMode] = useState(false);
+const [loginPass2, setLoginPass2] = useState("");
+const [loginNotice, setLoginNotice] = useState(null);
 
 useEffect(() => {
   if (!pb.authStore.isValid) {
@@ -1693,12 +1698,54 @@ useEffect(() => {
   pb.collection('users').authRefresh()
     .then(() => setUser(pb.authStore.model))
     .catch((error) => {
-      if (error?.status === 401) {
+      if ([400, 401, 403].includes(error?.status)) {
         pb.authStore.clear();
         setUser(null);
       }
     });
 }, []);
+
+const userRole = user?.role || "";
+const [rolePerms, setRolePerms] = useState({});
+const loadRolePerms = async () => {
+  try {
+    const list = await pb.collection("role_permissions").getFullList({ requestKey: null });
+    setRolePerms(Object.fromEntries(list.map((r) => [r.role, r])));
+  } catch (err) {
+    console.error("Berechtigungen konnten nicht geladen werden:", err);
+  }
+};
+useEffect(() => {
+  if (user) loadRolePerms();
+}, [user?.id]);
+
+const can = (permission) => {
+  if (userRole === "admin") return true;
+  if (permission === "manageUsers") return false;
+  const source = rolePerms[userRole] || DEFAULT_ROLE_PERMISSIONS[userRole];
+  return !!source?.[permission];
+};
+const canViewTab = (tab) => (TAB_LEVELS[tab] ? can(TAB_LEVELS[tab].viewKey) : can(TAB_BOOL_KEYS[tab]));
+const canEditTab = (tab) => !!TAB_LEVELS[tab] && can(TAB_LEVELS[tab].viewKey) && can(TAB_LEVELS[tab].editKey);
+const isRestrictedUser = userRole !== "admin" && can("onlyAssignedProjects");
+const canEditAnyProjectTab = ["Allgemein", "Dateien", "Masten", "Aufmaß", "Abrechnung"].some(canEditTab);
+const visibleTabs = tabs.filter(canViewTab);
+const guardBzp = (fn) => (...args) => {
+  if (!can("editBauzeitenplan")) {
+    setToast("Keine Berechtigung zum Bearbeiten des Bauzeitenplans");
+    scheduleToastDismiss(2500);
+    return undefined;
+  }
+  return fn(...args);
+};
+// Tabs mit Formularfeldern werden ohne Bearbeiten-Recht komplett gesperrt.
+const activeTabLocked = mode === "detail" && ["Allgemein", "Masten", "Aufmaß", "Abrechnung"].includes(activeTab) && !canEditTab(activeTab);
+
+useEffect(() => {
+  if (user && visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
+    setActiveTab(visibleTabs[0]);
+  }
+}, [user, userRole, activeTab]);
 
 const updateMast = (index, field, value) => {
   setForm(prev => {
@@ -2189,7 +2236,39 @@ const handleLogin = async (e) => {
     }
 
   } catch (err) {
-    showAppMessage("Login fehlgeschlagen: " + err.message, "Anmeldung fehlgeschlagen");
+    setLoginPass("");
+    if (err?.status === 403) {
+      setLoginNotice({ type: "warning", text: "Dein Konto wurde noch nicht von einem Admin freigeschaltet. Bitte warte auf die Freigabe." });
+    } else if (err?.status === 400) {
+      setLoginNotice({ type: "error", text: "E-Mail oder Passwort ist falsch." });
+    } else {
+      setLoginNotice({ type: "error", text: "Login fehlgeschlagen: " + err.message });
+    }
+  }
+};
+
+const handleRegister = async (e) => {
+  e.preventDefault();
+  if (loginPass !== loginPass2) {
+    setLoginNotice({ type: "error", text: "Die Passwörter stimmen nicht überein." });
+    return;
+  }
+  try {
+    await pb.collection('users').create({
+      email: loginEmail,
+      password: loginPass,
+      passwordConfirm: loginPass2,
+      emailVisibility: true
+    });
+    setRegisterMode(false);
+    setLoginPass("");
+    setLoginPass2("");
+    setLoginNotice({ type: "success", text: "Registrierung erfolgreich. Ein Admin muss dein Konto noch freischalten, bevor du dich anmelden kannst." });
+  } catch (err) {
+    const detail = err?.response?.data
+      ? Object.values(err.response.data).map((v) => v?.message).filter(Boolean).join(" ")
+      : "";
+    setLoginNotice({ type: "error", text: "Registrierung fehlgeschlagen. " + (detail || err.message) });
   }
 };
 
@@ -3059,7 +3138,6 @@ const openProject = (p) => {
   let allgemeinTransport = "";
   let allgemeinExtraInfos = "";
   let allgemeinTatsaechlicheWerktage = "";
-  let allgemeinAnsMindestansatzBeiUnter1m = false;
   let allgemeinEinmessungWeggeschicktAm = "";
   let allgemeinMaterialbuchungErfolgtAm = "";
   let allgemeinProformaRechnungWeggeschicktAm = "";
@@ -3075,7 +3153,6 @@ const openProject = (p) => {
       allgemeinTransport = rawAufmass.allgemein?.transport || "";
       allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
       allgemeinTatsaechlicheWerktage = rawAufmass.allgemein?.tatsaechlicheWerktage || rawAufmass.allgemein?.echteWerktage || "";
-      allgemeinAnsMindestansatzBeiUnter1m = !!rawAufmass.allgemein?.ansMindestansatzBeiUnter1m;
       allgemeinEinmessungWeggeschicktAm = rawAufmass.allgemein?.einmessungWeggeschicktAm || "";
       allgemeinMaterialbuchungErfolgtAm = rawAufmass.allgemein?.materialbuchungErfolgtAm || "";
       allgemeinProformaRechnungWeggeschicktAm = rawAufmass.allgemein?.proformaRechnungWeggeschicktAm || "";
@@ -3159,7 +3236,6 @@ const openProject = (p) => {
         transport: allgemeinTransport,
         extraInfos: allgemeinExtraInfos,
         tatsaechlicheWerktage: allgemeinTatsaechlicheWerktage,
-        ansMindestansatzBeiUnter1m: allgemeinAnsMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: allgemeinEinmessungWeggeschicktAm,
         materialbuchungErfolgtAm: allgemeinMaterialbuchungErfolgtAm,
         proformaRechnungWeggeschicktAm: allgemeinProformaRechnungWeggeschicktAm,
@@ -3421,7 +3497,6 @@ useEffect(() => {
         transport: data.allgemein?.transport || "",
         extraInfos: data.allgemein?.extraInfos || "",
         tatsaechlicheWerktage: data.allgemein?.tatsaechlicheWerktage || data.allgemein?.echteWerktage || "",
-        ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
         materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
         proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
@@ -3480,7 +3555,6 @@ const normalizeAufmass = (data) => {
       transport: data.allgemein?.transport || "",
       extraInfos: data.allgemein?.extraInfos || "",
       tatsaechlicheWerktage: data.allgemein?.tatsaechlicheWerktage || data.allgemein?.echteWerktage || "",
-      ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
       einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
       materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
       proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
@@ -3499,7 +3573,7 @@ const normalizeAufmass = (data) => {
   // --- AUTOSAVE EFFEKT ---
 const saveAction = async () => {
   // 1. Guard: Verhindere mehrfache Ausführung & Abbruchbedingungen
-  if (isSavingRef.current || !selectedProject?.id || mode !== "detail") return;
+  if (isSavingRef.current || !selectedProject?.id || mode !== "detail" || !canEditAnyProjectTab) return;
   isSavingRef.current = true;
   setIsSaving(true);
 
@@ -4765,6 +4839,12 @@ const createProject = async () => {
     }
   });
   const visibleNotifications = notifications.filter((n) => {
+    // Nur Hinweise anzeigen, die die Rolle auch sehen bzw. umsetzen darf.
+    if (n.type === "done" || n.type === "start") {
+      if (!can("bauzeitenplan") || !canEditTab("Allgemein")) return false;
+    } else if (!canViewTab("Abrechnung")) {
+      return false;
+    }
     const dismissedAt = dismissedNotificationKeys[n.key];
     return !dismissedAt || (Date.now() - dismissedAt) >= 7 * 86400000;
   });
@@ -4840,6 +4920,11 @@ const createProject = async () => {
 }}>
   <form onSubmit={(e) => {
     e.preventDefault();
+    setLoginNotice(null);
+    if (registerMode) {
+      handleRegister(e);
+      return;
+    }
     // Speichern der E-Mail, wenn Checkbox aktiv ist
     if (rememberMe) {
       localStorage.setItem("baustellen_remembered_email", loginEmail);
@@ -4851,7 +4936,17 @@ const createProject = async () => {
     backgroundColor: 'white', padding: '30px', borderRadius: '8px', 
     display: 'flex', flexDirection: 'column', width: '300px', gap: '15px'
   }}>
-    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>Baustellen Login</h2>
+    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>{registerMode ? "Registrieren" : "Baustellen Login"}</h2>
+
+    {loginNotice && (
+      <div role="alert" style={{
+        padding: '10px', borderRadius: '4px', fontSize: '13px', lineHeight: 1.4,
+        background: loginNotice.type === "success" ? '#dcfce7' : loginNotice.type === "warning" ? '#fef3c7' : '#fee2e2',
+        color: loginNotice.type === "success" ? '#166534' : loginNotice.type === "warning" ? '#92400e' : '#991b1b'
+      }}>
+        {loginNotice.text}
+      </div>
+    )}
     
     <input 
       type="email" placeholder="E-Mail" value={loginEmail} 
@@ -4867,7 +4962,18 @@ const createProject = async () => {
       required 
     />
 
+    {registerMode && (
+      <input
+        type="password" placeholder="Passwort wiederholen" value={loginPass2}
+        onChange={(e) => setLoginPass2(e.target.value)}
+        minLength={8}
+        style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+        required
+      />
+    )}
+
     {/* --- NEU: "Merken" Checkbox --- */}
+    {!registerMode && (
     <label style={{ 
       display: 'flex', 
       alignItems: 'center', 
@@ -4885,13 +4991,19 @@ const createProject = async () => {
       />
       E-Mail Adresse merken
     </label>
+    )}
 
     <button type="submit" style={{
       padding: '10px', backgroundColor: '#3498db', color: 'white', 
       border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold',
       marginTop: '5px'
     }}>
-      Anmelden
+      {registerMode ? "Registrieren" : "Anmelden"}
+    </button>
+    <button type="button" onClick={() => { setRegisterMode(!registerMode); setLoginPass2(""); setLoginNotice(null); }} style={{
+      background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', textDecoration: 'underline'
+    }}>
+      {registerMode ? "Zurück zum Login" : "Noch kein Konto? Registrieren"}
     </button>
   </form>
 </div>
@@ -4940,6 +5052,7 @@ const createProject = async () => {
           overflow: 'visible'
         }}>
       <div className="header-bar">
+        {can("createProject") && (
         <button onClick={() => {
             setMode("create");
             setForm(emptyForm);
@@ -4951,10 +5064,13 @@ const createProject = async () => {
           }}>
           + Neue Baustelle
         </button>
+        )}
         <button onClick={handleBack}>← Zurück </button>
+        {can("bauzeitenplan") && (
         <button onClick={() => setBauzeitenplanOpen(true)} style={{ backgroundColor: '#0f766e' }}>
           Bauzeitenplan
         </button>
+        )}
         <button onClick={() => {
           setSettingsModalTab("Einstellungen");
           setSettingsOpen(true);
@@ -5115,7 +5231,7 @@ const createProject = async () => {
                   gap: "8px",                            // Abstand zwischen den Feldern
                   marginBottom: "16px" 
                 }}>
-                  {tabs.map((t) => (
+                  {visibleTabs.map((t) => (
                     <div 
                       key={t} 
                       className={`tab ${activeTab === t ? "active" : ""}`} 
@@ -5252,7 +5368,15 @@ const createProject = async () => {
         )}
 
         {(mode === "detail" || mode === "create") && (
-          <>
+          <fieldset
+            disabled={activeTabLocked}
+            style={{ border: 0, margin: 0, padding: 0, minWidth: 0, opacity: activeTabLocked ? 0.85 : 1 }}
+          >
+            {activeTabLocked && (
+              <div style={{ background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "6px 10px", fontSize: 12, marginBottom: 8 }}>
+                Nur Ansicht – keine Berechtigung zum Bearbeiten.
+              </div>
+            )}
 
             {activeTab === "Allgemein" && (
               <>
@@ -5379,7 +5503,7 @@ const createProject = async () => {
     >
       ✔ Baustelle speichern
     </button>
-  ) : (
+  ) : can("deleteProject") && (
     <button 
       className="delete-btn" 
       onClick={() => deleteProject(selectedProject.id)}
@@ -5828,19 +5952,6 @@ const createProject = async () => {
           }} 
         />
       </div>
-
-      <label className="ans-toggle" title="Bei Anschluss unter 1m automatisch 1m Graben ANS + 1 St Montagegrube ANS ansetzen">
-        <input
-          type="checkbox"
-          className="ans-toggle-input"
-          checked={!!form.aufmass?.allgemein?.ansMindestansatzBeiUnter1m}
-          onChange={(e) => updateAufmassAllgemein('ansMindestansatzBeiUnter1m', e.target.checked)}
-        />
-        <span className="ans-toggle-track" aria-hidden="true">
-          <span className="ans-toggle-thumb" />
-        </span>
-        <span className="ans-toggle-label">ANS Montagegrube unter 1m</span>
-      </label>
 
       <div className="aufmass-date-field">
         <span className="aufmass-section-title">📏 Einmessung weggeschickt:</span>
@@ -6567,7 +6678,6 @@ const createProject = async () => {
 
       const dataHsw = buildData();
       const dataMueller = buildData();
-      const ansMindestansatzBeiUnter1mAktiv = !!form.aufmass?.allgemein?.ansMindestansatzBeiUnter1m;
 
       if (normalizeProjectType(form.type) === "anfahrschaden") {
         dataHsw.stoerungseinsatzGefahrImVerzug.total = 1;
@@ -6748,12 +6858,11 @@ const createProject = async () => {
           };
 
           const netzanschlussBis1mCount = num(m.netzanschlussBis1m);
-          const ansMindestEinheiten = ansMindestansatzBeiUnter1mAktiv ? netzanschlussBis1mCount : 0;
 
-          const laengeGrabenAns = num(m.grabenTiefeBreite) + ansMindestEinheiten;
+          const laengeGrabenAns = num(m.grabenTiefeBreite);
           const laengeGrabenAend = num(m.grabenTiefeBreiteTausch);
           const laengeGrabenAbr = num(m.grabenTiefeBreiteDemo);
-          const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
+          const countGrubenAns = num(m.montagegrube);
 
           // Graben-Oberflächen: je Typ mit eigener zugeordneter Länge (m) statt einer einzigen Oberfläche für den gesamten Graben.
           normalizeGrabenSurfaces(m.grabenOberflaechenAns).forEach((entry) => {
@@ -7174,6 +7283,7 @@ const createProject = async () => {
     </div>
 
     {/* Drag & Drop Zone */}
+    {(mode === "create" || canEditTab("Dateien")) && (
     <div 
   onDragOver={(e) => e.preventDefault()} 
   onDrop={async (e) => {
@@ -7230,6 +7340,7 @@ const createProject = async () => {
 >
   Dateien
 </div>
+)}
 
     {/* Anzeige der Dateien */}
     {(mode === "create" ? tempFiles : selectedProject?.files || []).map((f, i) => {
@@ -7330,6 +7441,7 @@ const createProject = async () => {
       </>
     ) : (
       <>
+    {(mode === "create" || canEditTab("Dateien")) && (
     <button
       type="button"
       className="project-file-action"
@@ -7344,6 +7456,7 @@ const createProject = async () => {
         <path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20z" />
       </svg>
     </button>
+    )}
     {mode !== "create" && (
       <>
     <button
@@ -7376,6 +7489,7 @@ const createProject = async () => {
   </div>
       
 {/* LÖSCH-KNOPF */}
+      {(mode === "create" || canEditTab("Dateien")) && (
       <button 
         type="button"
         className="project-file-delete"
@@ -7412,13 +7526,14 @@ const createProject = async () => {
           <path d="M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3" />
         </svg>
       </button>
+      )}
     </div>
   );
 })}
   </>
 )}
-            </>
-          )}
+          </fieldset>
+        )}
         </div>
       </div>
     </div>
@@ -7648,15 +7763,16 @@ const createProject = async () => {
         open={bauzeitenplanOpen}
         onClose={() => setBauzeitenplanOpen(false)}
         projectRows={bzpProjectRows}
-        crews={crews}
+        crews={isRestrictedUser ? crews.filter((c) => (user?.crews || []).includes(c.id)) : crews}
         scheduleEntries={scheduleEntries}
-        onAddCrew={addCrew}
-        onDeleteCrew={deleteCrew}
-        onReorderCrews={reorderCrews}
-        onCreateEntry={createScheduleEntry}
-        onUpdateEntry={updateScheduleEntry}
-        onDeleteEntry={deleteScheduleEntry}
-        onCreateFreetextEntry={createFreetextEntry}
+        readOnly={!can("editBauzeitenplan")}
+        onAddCrew={guardBzp(addCrew)}
+        onDeleteCrew={guardBzp(deleteCrew)}
+        onReorderCrews={guardBzp(reorderCrews)}
+        onCreateEntry={guardBzp(createScheduleEntry)}
+        onUpdateEntry={guardBzp(updateScheduleEntry)}
+        onDeleteEntry={guardBzp(deleteScheduleEntry)}
+        onCreateFreetextEntry={guardBzp(createFreetextEntry)}
         onOpenProject={(projectId) => {
           const project = projects.find((p) => p.id === projectId);
           if (!project) return;
@@ -7696,12 +7812,14 @@ const createProject = async () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0 }}>Einstellungen</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
+                {can("nachkalkulation") && (<>
                 <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Nachkalkulation Excel Export
                 </button>
                 <button onClick={openOrdersExportPopup} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Aufträge Excel Export
                 </button>
+                </>)}
                 <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Logout
                 </button>
@@ -7780,7 +7898,7 @@ const createProject = async () => {
             </div>
 
             <div role="tablist" aria-label="Einstellungen" style={{ display: 'flex', gap: '8px', marginTop: '12px', borderBottom: '1px solid #334155' }}>
-              {["Nachkalkulation", "Einstellungen"].map((tab) => (
+              {["Nachkalkulation", "Einstellungen", "Benutzer"].filter((tab) => (tab === "Nachkalkulation" ? can("nachkalkulation") : tab === "Benutzer" ? can("manageUsers") : true)).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -7987,7 +8105,11 @@ const createProject = async () => {
               </div>
             )}
 
-            {settingsModalTab === "Nachkalkulation" && (
+            {settingsModalTab === "Benutzer" && can("manageUsers") && (
+              <UserAdminPanel currentUserId={user?.id} rolePerms={rolePerms} onPermsChanged={loadRolePerms} />
+            )}
+
+            {settingsModalTab === "Nachkalkulation" && can("nachkalkulation") && (
               <div>
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>

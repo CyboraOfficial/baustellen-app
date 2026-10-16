@@ -1485,68 +1485,6 @@ hr {
   cursor: pointer;
 }
 
-.ans-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.ans-toggle-input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  pointer-events: none;
-}
-
-.ans-toggle-track {
-  width: 44px;
-  height: 24px;
-  background: #334155;
-  border: 1px solid #475569;
-  border-radius: 999px;
-  padding: 2px;
-  display: inline-flex;
-  align-items: center;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.ans-toggle-thumb {
-  width: 18px;
-  height: 18px;
-  background: #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: transform 0.2s ease;
-}
-
-.ans-toggle-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #cbd5e1;
-}
-
-.ans-toggle:hover .ans-toggle-track {
-  border-color: #60a5fa;
-}
-
-.ans-toggle-input:checked + .ans-toggle-track {
-  background: #0ea5e9;
-  border-color: #38bdf8;
-}
-
-.ans-toggle-input:checked + .ans-toggle-track .ans-toggle-thumb {
-  transform: translateX(20px);
-}
-
-.ans-toggle-input:focus-visible + .ans-toggle-track {
-  outline: 2px solid #93c5fd;
-  outline-offset: 2px;
-}
-
 /* Falls das Aufmaß aktiv ist, weiten wir die Seitenleiste/Box nach rechts aus */
 .deine-seitenleiste-klasse:has(.masten-container) {
   width: 85vw !important; /* Erlaubt der Box, weit über die Karte zu ragen */

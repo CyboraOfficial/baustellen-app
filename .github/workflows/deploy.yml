@@ -33,3 +33,24 @@ jobs:
           source: "dist/*"
           target: "/root/pb/pb_public"
           strip_components: 1
+
+      - name: Deploy PocketBase migrations and hooks
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "pb_migrations/*,pb_hooks/*"
+          target: "/root/pb"
+
+      - name: Apply migrations and restart PocketBase
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /root/pb
+            ./pocketbase migrate up
+            systemctl restart ${{ vars.PB_SERVICE_NAME || 'pocketbase' }}

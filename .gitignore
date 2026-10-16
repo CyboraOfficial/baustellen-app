@@ -5,9 +5,6 @@ dist/
 # PocketBase Daten (Wichtig: Deine Datenbank bleibt lokal!)
 pb_data/
 storage/
-pb_migrations/
-!pb_migrations/
-pb_migrations/*
 *.db
 
 # Lokale Umgebungsvariablen
