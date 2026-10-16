@@ -1707,6 +1707,11 @@ useEffect(() => {
 
 const userRole = user?.role || "";
 const [rolePerms, setRolePerms] = useState({});
+const [darkMode, setDarkMode] = useState(() => localStorage.getItem("baustellen_dark_mode") === "1");
+useEffect(() => {
+  document.documentElement.classList.toggle("dark-mode", darkMode);
+  localStorage.setItem("baustellen_dark_mode", darkMode ? "1" : "0");
+}, [darkMode]);
 const loadRolePerms = async () => {
   try {
     const list = await pb.collection("role_permissions").getFullList({ requestKey: null });
@@ -7545,6 +7550,8 @@ const createProject = async () => {
   style={{ height: "100%", width: "100%" }}
   >
   <TileLayer 
+    key={isSatellite ? 'sat' : 'osm'}
+    className={isSatellite ? 'tiles-satellite' : 'tiles-map'}
     url={isSatellite ? satUrl : osmUrl} 
     attribution={isSatellite ? 'Esri Satellite' : 'OpenStreetMap'}
   />
@@ -7923,15 +7930,46 @@ const createProject = async () => {
 
             {settingsModalTab === "Einstellungen" && (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    title="Download-Speicherort"
-                    onClick={() => setDownloadFolderPopupOpen(true)}
-                    style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}
-                  >
-                    Download-Speicherort
-                  </button>
+                <div style={{ marginTop: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
+                  {[
+                    {
+                      key: 'download-folder',
+                      label: 'Download-Speicherort',
+                      control: (
+                        <button
+                          type="button"
+                          title="Download-Speicherort"
+                          onClick={() => setDownloadFolderPopupOpen(true)}
+                          style={{ margin: 0, backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}
+                        >
+                          Ändern
+                        </button>
+                      )
+                    },
+                    {
+                      key: 'darkmode',
+                      label: 'Dark Mode',
+                      control: (
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={darkMode}
+                          onClick={() => setDarkMode((prev) => !prev)}
+                          style={{ margin: 0, backgroundColor: darkMode ? '#0284c7' : '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '999px', padding: '4px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                        >
+                          {darkMode ? '🌙 An' : '☀️ Aus'}
+                        </button>
+                      )
+                    }
+                  ].filter((row) => !row.hidden).map((row, index) => (
+                    <div
+                      key={row.key}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderTop: index === 0 ? 'none' : '1px solid #334155' }}
+                    >
+                      <span style={{ fontSize: '13px' }}>{row.label}</span>
+                      {row.control}
+                    </div>
+                  ))}
                 </div>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
@@ -8054,54 +8092,6 @@ const createProject = async () => {
               </div>
             </div>
 
-                <div style={{ marginTop: '12px', padding: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
-                  <h4 style={{ margin: '0 0 8px', color: '#93c5fd' }}>Karten-Heatmap</h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung:</span>
-                    {[
-                      { id: 'heat', label: 'Wärmewolke' },
-                      { id: 'raster', label: 'Raster' },
-                      { id: 'points', label: 'Punkte' }
-                    ].map((overlayMode) => (
-                      <button
-                        key={overlayMode.id}
-                        type="button"
-                        onClick={() => setSettingsGeoOverlayMode(overlayMode.id)}
-                        style={{
-                          background: settingsGeoOverlayMode === overlayMode.id ? '#0284c7' : '#1e293b',
-                          color: 'white',
-                          border: '1px solid #334155',
-                          borderRadius: '6px',
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          fontWeight: 600
-                        }}
-                      >
-                        {overlayMode.label}
-                      </button>
-                    ))}
-                    {settingsGeoOverlayMode === 'raster' && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8' }}>
-                        Rastergröße (km):
-                        <input
-                          type="number"
-                          min={0.1}
-                          max={25}
-                          step={0.1}
-                          value={settingsGeoCellSizeKm}
-                          onChange={(e) => {
-                            const nextValue = Number(e.target.value);
-                            if (!Number.isFinite(nextValue)) return;
-                            setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
-                          }}
-                          className="mast-input-base"
-                          style={{ width: '88px', marginTop: 0 }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
 
@@ -8248,6 +8238,41 @@ const createProject = async () => {
               {settingsChartView === 'geo-heatmap' && (
                 <>
                   <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Karten-Heatmap: Stundenlohn und Entfernung zur Firma</h4>
+
+                                    <div style={{ marginBottom: '10px', display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                      <div>
+                                        <label style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung</label>
+                                        <select
+                                          value={settingsGeoOverlayMode}
+                                          onChange={(e) => setSettingsGeoOverlayMode(e.target.value)}
+                                          className="mast-input-base"
+                                          style={{ display: 'block', marginTop: '4px', minWidth: '160px' }}
+                                        >
+                                          <option value="heat">Wärmewolke</option>
+                                          <option value="raster">Raster</option>
+                                          <option value="points">Punkte</option>
+                                        </select>
+                                      </div>
+                                      {settingsGeoOverlayMode === 'raster' && (
+                                        <div>
+                                          <label style={{ fontSize: '11px', color: '#94a3b8' }}>Rastergröße (km)</label>
+                                          <input
+                                            type="number"
+                                            min={0.1}
+                                            max={25}
+                                            step={0.1}
+                                            value={settingsGeoCellSizeKm}
+                                            onChange={(e) => {
+                                              const nextValue = Number(e.target.value);
+                                              if (!Number.isFinite(nextValue)) return;
+                                              setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
+                                            }}
+                                            className="mast-input-base"
+                                            style={{ display: 'block', marginTop: '4px', width: '100px' }}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
 
                   {!hasCompanyCoordinates && (
                     <div style={{ marginBottom: '8px', color: '#fda4af', fontSize: '12px' }}>

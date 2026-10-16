@@ -2015,3 +2015,79 @@ textarea.aufmass-autogrow {
   display: flex;
   align-items: center;
 }
+
+/* ---- Dark Mode ---- */
+/* Seitenleiste und Login: Invertierung, Buttons/Bilder/Statuspunkte behalten ihre Farbe */
+.dark-mode .sidebar,
+.dark-mode .login-overlay form {
+  filter: invert(1) hue-rotate(180deg);
+}
+.dark-mode .sidebar button:not(.tab):not(.filter-multi-toggle),
+.dark-mode .sidebar .tab.active,
+.dark-mode .login-overlay form button,
+.dark-mode .sidebar img,
+.dark-mode .sidebar video,
+.dark-mode .sidebar canvas,
+.dark-mode .sidebar iframe,
+.dark-mode .sidebar [style*="border-radius: 50%"],
+.dark-mode .sidebar [style*="border-radius: 999px"] {
+  filter: invert(1) hue-rotate(180deg);
+}
+.dark-mode .sidebar { background: #d4d4d4; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); }
+.dark-mode .sidebar .tab:not(.active) { background: #c2c2c2; }
+.dark-mode .sidebar input,
+.dark-mode .sidebar select,
+.dark-mode .sidebar textarea { border-color: #b0b0b0; }
+
+/* Karte: normaler Dark Mode */
+.dark-mode .leaflet-tile-pane { filter: none; }
+.dark-mode .leaflet-tile-pane .tiles-map,
+.dark-mode .leaflet-tile-pane .leaflet-layer:not(.tiles-satellite) { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9); }
+.dark-mode .leaflet-container { background: #1f2937; }
+.dark-mode .leaflet-popup-content-wrapper,
+.dark-mode .leaflet-popup-tip,
+.dark-mode .leaflet-control-layers,
+.dark-mode .leaflet-bar a { background: #171717; color: #e5e5e5; }
+
+/* Dialoge / Benachrichtigungen */
+.dark-mode .app-dialog { background: #242424; color: #e5e5e5; border: 1px solid #444; }
+.dark-mode .app-dialog h2,
+.dark-mode .app-dialog p { color: #e5e5e5; }
+.dark-mode .app-dialog input,
+.dark-mode .app-dialog select,
+.dark-mode .app-dialog textarea { background: #0a0a0a; color: #e5e5e5; border-color: #2a2a2a; }
+
+/* Inline-Farben (Einstellungen, Listen, Modals): bläuliches Dunkel -> neutrales Schwarz */
+.dark-mode [style*="background: rgb(15, 23, 42)"],
+.dark-mode [style*="background-color: rgb(15, 23, 42)"],
+.dark-mode [style*="background: rgb(11, 18, 32)"],
+.dark-mode [style*="background-color: rgb(11, 18, 32)"],
+.dark-mode [style*="background: rgb(2, 6, 23)"] { background: #1a1a1a !important; }
+.dark-mode [style*="background: rgb(17, 24, 39)"],
+.dark-mode [style*="background-color: rgb(17, 24, 39)"],
+.dark-mode [style*="background: rgb(31, 41, 55)"],
+.dark-mode [style*="background-color: rgb(31, 41, 55)"] { background: #242424 !important; }
+.dark-mode [style*="background: rgb(30, 41, 59)"],
+.dark-mode [style*="background-color: rgb(30, 41, 59)"] { background: #2e2e2e !important; }
+.dark-mode [style*="rgb(51, 65, 85)"] { border-color: #444 !important; }
+.dark-mode [style*="background-color: rgb(2, 132, 199)"] { background: #0284c7 !important; }
+.dark-mode .mast-input-base,
+.dark-mode [class*="modal"] input,
+.dark-mode [class*="modal"] select { background: #1a1a1a; color: #e5e5e5; border-color: #444; }
+
+/* Verbleibende weisse Flaechen ausserhalb der Seitenleiste */
+.dark-mode [style*="background-color: white"]:not(.sidebar *),
+.dark-mode [style*="background-color: rgb(255, 255, 255)"]:not(.sidebar *),
+.dark-mode [style*="background: rgb(255, 255, 255)"]:not(.sidebar *),
+.dark-mode [style*="background: white"]:not(.sidebar *) { background: #242424 !important; color: #e5e5e5; }
+.dark-mode .sidebar-toggle { background: #242424; color: #e5e5e5; }
+
+/* Sidebar-Elemente (Anzeige = invertiert: #d4d4d4 -> #2b2b2b) */
+.dark-mode .sidebar .sidebar-header-static { background-color: #d4d4d4 !important; border-bottom-color: #bdbdbd !important; }
+.dark-mode .sidebar .project-card { background: #cbcbcb; border-color: #b5b5b5; }
+.dark-mode .sidebar .project-card:hover { background: #bdbdbd; }
+.dark-mode .sidebar .filter-multi-toggle,
+.dark-mode .sidebar .filter-multi-menu { background: #c2c2c2; border-color: #a8a8a8; color: #111827; }
+.dark-mode .sidebar input,
+.dark-mode .sidebar select,
+.dark-mode .sidebar textarea { background: #c2c2c2; }
