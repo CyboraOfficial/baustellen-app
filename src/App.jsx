@@ -2399,7 +2399,11 @@ const compressFilesForUpload = async (rawFiles = []) => {
           maxWidthOrHeight: 1920,
           useWebWorker: false
         };
-        return await imageCompression(file, options);
+        const compressedFile = await imageCompression(file, options);
+        return new File([compressedFile], file.name, {
+          type: compressedFile.type || file.type,
+          lastModified: file.lastModified
+        });
       } catch (err) {
         console.warn('Bild-Kompression fehlgeschlagen, nutze Originaldatei.', err);
         return file;
