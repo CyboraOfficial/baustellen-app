@@ -50,30 +50,33 @@ function FlyToPosition({ position }) {
   return null;
 }
 
-function MarkerCluster({ projects, openProject }) {
+function MarkerCluster({ projects, openProject, clusterEnabled }) {
   const map = useMap();
 
   useEffect(() => {
     if (!map) return;
 
-    const markers = L.markerClusterGroup({
-      maxClusterRadius: 25,
-      disableClusteringAtZoom: 15,
-      spiderfyOnMaxZoom: false,
-      animate: true,
-      // WICHTIG: Wir schalten den Standard-Zoom aus, um ihn selbst zu steuern
-      zoomToBoundsOnClick: false 
-    });
+    const markers = clusterEnabled
+      ? L.markerClusterGroup({
+        maxClusterRadius: 25,
+        disableClusteringAtZoom: 15,
+        spiderfyOnMaxZoom: false,
+        animate: true,
+        // WICHTIG: Wir schalten den Standard-Zoom aus, um ihn selbst zu steuern
+        zoomToBoundsOnClick: false
+      })
+      : L.layerGroup();
 
-    // Eigener Klick-Handler für den sanften Zoom (1 Sekunde)
-    markers.on('clusterclick', (a) => {
-      const bounds = a.layer.getBounds();
-      map.flyToBounds(bounds, {
-        padding: [20, 20],
-        duration: 1.0, // Hier stellst du die Sekunde ein
-        easeLinearity: 0.25
+    if (clusterEnabled) {
+      markers.on('clusterclick', (a) => {
+        const bounds = a.layer.getBounds();
+        map.flyToBounds(bounds, {
+          padding: [20, 20],
+          duration: 1.0,
+          easeLinearity: 0.25
+        });
       });
-    });
+    }
 
     projects.forEach((p) => {
       if (!p.position) return;
@@ -93,7 +96,7 @@ function MarkerCluster({ projects, openProject }) {
     return () => {
       map.removeLayer(markers);
     };
-  }, [projects, map, openProject]);
+  }, [projects, map, openProject, clusterEnabled]);
 
   return null;
 }
@@ -374,10 +377,13 @@ const getProjectStatuses = (project) => {
     .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
 };
 
+let projectStatusGradientSequence = 0;
+
 const createProjectStatusIcon = (project) => {
   const statuses = getProjectStatuses(project);
   if (statuses.length <= 1) return ICONS[statuses[0]] || ICONS.Offen;
 
+  const gradientId = `project-status-gradient-${++projectStatusGradientSequence}`;
   const gradientStops = statuses.map((status, index) => {
     const offset = `${(index / statuses.length) * 100}%`;
     const endOffset = `${((index + 1) / statuses.length) * 100}%`;
@@ -386,7 +392,7 @@ const createProjectStatusIcon = (project) => {
   }).join("");
   const icon = L.divIcon({
     className: "project-status-map-icon",
-    html: `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41" aria-hidden="true"><path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="url(#status-gradient)" stroke="#fff" stroke-width="1"/><circle cx="12.5" cy="12.5" r="4.5" fill="#fff" stroke="#334155" stroke-width="1"/><defs><linearGradient id="status-gradient" x1="0" y1="0" x2="0" y2="1">${gradientStops}</linearGradient></defs></svg>`,
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41" aria-hidden="true"><path d="M12.5 0C5.6 0 0 5.6 0 12.5c0 9.4 12.5 28.5 12.5 28.5S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="url(#${gradientId})" stroke="#fff" stroke-width="1"/><circle cx="12.5" cy="12.5" r="4.5" fill="#fff" stroke="#334155" stroke-width="1"/><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">${gradientStops}</linearGradient></defs></svg>`,
     iconSize: [25, 41],
     iconAnchor: [12, 41]
   });
@@ -1789,6 +1795,9 @@ export default function App() {
     if (!saved || saved === '8.2839') return '8.4046718';
     return saved;
   });
+  const [settingsClusterEnabled, setSettingsClusterEnabled] = useState(
+    () => localStorage.getItem('settings_cluster_enabled') !== 'false'
+  );
   const [settingsHeatRadius, setSettingsHeatRadius] = useState(() => {
     const saved = Number(localStorage.getItem('settings_heat_radius'));
     return Number.isFinite(saved) ? Math.min(180, Math.max(18, Math.round(saved))) : 46;
@@ -4599,6 +4608,10 @@ const createProject = async () => {
   useEffect(() => {
     localStorage.setItem('settings_company_lng', String(settingsCompanyLng || ''));
   }, [settingsCompanyLng]);
+
+  useEffect(() => {
+    localStorage.setItem('settings_cluster_enabled', String(settingsClusterEnabled));
+  }, [settingsClusterEnabled]);
 
   useEffect(() => {
     localStorage.setItem('settings_heat_radius', String(settingsHeatRadius));
@@ -7794,7 +7807,11 @@ const createProject = async () => {
     mode={mode} 
   />
   
-  <MarkerCluster projects={filteredProjects} openProject={openProject} />
+  <MarkerCluster
+    projects={filteredProjects}
+    openProject={openProject}
+    clusterEnabled={settingsClusterEnabled}
+  />
   
   <MapClickHandler 
     mode={mode} 
@@ -8112,6 +8129,18 @@ const createProject = async () => {
                     Download-Speicherort
                   </button>
                 </div>
+                <label className="ans-toggle" style={{ display: 'flex', width: '100%', marginTop: '12px', padding: '10px 12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
+                  <input
+                    type="checkbox"
+                    className="ans-toggle-input"
+                    checked={settingsClusterEnabled}
+                    onChange={(event) => setSettingsClusterEnabled(event.target.checked)}
+                  />
+                  <span className="ans-toggle-track" aria-hidden="true">
+                    <span className="ans-toggle-thumb" />
+                  </span>
+                  <span className="ans-toggle-label">Marker-Cluster auf der Karte verwenden</span>
+                </label>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
