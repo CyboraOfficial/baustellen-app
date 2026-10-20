@@ -11,8 +11,8 @@ import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Or
 import imageCompression from 'browser-image-compression';
 import * as XLSX from 'xlsx';
 import FileViewer from './FileViewer';
-import UserAdminPanel from './UserAdminPanel';
-import { DEFAULT_ROLE_PERMISSIONS, TAB_LEVELS, TAB_BOOL_KEYS } from './permissions';
+import UserAdminPanel, { MultiSelect } from './UserAdminPanel';
+import { TAB_LEVELS, TAB_BOOL_KEYS } from './permissions';
 
 const enableLeafletHeatWillReadFrequently = () => {
   const HeatLayer = L?.HeatLayer;
@@ -1474,7 +1474,6 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsModalTab, setSettingsModalTab] = useState("Einstellungen");
   const [settingsTypeFilter, setSettingsTypeFilter] = useState("Alle");
-  const [settingsSortBy, setSettingsSortBy] = useState("date-desc");
   const [settingsDateFrom, setSettingsDateFrom] = useState(() => getCurrentYearStartDateString());
   const [settingsDateTo, setSettingsDateTo] = useState(() => getTodayDateString());
   const [chartDetailOpen, setChartDetailOpen] = useState(false);
@@ -1705,7 +1704,6 @@ useEffect(() => {
     });
 }, []);
 
-const userRole = user?.role || "";
 const [rolePerms, setRolePerms] = useState({});
 const [darkMode, setDarkMode] = useState(() => localStorage.getItem("baustellen_dark_mode") === "1");
 useEffect(() => {
@@ -1715,7 +1713,7 @@ useEffect(() => {
 const loadRolePerms = async () => {
   try {
     const list = await pb.collection("role_permissions").getFullList({ requestKey: null });
-    setRolePerms(Object.fromEntries(list.map((r) => [r.role, r])));
+    setRolePerms(Object.fromEntries(list.flatMap((r) => [[r.id, r], [r.role, r]])));
   } catch (err) {
     console.error("Berechtigungen konnten nicht geladen werden:", err);
   }
@@ -1724,15 +1722,31 @@ useEffect(() => {
   if (user) loadRolePerms();
 }, [user?.id]);
 
+const assignedRoles = (user?.roles || []).map((id) => rolePerms[id]).filter(Boolean);
+const hasAdminRole = assignedRoles.some((role) => role.role === "admin");
 const can = (permission) => {
-  if (userRole === "admin") return true;
+  if (hasAdminRole) return true;
   if (permission === "manageUsers") return false;
-  const source = rolePerms[userRole] || DEFAULT_ROLE_PERMISSIONS[userRole];
-  return !!source?.[permission];
+  return assignedRoles.some((role) => !!role[permission]);
 };
+const parseVisibleStatuses = (role) => {
+  let list = role?.visibleStatuses;
+  if (typeof list === "string") {
+    try { list = JSON.parse(list); } catch { list = null; }
+  }
+  return Array.isArray(list) ? list : [];
+};
+// null = alle Status sichtbar; sonst Vereinigung der Status aller Rollen
+const allowedStatuses = (() => {
+  if (hasAdminRole || assignedRoles.length === 0) return null;
+  const lists = assignedRoles.map(parseVisibleStatuses);
+  if (lists.some((l) => l.length === 0)) return null;
+  return new Set(lists.flat());
+})();
 const canViewTab = (tab) => (TAB_LEVELS[tab] ? can(TAB_LEVELS[tab].viewKey) : can(TAB_BOOL_KEYS[tab]));
 const canEditTab = (tab) => !!TAB_LEVELS[tab] && can(TAB_LEVELS[tab].viewKey) && can(TAB_LEVELS[tab].editKey);
-const isRestrictedUser = userRole !== "admin" && can("onlyAssignedProjects");
+const isRestrictedUser = !hasAdminRole
+  && (assignedRoles.length === 0 || assignedRoles.every((role) => !!role.onlyAssignedProjects));
 const canEditAnyProjectTab = ["Allgemein", "Dateien", "Masten", "Aufmaß", "Abrechnung"].some(canEditTab);
 const visibleTabs = tabs.filter(canViewTab);
 const guardBzp = (fn) => (...args) => {
@@ -1750,7 +1764,7 @@ useEffect(() => {
   if (user && visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
     setActiveTab(visibleTabs[0]);
   }
-}, [user, userRole, activeTab]);
+}, [user, rolePerms, activeTab]);
 
 const updateMast = (index, field, value) => {
   setForm(prev => {
@@ -2671,6 +2685,7 @@ Weitere Infos: ${form.notes || ""}
         p.ab_mueller?.toLowerCase().includes(text) ||
         p.type?.toLowerCase().includes(text) ||
         p.pgk?.toLowerCase().includes(text)) &&
+      (!allowedStatuses || getProjectStatuses(p).some((s) => allowedStatuses.has(s))) &&
       matchesStatusFilter(getProjectStatuses(p)) &&
       matchesTypeFilter(p.type)
     );
@@ -3970,13 +3985,6 @@ const createProject = async () => {
     .filter((row) => !settingsDateFromISO || (row.createdDate && row.createdDate >= settingsDateFromISO))
     .filter((row) => !settingsDateToISO || (row.createdDate && row.createdDate <= settingsDateToISO))
     .sort((a, b) => {
-      if (settingsSortBy === "hourly-desc") return b.hourlyRate - a.hourlyRate;
-      if (settingsSortBy === "hourly-asc") return a.hourlyRate - b.hourlyRate;
-      if (settingsSortBy === "date-asc") {
-        const aMs = a.createdAt ? a.createdAt.getTime() : 0;
-        const bMs = b.createdAt ? b.createdAt.getTime() : 0;
-        return aMs - bMs;
-      }
       const aMs = a.createdAt ? a.createdAt.getTime() : 0;
       const bMs = b.createdAt ? b.createdAt.getTime() : 0;
       return bMs - aMs;
@@ -7806,7 +7814,7 @@ const createProject = async () => {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: 'min(1100px, 95vw)',
+              width: 'min(1800px, 96vw)',
               maxHeight: '90vh',
               overflow: 'auto',
               background: '#0f172a',
@@ -7973,51 +7981,6 @@ const createProject = async () => {
                 </div>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
-                <select value={settingsTypeFilter} onChange={(e) => setSettingsTypeFilter(e.target.value)} className="mast-input-base" style={{ width: '100%', marginTop: '4px' }}>
-                  {analyticsTypeOptions.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Sortierung</label>
-                <select value={settingsSortBy} onChange={(e) => setSettingsSortBy(e.target.value)} className="mast-input-base" style={{ width: '100%', marginTop: '4px' }}>
-                  <option value="date-desc">Datum (neu zuerst)</option>
-                  <option value="date-asc">Datum (alt zuerst)</option>
-                  <option value="hourly-desc">Stundenlohn (hoch zuerst)</option>
-                  <option value="hourly-asc">Stundenlohn (niedrig zuerst)</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="dd.mm.yyyy"
-                  value={normalizeDateValue(settingsDateFrom)}
-                  onChange={(e) => setSettingsDateFrom(e.target.value)}
-                  onBlur={(e) => setSettingsDateFrom(normalizeDateValue(e.target.value))}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="dd.mm.yyyy"
-                  value={normalizeDateValue(settingsDateTo)}
-                  onChange={(e) => setSettingsDateTo(e.target.value)}
-                  onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
-                />
-              </div>
-              <div>
                 <label style={{ fontSize: '11px', color: '#94a3b8' }}>Proforma-Erinnerung (Tage)</label>
                 <input
                   type="number"
@@ -8101,6 +8064,50 @@ const createProject = async () => {
 
             {settingsModalTab === "Nachkalkulation" && can("nachkalkulation") && (
               <div>
+            <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
+                <div style={{ marginTop: '4px' }}>
+                  <MultiSelect
+                    single
+                    options={analyticsTypeOptions.map((type) => ({ id: type, label: type }))}
+                    selected={[settingsTypeFilter]}
+                    placeholder="Typ auswählen"
+                    summary={(ids) => ids[0]}
+                    onChange={(id) => setSettingsTypeFilter(id)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd.mm.yyyy"
+                  value={normalizeDateValue(settingsDateFrom)}
+                  onChange={(e) => setSettingsDateFrom(e.target.value)}
+                  onBlur={(e) => setSettingsDateFrom(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd.mm.yyyy"
+                  value={normalizeDateValue(settingsDateTo)}
+                  onChange={(e) => setSettingsDateTo(e.target.value)}
+                  onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+            </div>
+
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
                 <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gewichteter Stundenlohn (Filter)</div>

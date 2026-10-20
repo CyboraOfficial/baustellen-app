@@ -1,5 +1,3 @@
-export const ROLES = ["admin", "buero", "bauleiter", "monteur"];
-
 export const ROLE_LABELS = {
   admin: "Admin",
   buero: "Büro",
@@ -31,27 +29,15 @@ export const BOOL_DEFS = [
 export const TAB_LEVELS = Object.fromEntries(LEVEL_DEFS.map((d) => [d.tab, d]));
 export const TAB_BOOL_KEYS = { "Protokoll": "tabProtokoll", "Vorlage": "tabVorlage" };
 
+export const STATUS_OPTIONS = [
+  "Offen", "Geplant", "Klärung", "Westnetznummer fehlt", "In Bearbeitung",
+  "Fertig für Abrechnung", "Proforma Müller", "Proforma HSW", "Proforma WN", "Abgerechnet"
+].map((status) => ({ id: status, label: status }));
+
 export const ALL_PERMISSION_KEYS = [
   ...LEVEL_DEFS.flatMap((d) => [d.viewKey, d.editKey]),
   ...BOOL_DEFS.map((d) => d.key)
 ];
-
-const all = Object.fromEntries(ALL_PERMISSION_KEYS.map((k) => [k, true]));
-const none = Object.fromEntries(ALL_PERMISSION_KEYS.map((k) => [k, false]));
-
-// Standardwerte, solange (noch) keine Einträge in der Collection role_permissions existieren.
-export const DEFAULT_ROLE_PERMISSIONS = {
-  admin: all,
-  buero: all,
-  bauleiter: { ...all, tabAbrechnung: false, editAbrechnung: false, deleteProject: false, nachkalkulation: false },
-  monteur: {
-    ...none,
-    tabAllgemein: true, editAllgemein: true,
-    tabDateien: true, editDateien: true,
-    tabProtokoll: true,
-    tabMasten: true, editMasten: true
-  }
-};
 
 export const getLevel = (perms, def) => {
   if (!perms?.[def.viewKey]) return "none";
