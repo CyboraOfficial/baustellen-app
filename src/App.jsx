@@ -2904,9 +2904,11 @@ useLayoutEffect(() => {
 const handleStatusChange = (newStatus) => {
   setForm(prev => {
     const currentStatuses = getProjectStatuses(prev);
-    const selectedStatuses = currentStatuses.includes(newStatus)
+    const isAdding = !currentStatuses.includes(newStatus);
+    const replacedStatus = newStatus === "In Bearbeitung" ? "Offen" : newStatus === "Fertig für Abrechnung" ? "In Bearbeitung" : null;
+    const selectedStatuses = !isAdding
       ? currentStatuses.filter((status) => status !== newStatus)
-      : [...currentStatuses, newStatus];
+      : [...currentStatuses, newStatus].filter((status) => status !== replacedStatus);
     if (selectedStatuses.length === 0) return prev;
     const orderedStatuses = selectedStatuses.sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
@@ -4772,7 +4774,9 @@ const createProject = async () => {
   const closeNotifications = () => setNotificationsOpen(false);
   const confirmNotificationStatus = async (n) => {
     try {
+      const replacedStatus = n.newStatus === "In Bearbeitung" ? "Offen" : n.newStatus === "Fertig für Abrechnung" ? "In Bearbeitung" : null;
       const statuses = [...new Set([...getProjectStatuses(n.project), n.newStatus])]
+        .filter((status) => status !== replacedStatus)
         .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
       const updated = await pb.collection('projects').update(n.project.id, { status: statuses[0], statuses });
       setProjects((prev) => prev.map((p) => (p.id === n.project.id ? { ...p, ...updated } : p)));
