@@ -857,11 +857,13 @@ function MapClickHandler({ mode, onPick, setAddress }) {
 
 const BZP_DAY_WIDTH = 34;
 const BZP_ROW_HEIGHT = 46;
+const BZP_ENTRY_HEIGHT = 24;
+const BZP_ENTRY_GAP = 6;
 const BZP_HEADER_HEIGHT = 40;
 const BZP_WEEK_ROW_HEIGHT = 22;
 const BZP_LABEL_WIDTH = 170;
-const BZP_VISIBLE_WEEKS = 14;
 const BZP_HANDLE_WIDTH = 8;
+const BZP_OVERVIEW_WEEKS = 14;
 
 function BauzeitenplanModal({
   open,
@@ -881,9 +883,11 @@ function BauzeitenplanModal({
 }) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("name-asc");
-  const [selectedTypeFilters, setSelectedTypeFilters] = useState(["Anfahrschaden", "Konzept"]);
+  const [selectedTypeFilters, setSelectedTypeFilters] = useState(["Anfahrschaden", "Konzept", "Sonstiges"]);
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [viewMode, setViewMode] = useState("week");
+  const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
+  const [rowHeights, setRowHeights] = useState({});
   const [newCrewName, setNewCrewName] = useState("");
   const [draggingId, setDraggingId] = useState(null);
   const [draggingCrewId, setDraggingCrewId] = useState(null);
@@ -906,13 +910,23 @@ function BauzeitenplanModal({
 
   if (!open) return null;
 
-  const visibleDayCount = BZP_VISIBLE_WEEKS * 7;
-  const rangeStart = addDays(getMondayOfWeek(new Date()), weekOffset * 7);
+  const rangeStart = viewMode === "week"
+    ? getMondayOfWeek(viewDate)
+    : viewMode === "month"
+      ? new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)
+      : getMondayOfWeek(viewDate);
+  const visibleDayCount = viewMode === "week"
+    ? 7
+    : viewMode === "month"
+      ? new Date(rangeStart.getFullYear(), rangeStart.getMonth() + 1, 0).getDate()
+      : BZP_OVERVIEW_WEEKS * 7;
+  const dayWidth = viewMode === "week" ? 120 : BZP_DAY_WIDTH;
   const days = Array.from({ length: visibleDayCount }, (_, i) => addDays(rangeStart, i));
   const todayISO = startOfDay(new Date()).getTime();
+  const knownProjectTypes = ["Konzept", "Anfahrschaden", "Störung", "LK-Tausch", "Sonstiges"];
   const typeFilterOptions = [
     { value: "Alle", label: "Alle" },
-    ...Array.from(new Set(projectRows.map((row) => row.type).filter(Boolean)))
+    ...Array.from(new Set([...knownProjectTypes, ...projectRows.map((row) => row.type).filter(Boolean)]))
       .sort((a, b) => a.localeCompare(b, "de"))
       .map((type) => ({ value: type, label: type }))
   ];
@@ -957,6 +971,90 @@ function BauzeitenplanModal({
     setNewCrewName("");
   };
 
+  const navigateCalendar = (amount) => {
+    setViewDate((current) => {
+      if (viewMode === "week") return addDays(current, amount * 7);
+      const next = new Date(current);
+      next.setDate(1);
+      next.setMonth(next.getMonth() + amount);
+      return next;
+    });
+  };
+
+  const beginRowResize = (e, crewId, currentHeight) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const onMove = (moveEvent) => {
+      const nextHeight = Math.max(BZP_ROW_HEIGHT, Math.min(320, currentHeight + moveEvent.clientY - startY));
+      setRowHeights((current) => ({ ...current, [crewId]: nextHeight }));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const getCrewRowLayout = (crew) => {
+    const laneEnds = [];
+    const laneHeights = [];
+    const entries = scheduleEntries
+      .filter((entry) => livePreview?.entryId === entry.id
+        ? livePreview.crewId === crew.id
+        : entry.crew === crew.id)
+      .map((entry) => {
+        const isPreview = livePreview?.entryId === entry.id;
+        const start = isPreview ? livePreview.start : startOfDay(new Date(entry.start_date));
+        const end = isPreview ? livePreview.end : startOfDay(new Date(entry.end_date));
+        const left = diffInDays(rangeStart, start) * dayWidth;
+        const width = (diffInDays(start, end) + 1) * dayWidth;
+        const visibleLeft = Math.max(0, left);
+        const visibleRight = Math.min(visibleDayCount * dayWidth, left + width);
+        const label = entry.expand?.project?.name || entry.notes || "(ohne Titel)";
+        if (visibleRight <= visibleLeft) return null;
+        const visibleWidth = visibleRight - visibleLeft;
+        const textWidth = Math.ceil(label.length * 7) + 12;
+        const showCaption = viewMode === "week";
+        const captionWidth = visibleWidth;
+        const captionLineCount = Math.max(1, Math.ceil(textWidth / Math.max(1, captionWidth - 12)));
+        const captionHeight = showCaption ? captionLineCount * 14 + 4 : 0;
+        return {
+          entry,
+          isPreview,
+          label,
+          left: visibleLeft,
+          width: visibleWidth,
+          displayWidth: visibleWidth,
+          showCaption,
+          captionWidth,
+          captionHeight,
+          itemHeight: BZP_ENTRY_HEIGHT + (showCaption ? captionHeight + 2 : 0),
+          laneEnd: visibleRight
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.left - b.left || String(a.entry.id).localeCompare(String(b.entry.id)))
+      .map((item) => {
+        let lane = laneEnds.findIndex((laneEnd) => laneEnd <= item.left);
+        if (lane === -1) lane = laneEnds.length;
+        laneEnds[lane] = item.laneEnd;
+        laneHeights[lane] = Math.max(laneHeights[lane] || 0, item.itemHeight);
+        return { ...item, lane };
+      });
+    const laneTops = [];
+    laneHeights.forEach((height, index) => {
+      laneTops[index] = index === 0 ? 5 : laneTops[index - 1] + laneHeights[index - 1] + BZP_ENTRY_GAP;
+    });
+    const contentHeight = Math.max(BZP_ROW_HEIGHT, laneHeights.reduce((height, laneHeight) => height + laneHeight, 10) + Math.max(0, laneHeights.length - 1) * BZP_ENTRY_GAP);
+    return {
+      entries: entries.map((item) => ({ ...item, top: laneTops[item.lane] })),
+      height: Math.max(contentHeight, rowHeights[crew.id] || BZP_ROW_HEIGHT)
+    };
+  };
+  const crewRowLayouts = new Map(crews.map((crew) => [crew.id, getCrewRowLayout(crew)]));
+
   const handleDrop = (e, crewId) => {
     e.preventDefault();
     const projectId = e.dataTransfer.getData('text/plain');
@@ -964,7 +1062,7 @@ function BauzeitenplanModal({
     const rowEl = e.currentTarget;
     const rect = rowEl.getBoundingClientRect();
     const offsetX = e.clientX - rect.left;
-    const dayIndex = Math.max(0, Math.floor(offsetX / BZP_DAY_WIDTH));
+    const dayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor(offsetX / dayWidth)));
     const dropDate = addDays(rangeStart, dayIndex);
     onCreateEntry(projectId, crewId, dropDate);
   };
@@ -977,9 +1075,14 @@ function BauzeitenplanModal({
     const originalStart = startOfDay(new Date(entry.start_date));
     const originalEnd = startOfDay(new Date(entry.end_date));
     dragMovedRef.current = false;
+    const getCrewAtPoint = (clientX, clientY) => {
+      const row = document.elementFromPoint(clientX, clientY)?.closest('[data-bzp-crew-id]');
+      const crewId = row?.getAttribute('data-bzp-crew-id');
+      return crews.some((crew) => crew.id === crewId) ? crewId : entry.crew;
+    };
 
     const computeRange = (clientX) => {
-      const deltaDays = Math.round((clientX - startX) / BZP_DAY_WIDTH);
+      const deltaDays = Math.round((clientX - startX) / dayWidth);
       let newStart = originalStart;
       let newEnd = originalEnd;
       if (mode === 'move') {
@@ -997,10 +1100,11 @@ function BauzeitenplanModal({
 
     const onMove = (moveEvent) => {
       const { newStart, newEnd } = computeRange(moveEvent.clientX);
-      if (newStart.getTime() !== originalStart.getTime() || newEnd.getTime() !== originalEnd.getTime()) {
+      const crewId = getCrewAtPoint(moveEvent.clientX, moveEvent.clientY);
+      if (newStart.getTime() !== originalStart.getTime() || newEnd.getTime() !== originalEnd.getTime() || crewId !== entry.crew) {
         dragMovedRef.current = true;
       }
-      setLivePreview({ entryId: entry.id, start: newStart, end: newEnd });
+      setLivePreview({ entryId: entry.id, start: newStart, end: newEnd, crewId });
     };
 
     const onUp = (upEvent) => {
@@ -1008,8 +1112,9 @@ function BauzeitenplanModal({
       window.removeEventListener('pointerup', onUp);
       setLivePreview(null);
       const { newStart, newEnd } = computeRange(upEvent.clientX);
-      if (newStart.getTime() !== originalStart.getTime() || newEnd.getTime() !== originalEnd.getTime()) {
-        onUpdateEntry(entry.id, { start_date: newStart.toISOString(), end_date: newEnd.toISOString() });
+      const crewId = getCrewAtPoint(upEvent.clientX, upEvent.clientY);
+      if (newStart.getTime() !== originalStart.getTime() || newEnd.getTime() !== originalEnd.getTime() || crewId !== entry.crew) {
+        onUpdateEntry(entry.id, { start_date: newStart.toISOString(), end_date: newEnd.toISOString(), crew: crewId });
       }
     };
 
@@ -1020,12 +1125,12 @@ function BauzeitenplanModal({
   // Freitext-Eintrag durch Aufziehen eines Zeitraums auf einer leeren Truppen-Zeile anlegen.
   const beginRowSelection = (e, crewId) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const startDayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor((e.clientX - rect.left) / BZP_DAY_WIDTH)));
+    const startDayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor((e.clientX - rect.left) / dayWidth)));
     let currentDayIndex = startDayIndex;
     setSelection({ crewId, from: startDayIndex, to: startDayIndex });
 
     const onMove = (moveEvent) => {
-      currentDayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor((moveEvent.clientX - rect.left) / BZP_DAY_WIDTH)));
+      currentDayIndex = Math.max(0, Math.min(visibleDayCount - 1, Math.floor((moveEvent.clientX - rect.left) / dayWidth)));
       setSelection({ crewId, from: Math.min(startDayIndex, currentDayIndex), to: Math.max(startDayIndex, currentDayIndex) });
     };
 
@@ -1069,9 +1174,6 @@ function BauzeitenplanModal({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
           <h3 style={{ margin: 0 }}>Bauzeitenplan</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => setWeekOffset((v) => v - 1)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>‹ Vorherige</button>
-            <button onClick={() => setWeekOffset(0)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Heute</button>
-            <button onClick={() => setWeekOffset((v) => v + 1)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Nächste ›</button>
             <button onClick={onClose} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Schließen</button>
           </div>
         </div>
@@ -1129,7 +1231,7 @@ function BauzeitenplanModal({
               <option value="created-desc">Erstellt (neu zuerst)</option>
             </select>
             <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-              Baustellen per Drag & Drop einer Truppe im Kalender zuordnen. Freie Fläche im Kalender aufziehen für Freitext.
+              Baustellen per Drag & Drop einer Truppe im Kalender zuordnen. Einträge vertikal ziehen, um sie einer anderen Truppe zuzuweisen. Freie Fläche im Kalender aufziehen für Freitext.
             </div>
             <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', background: '#111827' }}>
               {filteredRows.length === 0 && (
@@ -1197,6 +1299,72 @@ function BauzeitenplanModal({
               </button>
             </div>
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <div role="group" aria-label="Kalendersteuerung" style={{
+                display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px',
+                background: '#111827', border: '1px solid #334155', borderRadius: '8px'
+              }}>
+                <button
+                  type="button"
+                  aria-label="Zurück"
+                  title="Zurück"
+                  onClick={() => navigateCalendar(-1)}
+                  style={{ width: '34px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: '#cbd5e1', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="m10 3-5 5 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Heute"
+                  title="Heute"
+                  onClick={() => setViewDate(startOfDay(new Date()))}
+                  style={{ minWidth: '36px', height: '32px', display: 'grid', placeItems: 'center', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '15px' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <rect x="2" y="3.5" width="12" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M5 2v3M11 2v3M2 6.5h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    <circle cx="8" cy="9.75" r="1.25" fill="currentColor" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Weiter"
+                  title="Weiter"
+                  onClick={() => navigateCalendar(1)}
+                  style={{ width: '34px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: '#cbd5e1', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <span aria-hidden="true" style={{ width: '1px', height: '22px', margin: '0 4px', background: '#334155' }} />
+                {[
+                  { value: 'week', label: 'Woche' },
+                  { value: 'month', label: 'Monat' },
+                  { value: 'overview', label: 'Mehrere Wochen' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-label={`Ansicht: ${option.label}`}
+                    aria-pressed={viewMode === option.value}
+                    onClick={() => setViewMode(option.value)}
+                    style={{
+                      padding: '7px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
+                      color: viewMode === option.value ? '#f8fafc' : '#94a3b8',
+                      background: viewMode === option.value ? '#2563eb' : 'transparent',
+                      fontSize: '12px', fontWeight: viewMode === option.value ? 700 : 500,
+                      transition: 'background 120ms ease, color 120ms ease'
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto', border: '1px solid #334155', borderRadius: '8px', background: '#111827', display: 'flex' }}>
               {/* Sticky Trupp-Namen links */}
               <div style={{ width: BZP_LABEL_WIDTH, flexShrink: 0, position: 'sticky', left: 0, background: '#111827', zIndex: 2, borderRight: '1px solid #334155' }}>
@@ -1207,6 +1375,7 @@ function BauzeitenplanModal({
                 {crews.map((crew) => (
                   <div
                     key={crew.id}
+                    data-bzp-crew-id={crew.id}
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData('application/x-bzp-crew', crew.id);
@@ -1229,8 +1398,8 @@ function BauzeitenplanModal({
                       onReorderCrews(newOrder);
                     }}
                     style={{
-                      height: BZP_ROW_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '0 8px', borderBottom: '1px solid #1f2937', cursor: 'grab',
+                      height: crewRowLayouts.get(crew.id).height, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '0 8px', borderBottom: '1px solid #1f2937', cursor: 'grab', position: 'relative',
                       opacity: draggingCrewId === crew.id ? 0.4 : 1
                     }}
                     title="Zum Umsortieren ziehen"
@@ -1243,26 +1412,45 @@ function BauzeitenplanModal({
                     >
                       ✕
                     </button>
+                    <div
+                      onPointerDown={(e) => beginRowResize(e, crew.id, crewRowLayouts.get(crew.id).height)}
+                      title="Ziehen, um die Zeilenhöhe anzupassen"
+                      style={{
+                        position: 'absolute', right: 12, bottom: 1, width: 32, height: 6,
+                        borderRadius: 4, background: '#475569', cursor: 'ns-resize', zIndex: 3
+                      }}
+                    />
                   </div>
                 ))}
               </div>
 
               {/* Kalender-Bereich */}
               <div style={{ overflowX: 'auto', flex: 1, minWidth: 0 }}>
-                <div style={{ width: visibleDayCount * BZP_DAY_WIDTH, position: 'relative' }}>
+                <div style={{ width: visibleDayCount * dayWidth, position: 'relative' }}>
                   <div style={{ height: BZP_WEEK_ROW_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: 0, background: '#111827', zIndex: 1 }}>
-                    {Array.from({ length: BZP_VISIBLE_WEEKS }, (_, w) => days[w * 7]).map((monday, w) => (
-                      <div
-                        key={w}
-                        style={{
-                          width: BZP_DAY_WIDTH * 7, flexShrink: 0, textAlign: 'center', fontSize: '10px',
-                          fontWeight: 600, color: '#93c5fd', borderLeft: '1px solid #334155',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
-                      >
-                        KW {getISOWeekNumber(monday)}
-                      </div>
-                    ))}
+                    <div
+                      style={{
+                        width: visibleDayCount * dayWidth, flexShrink: 0, textAlign: 'center', fontSize: '10px',
+                        fontWeight: 600, color: '#93c5fd', borderLeft: '1px solid #334155',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      {viewMode === "overview"
+                        ? Array.from({ length: BZP_OVERVIEW_WEEKS }, (_, weekIndex) => addDays(rangeStart, weekIndex * 7)).map((monday, weekIndex) => (
+                          <div
+                            key={weekIndex}
+                            style={{
+                              width: dayWidth * 7, flexShrink: 0, borderLeft: '1px solid #334155',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                          >
+                            KW {getISOWeekNumber(monday)}
+                          </div>
+                        ))
+                        : viewMode === "week"
+                          ? `KW ${getISOWeekNumber(rangeStart)}`
+                          : rangeStart.toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
+                    </div>
                   </div>
                   <div style={{ height: BZP_HEADER_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: BZP_WEEK_ROW_HEIGHT, background: '#111827', zIndex: 1 }}>
                     {days.map((day, i) => {
@@ -1272,13 +1460,14 @@ function BauzeitenplanModal({
                         <div
                           key={i}
                           style={{
-                            width: BZP_DAY_WIDTH, flexShrink: 0, textAlign: 'center', fontSize: '10px',
+                            width: dayWidth, flexShrink: 0, textAlign: 'center', fontSize: '10px',
                             color: isWeekendDay(day) ? '#64748b' : '#cbd5e1',
                             borderLeft: isMonday ? '1px solid #334155' : 'none',
                             background: isToday ? 'rgba(2,132,199,0.25)' : 'transparent',
                             display: 'flex', flexDirection: 'column', justifyContent: 'center'
                           }}
                         >
+                          {viewMode === "week" && <div>{day.toLocaleDateString("de-DE", { weekday: "short" })}</div>}
                           <div>{String(day.getDate()).padStart(2, '0')}.{String(day.getMonth() + 1).padStart(2, '0')}</div>
                         </div>
                       );
@@ -1288,14 +1477,15 @@ function BauzeitenplanModal({
                   {crews.map((crew) => (
                     <div
                       key={crew.id}
+                      data-bzp-crew-id={crew.id}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, crew.id)}
                       onPointerDown={(e) => beginRowSelection(e, crew.id)}
-                      style={{ height: BZP_ROW_HEIGHT, position: 'relative', borderBottom: '1px solid #1f2937', display: 'flex', cursor: 'crosshair' }}
+                      style={{ height: crewRowLayouts.get(crew.id).height, position: 'relative', borderBottom: '1px solid #1f2937', display: 'flex', cursor: 'crosshair' }}
                     >
                       {days.map((day, i) => (
                         <div key={i} style={{
-                          width: BZP_DAY_WIDTH, flexShrink: 0, height: '100%',
+                          width: dayWidth, flexShrink: 0, height: '100%',
                           background: isWeekendDay(day) ? 'rgba(148,163,184,0.06)' : 'transparent',
                           borderLeft: day.getDay() === 1 ? '1px solid #1f2937' : 'none'
                         }} />
@@ -1303,23 +1493,15 @@ function BauzeitenplanModal({
 
                       {selection && selection.crewId === crew.id && (
                         <div style={{
-                          position: 'absolute', left: selection.from * BZP_DAY_WIDTH,
-                          width: (selection.to - selection.from + 1) * BZP_DAY_WIDTH,
+                          position: 'absolute', left: selection.from * dayWidth,
+                          width: (selection.to - selection.from + 1) * dayWidth,
                           top: 5, bottom: 5, background: 'rgba(226,232,240,0.25)',
                           border: '1px dashed #e2e8f0', borderRadius: '6px', pointerEvents: 'none'
                         }} />
                       )}
 
-                      {scheduleEntries
-                        .filter((entry) => entry.crew === crew.id)
-                        .map((entry) => {
-                          const isPreview = livePreview && livePreview.entryId === entry.id;
-                          const start = isPreview ? livePreview.start : startOfDay(new Date(entry.start_date));
-                          const end = isPreview ? livePreview.end : startOfDay(new Date(entry.end_date));
-                          const left = diffInDays(rangeStart, start) * BZP_DAY_WIDTH;
-                          const width = (diffInDays(start, end) + 1) * BZP_DAY_WIDTH;
-                          if (left + width < 0 || left > visibleDayCount * BZP_DAY_WIDTH) return null;
-                          const label = entry.expand?.project?.name || entry.notes || '(ohne Titel)';
+                      {crewRowLayouts.get(crew.id).entries.map((item) => {
+                          const { entry, isPreview, label, left, width, displayWidth, showCaption, captionHeight, top } = item;
                           const barColor = entry.color || '#0284c7';
                           const hasProject = !!entry.expand?.project?.id;
                           return (
@@ -1327,11 +1509,20 @@ function BauzeitenplanModal({
                               key={entry.id}
                               title={label}
                               style={{
-                                position: 'absolute', left, width: Math.max(width, BZP_DAY_WIDTH), top: 5, bottom: 5,
-                                background: barColor, borderRadius: '6px', overflow: 'hidden',
+                                position: 'absolute', left, width: displayWidth,
+                                height: BZP_ENTRY_HEIGHT + captionHeight,
+                                top,
+                                overflow: 'visible', background: barColor, borderRadius: '6px',
                                 boxShadow: isPreview ? '0 0 0 2px #e2e8f0' : 'none'
                               }}
                             >
+                              <div
+                                style={{
+                                  position: 'absolute', left: 0, top: 0, width, height: BZP_ENTRY_HEIGHT,
+                                  background: barColor, borderRadius: '6px 6px 0 0',
+                                  pointerEvents: 'none'
+                                }}
+                              />
                               <div
                                 onPointerDown={(e) => beginEntryDrag(e, entry, 'resize-left')}
                                 style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: BZP_HANDLE_WIDTH, cursor: 'ew-resize' }}
@@ -1344,29 +1535,58 @@ function BauzeitenplanModal({
                                 title={hasProject ? `${label} (klicken zum Öffnen)` : label}
                                 style={{
                                   position: 'absolute', left: BZP_HANDLE_WIDTH, right: BZP_HANDLE_WIDTH, top: 0, bottom: 0,
-                                  cursor: hasProject ? 'pointer' : 'grab', display: 'flex', alignItems: 'center', overflow: 'hidden'
+                                  cursor: hasProject ? 'pointer' : 'grab', display: 'flex', alignItems: 'center', overflow: 'visible'
                                 }}
                               >
-                                <span style={{
-                                  fontSize: '11px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden',
-                                  flex: 1, minWidth: 0, paddingLeft: '4px', paddingRight: '18px'
-                                }}>{label}</span>
+                                {viewMode !== "week" && (
+                                  <span style={{
+                                    position: 'absolute', left: 0, right: 0,
+                                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                                    fontSize: '10px', padding: '0 2px',
+                                    color: '#f8fafc', textShadow: '0 1px 2px rgba(15,23,42,0.9)',
+                                    pointerEvents: 'none'
+                                  }}>{label}</span>
+                                )}
                               </div>
+                              {showCaption && (
+                                <span
+                                  onPointerDown={(e) => beginEntryDrag(e, entry, 'move')}
+                                  onClick={() => {
+                                    if (!dragMovedRef.current && hasProject) onOpenProject(entry.expand.project.id);
+                                  }}
+                                  title={hasProject ? `${label} (klicken zum Öffnen)` : label}
+                                  style={{
+                                    position: 'absolute', left: 0, top: BZP_ENTRY_HEIGHT,
+                                    width: displayWidth, minHeight: captionHeight, boxSizing: 'border-box',
+                                    display: 'block', padding: '2px 6px',
+                                    color: '#f8fafc', textShadow: '0 1px 2px rgba(15,23,42,0.9)',
+                                    cursor: hasProject ? 'pointer' : 'grab',
+                                    fontSize: '11px', lineHeight: '14px', whiteSpace: 'normal',
+                                    overflowWrap: 'anywhere', zIndex: 1,
+                                    background: 'transparent', boxShadow: 'none'
+                                  }}
+                                >{label}</span>
+                              )}
                               <button
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onClick={(e) => { e.stopPropagation(); onDeleteEntry(entry.id); }}
                                 title="Einplanung entfernen"
                                 style={{
-                                  position: 'absolute', right: BZP_HANDLE_WIDTH, top: 0, bottom: 0, width: '16px', padding: 0,
+                                  position: 'absolute', left: Math.max(BZP_HANDLE_WIDTH, width - BZP_HANDLE_WIDTH - 16),
+                                  top: 0, bottom: showCaption ? 'auto' : 0, height: showCaption ? BZP_ENTRY_HEIGHT : undefined, width: '16px', padding: 0,
                                   background: 'transparent', border: 'none', color: '#fecaca', cursor: 'pointer', fontSize: '11px',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2
                                 }}
                               >
                                 ✕
                               </button>
                               <div
                                 onPointerDown={(e) => beginEntryDrag(e, entry, 'resize-right')}
-                                style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: BZP_HANDLE_WIDTH, cursor: 'ew-resize' }}
+                                style={{
+                                  position: 'absolute', left: Math.max(0, width - BZP_HANDLE_WIDTH),
+                                  top: 0, bottom: showCaption ? 'auto' : 0, height: showCaption ? BZP_ENTRY_HEIGHT : undefined,
+                                  width: BZP_HANDLE_WIDTH, cursor: 'ew-resize'
+                                }}
                               />
                             </div>
                           );
@@ -2140,6 +2360,27 @@ const compressFilesForUpload = async (rawFiles = []) => {
   );
 };
 
+const uploadProjectFiles = async (projectId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files+', file));
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 120000);
+  try {
+    return await pb.collection('projects').update(projectId, formData, {
+      requestKey: null,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Zeitüberschreitung beim Hochladen der Dateien.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+};
+
 const removeLeuchte = (mastIndex, leuchtenIndex) => {
   setForm(prev => {
     const newMasten = [...(prev.masten || [])];
@@ -2443,17 +2684,26 @@ Weitere Infos: ${form.notes || ""}
     if (!existing) return;
     const start = startOfDay(new Date(updates.start_date));
     const end = startOfDay(new Date(updates.end_date));
-    const color = pickEntryColor(crews, scheduleEntries, existing.crew, start, end, entryId);
+    const crewId = updates.crew || existing.crew;
+    const color = pickEntryColor(crews, scheduleEntries, crewId, start, end, entryId);
     try {
       const record = await pb.collection('schedule_entries').update(entryId, {
+        crew: crewId,
         start_date: start.toISOString(),
         end_date: end.toISOString(),
         color
       });
-      setScheduleEntries((prev) => prev.map((entry) => (entry.id === entryId ? { ...entry, ...record, expand: entry.expand } : entry)));
+      setScheduleEntries((prev) => prev.map((entry) => (entry.id === entryId ? {
+        ...entry,
+        ...record,
+        expand: {
+          ...entry.expand,
+          crew: crews.find((crew) => crew.id === crewId) || null
+        }
+      } : entry)));
     } catch (error) {
       console.error(error);
-      setToast("Fehler beim Verschieben der Einplanung");
+      setToast("Fehler beim Aktualisieren der Einplanung");
       scheduleToastDismiss(2500);
     }
   };
@@ -4124,9 +4374,13 @@ const createProject = async () => {
   const dynamicTimeFactor = Math.min(2.5, Math.max(0.5, dynamicTimeFactorRaw));
 
   const BZP_ALLOWED_STATUSES = new Set(["offen", "geplant", "in bearbeitung"]);
+  const BZP_EXCLUDED_STATUSES = new Set(["klärung"]);
   const bzpProjectRows = projects
-    .filter((project) => getProjectStatuses(project)
-      .some((status) => BZP_ALLOWED_STATUSES.has(status.trim().toLowerCase())))
+    .filter((project) => {
+      const statuses = getProjectStatuses(project).map((status) => status.trim().toLowerCase());
+      return !statuses.some((status) => BZP_EXCLUDED_STATUSES.has(status))
+        && statuses.some((status) => BZP_ALLOWED_STATUSES.has(status));
+    })
     .map((project) => {
       const isKonzept = isKonzeptProjectType(project?.type);
       const masten = parseProjectMasten(project);
@@ -5183,19 +5437,12 @@ const createProject = async () => {
         const rawFiles = Array.from(e.dataTransfer.files);
         if (rawFiles.length === 0) return;
 
-        const compressedFiles = await compressFilesForUpload(rawFiles);
-        const filesForQueue = [...compressedFiles];
-
+        let uploadToastId = null;
         try {
-          setToast(`⏳ Upload läuft...`);
+          const compressedFiles = await compressFilesForUpload(rawFiles);
+          uploadToastId = pushToast("⏳ Upload läuft...", p.id);
 
-          const formData = new FormData();
-          compressedFiles.forEach((file) => {
-            formData.append('files+', file);
-          });
-
-          // 2. Upload Versuch zu PocketBase
-          const updatedRecord = await pb.collection('projects').update(p.id, formData);
+          const updatedRecord = await uploadProjectFiles(p.id, compressedFiles);
 
           // 3. State synchronisieren
           setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
@@ -5205,22 +5452,17 @@ const createProject = async () => {
             setForm(updatedRecord);
           }
 
+          dismissToast(uploadToastId);
           setProjectToast(`✅ Alle Dateien zu "${p.name}" hinzugefügt!`, p.id);
           scheduleToastDismiss(2500);
 
         } catch (err) {
           console.error("Upload Fehler:", err);
-          
-          // PRÜFEN: Liegt es am Internet?
-          if (!window.navigator.onLine || err.isAbort || err.message.includes('Network')) {
-            setToast("📡 Kein Netz! Datei wird lokal gesichert...");
-            
-            await saveToOfflineQueue(p.id, filesForQueue);
-            
-            setToast("💾 Lokal gesichert. Upload erfolgt bei Verbindung.");
-          } else {
-            setToast("❌ Fehler beim Hochladen");
-          }
+          if (uploadToastId != null) dismissToast(uploadToastId);
+          setToast(err.message === 'Zeitüberschreitung beim Hochladen der Dateien.'
+            ? '❌ Upload abgebrochen: Zeitüberschreitung. Bitte erneut versuchen.'
+            : '❌ Upload fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.');
+          scheduleToastDismiss(6000);
         }
       }}
           // --- DRAG & DROP LOGIK ENDE ---
@@ -6259,8 +6501,8 @@ const createProject = async () => {
                         <div className="aufmass-demo-block">
                           <span>Muffen montieren (Neu-Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenDemo', e.target.value)} />
-                          <span>Muffen demontieren (Alt-Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemo', e.target.value)} />
+                          <span>Endmuffen ABR (Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenDemo', e.target.value)} />
                         </div>
                       )}
 
@@ -6274,8 +6516,8 @@ const createProject = async () => {
                           <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenDemo', e.target.value)} />
                           <span>Montagegrube ABR (Stk):</span>
                           <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeDemo', e.target.value)} />
-                          <span>Endmuffen ABR (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenDemo', e.target.value)} />
+                          <span>Muffen demontieren (Alt-Stk):</span>
+                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemo', e.target.value)} />
                           <span style={{ gridColumn: '1 / -1', marginTop: '4px' }}>Graben-Oberflächen ABR (m je Typ):</span>
                           <div style={{ gridColumn: '1 / -1' }}>{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAbr')}</div>
                           {Number(m.montagegrubeDemo) > 0 && (
@@ -7185,27 +7427,29 @@ const createProject = async () => {
   const rawFiles = Array.from(e.dataTransfer.files);
   if (rawFiles.length === 0) return;
 
-  const uploadFiles = await compressFilesForUpload(rawFiles);
-
   // FALL A: Neues Projekt wird gerade erst erstellt (Lokal speichern)
   if (mode === "create") {
     // Hier brauchen wir noch kein Offline-Sync, da das Projekt noch gar nicht in PB existiert
-    setTempFiles(prev => [...prev, ...uploadFiles]);
+    try {
+      const uploadFiles = await compressFilesForUpload(rawFiles);
+      setTempFiles(prev => [...prev, ...uploadFiles]);
+    } catch (error) {
+      console.error("Dateien konnten nicht vorbereitet werden:", error);
+      setToast("❌ Dateien konnten nicht vorbereitet werden");
+      scheduleToastDismiss(6000);
+    }
   } 
   
   // FALL B: Bestehendes Projekt aktualisieren (Online-Versuch + Offline-Rettung)
   else {
     if (!selectedProject?.id) return;
 
+    let uploadToastId = null;
     try {
-      setToast("⏳ Upload läuft...");
+      const uploadFiles = await compressFilesForUpload(rawFiles);
+      uploadToastId = pushToast("⏳ Upload läuft...", selectedProject.id);
 
-      const formData = new FormData();
-      uploadFiles.forEach(file => {
-        formData.append('files+', file); 
-      });
-
-      const updatedRecord = await pb.collection('projects').update(selectedProject.id, formData);
+      const updatedRecord = await uploadProjectFiles(selectedProject.id, uploadFiles);
 
       // States aktualisieren
       setProjects(prev => prev.map(p => p.id === updatedRecord.id ? updatedRecord : p));
@@ -7213,20 +7457,17 @@ const createProject = async () => {
       setForm(updatedRecord);
       setSelectedProject(updatedRecord);
 
+      dismissToast(uploadToastId);
       setToast("✅ Datei hinzugefügt");
       scheduleToastDismiss(2500);
 
     } catch (err) {
       console.error("Upload Fehler:", err);
-      
-      // OFFLINE LOGIK: Wenn Internet weg ist
-      if (!window.navigator.onLine || err.isAbort) {
-        setToast("📡 Kein Netz! Datei wird lokal für später gesichert...");
-        await saveToOfflineQueue(selectedProject.id, uploadFiles);
-        setToast("💾 Offline gesichert. Upload erfolgt bei Verbindung.");
-      } else {
-        setToast("❌ Fehler beim Hochladen");
-      }
+      if (uploadToastId != null) dismissToast(uploadToastId);
+      setToast(err.message === 'Zeitüberschreitung beim Hochladen der Dateien.'
+        ? '❌ Upload abgebrochen: Zeitüberschreitung. Bitte erneut versuchen.'
+        : '❌ Upload fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.');
+      scheduleToastDismiss(6000);
     }
   }
 }}
