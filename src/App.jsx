@@ -887,6 +887,8 @@ function BauzeitenplanModal({
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState("week");
   const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
+  const [calendarZoom, setCalendarZoom] = useState(1);
+  const [todayFocusRequest, setTodayFocusRequest] = useState(0);
   const [rowHeights, setRowHeights] = useState({});
   const [newCrewName, setNewCrewName] = useState("");
   const [draggingId, setDraggingId] = useState(null);
@@ -896,6 +898,8 @@ function BauzeitenplanModal({
   const [freetextPrompt, setFreetextPrompt] = useState(null);
   const dragMovedRef = useRef(false);
   const projectTypeFilterRef = useRef(null);
+  const calendarViewportRef = useRef(null);
+  const processedTodayFocusRef = useRef(0);
 
   useEffect(() => {
     if (!typeFilterOpen) return undefined;
@@ -907,6 +911,23 @@ function BauzeitenplanModal({
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [typeFilterOpen]);
+
+  useEffect(() => {
+    if (!open || todayFocusRequest === processedTodayFocusRef.current) return undefined;
+    processedTodayFocusRef.current = todayFocusRequest;
+    const frameId = window.requestAnimationFrame(() => {
+      const viewport = calendarViewportRef.current;
+      if (!viewport) return;
+      const rangeStart = viewMode === "month"
+        ? new Date(viewDate.getFullYear(), viewDate.getMonth(), 1)
+        : getMondayOfWeek(viewDate);
+      const today = startOfDay(new Date());
+      const dayWidth = Math.round((viewMode === "week" ? 120 : BZP_DAY_WIDTH) * calendarZoom);
+      const dayIndex = Math.max(0, diffInDays(rangeStart, today));
+      viewport.scrollLeft = Math.max(0, dayIndex * dayWidth - (viewport.clientWidth - dayWidth) / 2);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [open, todayFocusRequest, viewMode, viewDate, calendarZoom]);
 
   if (!open) return null;
 
@@ -920,7 +941,7 @@ function BauzeitenplanModal({
     : viewMode === "month"
       ? new Date(rangeStart.getFullYear(), rangeStart.getMonth() + 1, 0).getDate()
       : BZP_OVERVIEW_WEEKS * 7;
-  const dayWidth = viewMode === "week" ? 120 : BZP_DAY_WIDTH;
+  const dayWidth = Math.round((viewMode === "week" ? 120 : BZP_DAY_WIDTH) * calendarZoom);
   const days = Array.from({ length: visibleDayCount }, (_, i) => addDays(rangeStart, i));
   const todayISO = startOfDay(new Date()).getTime();
   const knownProjectTypes = ["Konzept", "Anfahrschaden", "Störung", "LK-Tausch", "Sonstiges"];
@@ -1319,7 +1340,10 @@ function BauzeitenplanModal({
                   type="button"
                   aria-label="Heute"
                   title="Heute"
-                  onClick={() => setViewDate(startOfDay(new Date()))}
+                  onClick={() => {
+                    setViewDate(startOfDay(new Date()));
+                    setTodayFocusRequest((request) => request + 1);
+                  }}
                   style={{ minWidth: '36px', height: '32px', display: 'grid', placeItems: 'center', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '15px' }}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -1338,6 +1362,30 @@ function BauzeitenplanModal({
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
+                </button>
+                <span aria-hidden="true" style={{ width: '1px', height: '22px', margin: '0 4px', background: '#334155' }} />
+                <button
+                  type="button"
+                  aria-label="Tage verkleinern"
+                  title="Tage verkleinern"
+                  disabled={calendarZoom <= 0.75}
+                  onClick={() => setCalendarZoom((zoom) => Math.max(0.75, Math.round((zoom - 0.25) * 100) / 100))}
+                  style={{ width: '30px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: calendarZoom <= 0.75 ? '#475569' : '#cbd5e1', border: 'none', borderRadius: '6px', cursor: calendarZoom <= 0.75 ? 'default' : 'pointer', fontSize: '18px' }}
+                >
+                  −
+                </button>
+                <span aria-live="polite" style={{ minWidth: '38px', textAlign: 'center', color: '#cbd5e1', fontSize: '11px' }}>
+                  {Math.round(calendarZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  aria-label="Tage vergrößern"
+                  title="Tage vergrößern"
+                  disabled={calendarZoom >= 2.5}
+                  onClick={() => setCalendarZoom((zoom) => Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100))}
+                  style={{ width: '30px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: calendarZoom >= 2.5 ? '#475569' : '#cbd5e1', border: 'none', borderRadius: '6px', cursor: calendarZoom >= 2.5 ? 'default' : 'pointer', fontSize: '18px' }}
+                >
+                  +
                 </button>
                 <span aria-hidden="true" style={{ width: '1px', height: '22px', margin: '0 4px', background: '#334155' }} />
                 {[
@@ -1425,7 +1473,7 @@ function BauzeitenplanModal({
               </div>
 
               {/* Kalender-Bereich */}
-              <div style={{ overflowX: 'auto', flex: 1, minWidth: 0 }}>
+              <div ref={calendarViewportRef} data-bzp-calendar-viewport style={{ overflowX: 'auto', flex: 1, minWidth: 0 }}>
                 <div style={{ width: visibleDayCount * dayWidth, position: 'relative' }}>
                   <div style={{ height: BZP_WEEK_ROW_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: 0, background: '#111827', zIndex: 1 }}>
                     <div
