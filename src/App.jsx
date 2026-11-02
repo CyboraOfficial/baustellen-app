@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Rectangle, useMapEvents, ZoomControl } from "react-leaflet";
@@ -9,8 +9,8 @@ import "leaflet.heat/dist/leaflet-heat.js";
 import { useMap } from "react-leaflet"; 
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
-import * as XLSX from 'xlsx';
-import FileViewer from './FileViewer';
+
+const FileViewer = lazy(() => import('./FileViewer'));
 
 const enableLeafletHeatWillReadFrequently = () => {
   const HeatLayer = L?.HeatLayer;
@@ -375,6 +375,12 @@ const getProjectStatuses = (project) => {
     : [project?.status || "Offen"];
   return [...new Set(selectedStatuses.filter((status) => STATUS_ORDER.includes(status)))]
     .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
+};
+
+const getStatusesReplacedBy = (newStatus) => {
+  if (newStatus === "In Bearbeitung") return ["Offen"];
+  if (newStatus === "Fertig für Abrechnung") return ["Offen", "Geplant", "In Bearbeitung"];
+  return [];
 };
 
 let projectStatusGradientSequence = 0;
@@ -1774,13 +1780,9 @@ export default function App() {
   const [settingsChartView, setSettingsChartView] = useState("timeline");
   const [bauzeitenplanOpen, setBauzeitenplanOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('notif_dismissed_keys') || '{}');
-      // Altes Array-Format: als jetzt verworfen übernehmen
-      return Array.isArray(saved) ? Object.fromEntries(saved.map((k) => [k, Date.now()])) : saved;
-    } catch { return {}; }
-  });
+  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState({});
+  const [notificationDismissalsLoadedFor, setNotificationDismissalsLoadedFor] = useState(null);
+  const notificationDismissalRecordIdsRef = useRef(new Map());
   const [crews, setCrews] = useState([]);
   const [scheduleEntries, setScheduleEntries] = useState([]);
   const [settingsCompanyLat, setSettingsCompanyLat] = useState(() => {
@@ -1822,11 +1824,30 @@ export default function App() {
   const appDialogResolverRef = useRef(null);
   const [tempFiles, setTempFiles] = useState([]);
 
-  const pushToast = (message, projectId = null, variant = "info") => {
+  const dismissToast = (id) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) window.clearTimeout(timer);
+    toastTimersRef.current.delete(id);
+    toastMessagesRef.current = toastMessagesRef.current.filter((item) => item.id !== id);
+    setToastMessages(toastMessagesRef.current);
+    if (latestToastIdRef.current === id) latestToastIdRef.current = null;
+  };
+
+  const scheduleToastDismissById = (id, duration) => {
+    const previousTimer = toastTimersRef.current.get(id);
+    if (previousTimer) window.clearTimeout(previousTimer);
+    toastTimersRef.current.delete(id);
+    if (duration == null) return;
+    const timer = window.setTimeout(() => dismissToast(id), duration);
+    toastTimersRef.current.set(id, timer);
+  };
+
+  const pushToast = (message, projectId = null, variant = "info", duration = 3500) => {
     const key = `${projectId || ""}:${message}`;
     const existing = toastMessagesRef.current.find((item) => item.key === key);
     if (existing) {
       latestToastIdRef.current = existing.id;
+      scheduleToastDismissById(existing.id, duration);
       return existing.id;
     }
     const id = ++toastSequenceRef.current;
@@ -1834,6 +1855,7 @@ export default function App() {
     const toastMessage = { id, key, message, projectId, variant };
     toastMessagesRef.current = [...toastMessagesRef.current, toastMessage];
     setToastMessages(toastMessagesRef.current);
+    scheduleToastDismissById(id, duration);
     return id;
   };
 
@@ -1853,23 +1875,11 @@ export default function App() {
     pushToast(message, projectId || null);
   };
 
-  const dismissToast = (id) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) window.clearTimeout(timer);
-    toastTimersRef.current.delete(id);
-    toastMessagesRef.current = toastMessagesRef.current.filter((item) => item.id !== id);
-    setToastMessages(toastMessagesRef.current);
-    if (latestToastIdRef.current === id) latestToastIdRef.current = null;
-  };
-
   const scheduleToastDismiss = (duration) => {
     const id = latestToastIdRef.current;
     if (id == null) return;
     latestToastIdRef.current = null;
-    const previousTimer = toastTimersRef.current.get(id);
-    if (previousTimer) window.clearTimeout(previousTimer);
-    const timer = window.setTimeout(() => dismissToast(id), duration);
-    toastTimersRef.current.set(id, timer);
+    scheduleToastDismissById(id, duration);
   };
 
   const setAlertToast = ({ show, message }) => {
@@ -1943,6 +1953,7 @@ export default function App() {
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [showAnfahrschadenPositionen, setShowAnfahrschadenPositionen] = useState(true);
 
   const tabs = [
     "Allgemein",
@@ -1976,6 +1987,100 @@ useEffect(() => {
       }
     });
 }, []);
+
+useEffect(() => {
+  const userId = user?.id;
+  let active = true;
+  let loaded = false;
+  let unsubscribe;
+  const collection = pb.collection("notification_dismissals");
+  const realtimeEventsDuringLoad = new Map();
+
+  notificationDismissalRecordIdsRef.current = new Map();
+  setDismissedNotificationKeys({});
+  setNotificationDismissalsLoadedFor(null);
+  if (!userId) return undefined;
+
+  const applyRealtimeEvent = (event) => {
+    const record = event?.record;
+    if (!record || record.user !== userId) return;
+    const key = record.notification_key;
+    if (!key) return;
+
+    const eventValue = event.action === "delete"
+      ? null
+      : { id: record.id, dismissedAt: Number(record.dismissed_at) };
+    if (!loaded) realtimeEventsDuringLoad.set(key, eventValue);
+
+    if (eventValue) {
+      notificationDismissalRecordIdsRef.current.set(key, eventValue.id);
+      setDismissedNotificationKeys((previous) => ({ ...previous, [key]: eventValue.dismissedAt }));
+    } else {
+      notificationDismissalRecordIdsRef.current.delete(key);
+      setDismissedNotificationKeys((previous) => {
+        const next = { ...previous };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const loadDismissals = async () => {
+    try {
+      try {
+        unsubscribe = await collection.subscribe("*", applyRealtimeEvent);
+        if (!active) {
+          unsubscribe();
+          return;
+        }
+      } catch (error) {
+        if (!active) return;
+        console.error("Live-Synchronisierung der Benachrichtigungen fehlgeschlagen:", error);
+        setToast("Live-Synchronisierung der Benachrichtigungen fehlgeschlagen");
+      }
+
+      const records = await collection.getFullList({
+        filter: `user = "${userId}"`,
+        requestKey: null
+      });
+      if (!active) return;
+
+      const loadedIds = new Map();
+      const loadedKeys = {};
+      records.forEach((record) => {
+        loadedIds.set(record.notification_key, record.id);
+        loadedKeys[record.notification_key] = Number(record.dismissed_at);
+      });
+      realtimeEventsDuringLoad.forEach((eventValue, key) => {
+        if (eventValue) {
+          loadedIds.set(key, eventValue.id);
+          loadedKeys[key] = eventValue.dismissedAt;
+        } else {
+          loadedIds.delete(key);
+          delete loadedKeys[key];
+        }
+      });
+      notificationDismissalRecordIdsRef.current = loadedIds;
+      loaded = true;
+      setDismissedNotificationKeys(loadedKeys);
+      setNotificationDismissalsLoadedFor(userId);
+    } catch (error) {
+      if (!active) return;
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = undefined;
+      }
+      console.error("Benachrichtigungen konnten nicht synchronisiert werden:", error);
+      setToast("Benachrichtigungen konnten nicht synchronisiert werden");
+    }
+  };
+
+  loadDismissals();
+  return () => {
+    active = false;
+    if (unsubscribe) unsubscribe();
+  };
+}, [user?.id]);
 
 const updateMast = (index, field, value) => {
   setForm(prev => {
@@ -3216,10 +3321,10 @@ const handleStatusChange = (newStatus) => {
   setForm(prev => {
     const currentStatuses = getProjectStatuses(prev);
     const isAdding = !currentStatuses.includes(newStatus);
-    const replacedStatus = newStatus === "In Bearbeitung" ? "Offen" : newStatus === "Fertig für Abrechnung" ? "In Bearbeitung" : null;
+    const replacedStatuses = getStatusesReplacedBy(newStatus);
     const selectedStatuses = !isAdding
       ? currentStatuses.filter((status) => status !== newStatus)
-      : [...currentStatuses, newStatus].filter((status) => status !== replacedStatus);
+      : [...currentStatuses, newStatus].filter((status) => !replacedStatuses.includes(status));
     if (selectedStatuses.length === 0) return prev;
     const orderedStatuses = selectedStatuses.sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
@@ -3487,6 +3592,7 @@ const openProject = (p) => {
 
   // States setzen
   setSelectedProject(p);
+  setShowAnfahrschadenPositionen(true);
   setSelectedPosition(parsedPosition); 
   
   // 🔥 WICHTIG: originalProject und form MÜSSEN exakt dasselbe aufbereitete Objekt bekommen!
@@ -4044,6 +4150,7 @@ const createProject = async () => {
     await loadProjects();
     
     setProjectToast("Baustelle gespeichert!", record.id);
+    scheduleToastDismiss(3500);
   } catch (err) {
     console.error("PocketBase Speicherfehler:", err);
     setToast("Fehler: " + err.message);
@@ -4539,7 +4646,7 @@ const createProject = async () => {
     setOrdersExportSelectedFields([]);
   };
 
-  const exportOrdersToExcel = () => {
+  const exportOrdersToExcel = async () => {
     if (ordersExportRows.length === 0) {
       setToast("Keine Aufträge im gewählten Filter gefunden");
       scheduleToastDismiss(2500);
@@ -4560,6 +4667,16 @@ const createProject = async () => {
       });
       return exportRow;
     });
+
+    let XLSX;
+    try {
+      XLSX = await import('xlsx');
+    } catch (error) {
+      console.error("Excel-Export konnte nicht geladen werden:", error);
+      setToast("❌ Excel-Export konnte nicht geladen werden");
+      scheduleToastDismiss(2500);
+      return;
+    }
 
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(rows);
@@ -4629,14 +4746,20 @@ const createProject = async () => {
     localStorage.setItem('settings_geo_cell_size_km', String(settingsGeoCellSizeKm));
   }, [settingsGeoCellSizeKm]);
 
-  useEffect(() => {
-    localStorage.setItem('notif_dismissed_keys', JSON.stringify(dismissedNotificationKeys));
-  }, [dismissedNotificationKeys]);
-
-  const exportAnalyticsToExcel = () => {
+  const exportAnalyticsToExcel = async () => {
     if (analyticsRows.length === 0) {
       setToast("Keine Daten fuer Excel-Export vorhanden");
       scheduleToastDismiss(2200);
+      return;
+    }
+
+    let XLSX;
+    try {
+      XLSX = await import('xlsx');
+    } catch (error) {
+      console.error("Excel-Export konnte nicht geladen werden:", error);
+      setToast("❌ Excel-Export konnte nicht geladen werden");
+      scheduleToastDismiss(2500);
       return;
     }
 
@@ -5085,21 +5208,67 @@ const createProject = async () => {
       }
     }
   });
-  const visibleNotifications = notifications.filter((n) => {
+  const notificationDismissalsReady = !!user?.id && notificationDismissalsLoadedFor === user.id;
+  const visibleNotifications = notificationDismissalsReady ? notifications.filter((n) => {
     const dismissedAt = dismissedNotificationKeys[n.key];
     return !dismissedAt || (Date.now() - dismissedAt) >= 7 * 86400000;
-  });
+  }) : [];
   const unreadNotificationCount = visibleNotifications.length;
   const closeNotifications = () => setNotificationsOpen(false);
+  const saveNotificationDismissal = async (notification) => {
+    const userId = user?.id;
+    const dismissedAt = Date.now();
+    if (!userId) {
+      setDismissedNotificationKeys((previous) => ({ ...previous, [notification.key]: dismissedAt }));
+      return true;
+    }
+
+    const collection = pb.collection("notification_dismissals");
+    const body = {
+      user: userId,
+      notification_key: notification.key,
+      dismissed_at: dismissedAt
+    };
+
+    try {
+      let record;
+      const recordId = notificationDismissalRecordIdsRef.current.get(notification.key);
+      if (recordId) {
+        record = await collection.update(recordId, body);
+      } else {
+        try {
+          record = await collection.create(body);
+        } catch (error) {
+          if (error?.status !== 400 && error?.status !== 409) throw error;
+          const existing = await collection.getFirstListItem(
+            `user = "${userId}" && notification_key = "${notification.key}"`,
+            { requestKey: null }
+          );
+          record = await collection.update(existing.id, body);
+        }
+      }
+
+      notificationDismissalRecordIdsRef.current.set(notification.key, record.id);
+      setDismissedNotificationKeys((previous) => ({ ...previous, [notification.key]: dismissedAt }));
+      return true;
+    } catch (error) {
+      console.error("Benachrichtigung konnte nicht synchronisiert werden:", error);
+      setToast("Benachrichtigung konnte nicht synchronisiert werden");
+      return false;
+    }
+  };
   const confirmNotificationStatus = async (n) => {
     try {
-      const replacedStatus = n.newStatus === "In Bearbeitung" ? "Offen" : n.newStatus === "Fertig für Abrechnung" ? "In Bearbeitung" : null;
+      const replacedStatuses = getStatusesReplacedBy(n.newStatus);
       const statuses = [...new Set([...getProjectStatuses(n.project), n.newStatus])]
-        .filter((status) => status !== replacedStatus)
+        .filter((status) => !replacedStatuses.includes(status))
         .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
       const updated = await pb.collection('projects').update(n.project.id, { status: statuses[0], statuses });
       setProjects((prev) => prev.map((p) => (p.id === n.project.id ? { ...p, ...updated } : p)));
-      setToast(`Status von "${n.project.name || "Baustelle"}" auf ${n.newStatus} gesetzt`);
+      const dismissalSaved = await saveNotificationDismissal(n);
+      setToast(dismissalSaved
+        ? `Status von "${n.project.name || "Baustelle"}" auf ${n.newStatus} gesetzt`
+        : "Status geändert, Benachrichtigung konnte nicht synchronisiert werden");
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Ändern des Status");
@@ -5264,6 +5433,7 @@ const createProject = async () => {
         }}>
       <div className="header-bar">
         <button onClick={() => {
+            setShowAnfahrschadenPositionen(true);
             setMode("create");
             setForm(emptyForm);
             setSelectedPosition(null);
@@ -5505,7 +5675,7 @@ const createProject = async () => {
         let uploadToastId = null;
         try {
           const compressedFiles = await compressFilesForUpload(rawFiles);
-          uploadToastId = pushToast("⏳ Upload läuft...", p.id);
+          uploadToastId = pushToast("⏳ Upload läuft...", p.id, "info", null);
 
           const updatedRecord = await uploadProjectFiles(p.id, compressedFiles);
 
@@ -6153,6 +6323,21 @@ const createProject = async () => {
         <span className="ans-toggle-label">ANS Montagegrube unter 1m</span>
       </label>
 
+      {normalizeProjectType(form.type) === "anfahrschaden" && (
+        <label className="ans-toggle" title="Anfahrschaden-Positionen in der Abrechnung ein- oder ausblenden">
+          <input
+            type="checkbox"
+            className="ans-toggle-input"
+            checked={showAnfahrschadenPositionen}
+            onChange={(e) => setShowAnfahrschadenPositionen(e.target.checked)}
+          />
+          <span className="ans-toggle-track" aria-hidden="true">
+            <span className="ans-toggle-thumb" />
+          </span>
+          <span className="ans-toggle-label">Anfahrschaden-Positionen anzeigen</span>
+        </label>
+      )}
+
       <div className="aufmass-date-field">
         <span className="aufmass-section-title">📏 Einmessung weggeschickt:</span>
         <div className="aufmass-date-controls">
@@ -6379,9 +6564,9 @@ const createProject = async () => {
 
                           <button
                             type="button"
+                            className="aufmass-surface-action"
                             onClick={() => addExtraOberflaeche(originalIndex)}
                             title="Weitere Oberfläche hinzufügen"
-                            style={{ width: '22px', height: '22px', borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontWeight: 'bold', lineHeight: '1' }}
                           >
                             +
                           </button>
@@ -6403,9 +6588,9 @@ const createProject = async () => {
                             )}
                             <button
                               type="button"
+                              className="aufmass-surface-action aufmass-surface-action-remove"
                               onClick={() => removeExtraOberflaeche(originalIndex, extraIndex)}
                               title="Oberfläche entfernen"
-                              style={{ width: '22px', height: '22px', borderRadius: '4px', border: '1px solid #7f1d1d', background: '#7f1d1d', color: '#fff', cursor: 'pointer', lineHeight: '1' }}
                             >
                               -
                             </button>
@@ -6845,7 +7030,7 @@ const createProject = async () => {
         surfaces: {},
         linear: {},
         stoerungseinsatzGefahrImVerzug: { title: "Störungseinsatz Gefahr im Verzug", total: 0, items: [] },
-        mitarbeiterUndGeraete: { title: "Mitarbeiter und Geräte", total: 0, items: [] },
+        mitarbeiterUndGeraete: { title: "Kfz-, Geräte- und Mitarbeitereinsatz", total: 0, items: [] },
         kabel: { title: "Kabel An-/Abklemmen (Stk)", total: 0, items: [] },
         kabelanschlussAend: { title: "Kabelanschluss ÄND (Stk)", total: 0, items: [] },
         kabelanschlussAbr: { title: "Kabelanschluss ABR (Stk)", total: 0, items: [] },
@@ -7237,8 +7422,8 @@ const createProject = async () => {
           ...Object.values(dataObj.surfaces),
           ...Object.values(dataObj.linear),
           ...MAST_LV_POSITION_DEFS.flatMap((def) => (dataObj.mastLv?.[def.key]?.total > 0 ? [dataObj.mastLv[def.key]] : [])),
-          ...(dataObj.stoerungseinsatzGefahrImVerzug.total > 0 ? [dataObj.stoerungseinsatzGefahrImVerzug] : []),
-          ...(dataObj.mitarbeiterUndGeraete.total > 0 ? [dataObj.mitarbeiterUndGeraete] : []),
+          ...(showAnfahrschadenPositionen && dataObj.stoerungseinsatzGefahrImVerzug.total > 0 ? [dataObj.stoerungseinsatzGefahrImVerzug] : []),
+          ...(showAnfahrschadenPositionen && dataObj.mitarbeiterUndGeraete.total > 0 ? [dataObj.mitarbeiterUndGeraete] : []),
           ...(dataObj.grabenAns.total > 0 ? [dataObj.grabenAns] : []),
           ...(dataObj.grabenAend.total > 0 ? [dataObj.grabenAend] : []),
           ...(dataObj.grabenAbr.total > 0 ? [dataObj.grabenAbr] : []),
@@ -7512,7 +7697,7 @@ const createProject = async () => {
     let uploadToastId = null;
     try {
       const uploadFiles = await compressFilesForUpload(rawFiles);
-      uploadToastId = pushToast("⏳ Upload läuft...", selectedProject.id);
+      uploadToastId = pushToast("⏳ Upload läuft...", selectedProject.id, "info", null);
 
       const updatedRecord = await uploadProjectFiles(selectedProject.id, uploadFiles);
 
@@ -7862,7 +8047,7 @@ const createProject = async () => {
                           <button type="button" className="app-dialog-button app-dialog-button-primary" onClick={() => confirmNotificationStatus(n)}>Bestätigen</button>
                         )}
                         <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => openNotificationProject(n)}>Auftrag öffnen</button>
-                        <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => setDismissedNotificationKeys((prev) => ({ ...prev, [n.key]: Date.now() }))}>Verwerfen</button>
+                        <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => saveNotificationDismissal(n)}>Verwerfen</button>
                       </div>
                     </div>
                   );
@@ -9026,28 +9211,30 @@ const createProject = async () => {
       </>
     )}
     {fileViewer && (
-      <FileViewer
-        fileName={fileViewer.fileName}
-        fileNames={fileViewer.fileNames}
-        projectName={fileViewer.projectName}
-        url={fileViewer.url}
-        onClose={() => setFileViewer(null)}
-        onNavigate={async (fileName) => {
-          const project = projects.find((item) => item.id === fileViewer.projectId);
-          if (!project) {
-            setToast("❌ Baustelle für diese Datei wurde nicht gefunden");
-            return;
-          }
-          try {
-            const url = await getProjectFileUrl(project, fileName);
-            setFileViewer((current) => current ? { ...current, fileName, url } : current);
-          } catch (error) {
-            console.error("Dateivorschau konnte nicht gewechselt werden:", error);
-            setToast("❌ Datei konnte nicht geöffnet werden");
-            scheduleToastDismiss(2500);
-          }
-        }}
-      />
+      <Suspense fallback={<div role="status" style={{ position: "fixed", inset: 0, zIndex: 3000, display: "grid", placeItems: "center", background: "rgba(15, 23, 42, 0.6)", color: "white" }}>Dateivorschau wird geladen…</div>}>
+        <FileViewer
+          fileName={fileViewer.fileName}
+          fileNames={fileViewer.fileNames}
+          projectName={fileViewer.projectName}
+          url={fileViewer.url}
+          onClose={() => setFileViewer(null)}
+          onNavigate={async (fileName) => {
+            const project = projects.find((item) => item.id === fileViewer.projectId);
+            if (!project) {
+              setToast("❌ Baustelle für diese Datei wurde nicht gefunden");
+              return;
+            }
+            try {
+              const url = await getProjectFileUrl(project, fileName);
+              setFileViewer((current) => current ? { ...current, fileName, url } : current);
+            } catch (error) {
+              console.error("Dateivorschau konnte nicht gewechselt werden:", error);
+              setToast("❌ Datei konnte nicht geöffnet werden");
+              scheduleToastDismiss(2500);
+            }
+          }}
+        />
+      </Suspense>
     )}
     </div>
   );

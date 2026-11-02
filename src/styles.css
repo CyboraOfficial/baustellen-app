@@ -1902,6 +1902,29 @@ textarea.aufmass-autogrow {
   border-radius: 4px;
 }
 
+.aufmass-surface-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  background: #1e293b;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.aufmass-surface-action-remove {
+  border-color: #7f1d1d;
+  background: #7f1d1d;
+  color: #fff;
+}
+
 .aufmass-kabel-zone {
   border-top: 1px dashed #1e293b;
   padding-top: 5px;
