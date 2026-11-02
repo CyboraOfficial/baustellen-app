@@ -1,11 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist/build/pdf";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
 import MsgReader from "@kenjiuno/msgreader";
 import "./FileViewer.css";
 
 const MsgReaderConstructor = MsgReader.default || MsgReader;
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 5;
@@ -17,17 +15,28 @@ function PdfPages({ data, zoom, onError, onSize }) {
 
   useEffect(() => {
     let cancelled = false;
-    const task = pdfjsLib.getDocument({ data: new Uint8Array(data.slice(0)) });
-    task.promise
-      .then(async (doc) => {
+    let task;
+    const loadPdf = async () => {
+      try {
+        const pdfjsLib = await import("pdfjs-dist/build/pdf");
+        if (cancelled) return;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        task = pdfjsLib.getDocument({ data: new Uint8Array(data.slice(0)) });
+        const doc = await task.promise;
         const firstPage = await doc.getPage(1);
         const { width, height } = firstPage.getViewport({ scale: 1 });
         if (cancelled) return;
         onSize({ width, height });
         setPdf(doc);
-      })
-      .catch((error) => { if (!cancelled) onError(error.message || "PDF konnte nicht gelesen werden."); });
-    return () => { cancelled = true; task.destroy(); };
+      } catch (error) {
+        if (!cancelled) onError(error.message || "PDF konnte nicht gelesen werden.");
+      }
+    };
+    loadPdf();
+    return () => {
+      cancelled = true;
+      task?.destroy();
+    };
   }, [data]);
 
   useEffect(() => {
