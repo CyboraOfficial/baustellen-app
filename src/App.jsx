@@ -377,6 +377,12 @@ const getProjectStatuses = (project) => {
     .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
 };
 
+const getStatusesReplacedBy = (newStatus) => {
+  if (newStatus === "In Bearbeitung") return ["Offen"];
+  if (newStatus === "Fertig für Abrechnung") return ["In Bearbeitung", "Geplant"];
+  return [];
+};
+
 let projectStatusGradientSequence = 0;
 
 const createProjectStatusIcon = (project) => {
@@ -3216,10 +3222,10 @@ const handleStatusChange = (newStatus) => {
   setForm(prev => {
     const currentStatuses = getProjectStatuses(prev);
     const isAdding = !currentStatuses.includes(newStatus);
-    const replacedStatus = newStatus === "In Bearbeitung" ? "Offen" : newStatus === "Fertig für Abrechnung" ? "In Bearbeitung" : null;
+    const replacedStatuses = getStatusesReplacedBy(newStatus);
     const selectedStatuses = !isAdding
       ? currentStatuses.filter((status) => status !== newStatus)
-      : [...currentStatuses, newStatus].filter((status) => status !== replacedStatus);
+      : [...currentStatuses, newStatus].filter((status) => !replacedStatuses.includes(status));
     if (selectedStatuses.length === 0) return prev;
     const orderedStatuses = selectedStatuses.sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
     const aktuellesAufmass = prev.aufmass || DEFAULT_AUFMASS;
@@ -5093,9 +5099,9 @@ const createProject = async () => {
   const closeNotifications = () => setNotificationsOpen(false);
   const confirmNotificationStatus = async (n) => {
     try {
-      const replacedStatus = n.newStatus === "In Bearbeitung" ? "Offen" : n.newStatus === "Fertig für Abrechnung" ? "In Bearbeitung" : null;
+      const replacedStatuses = getStatusesReplacedBy(n.newStatus);
       const statuses = [...new Set([...getProjectStatuses(n.project), n.newStatus])]
-        .filter((status) => status !== replacedStatus)
+        .filter((status) => !replacedStatuses.includes(status))
         .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
       const updated = await pb.collection('projects').update(n.project.id, { status: statuses[0], statuses });
       setProjects((prev) => prev.map((p) => (p.id === n.project.id ? { ...p, ...updated } : p)));
