@@ -1780,13 +1780,9 @@ export default function App() {
   const [settingsChartView, setSettingsChartView] = useState("timeline");
   const [bauzeitenplanOpen, setBauzeitenplanOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('notif_dismissed_keys') || '{}');
-      // Altes Array-Format: als jetzt verworfen übernehmen
-      return Array.isArray(saved) ? Object.fromEntries(saved.map((k) => [k, Date.now()])) : saved;
-    } catch { return {}; }
-  });
+  const [dismissedNotificationKeys, setDismissedNotificationKeys] = useState({});
+  const [notificationDismissalsLoadedFor, setNotificationDismissalsLoadedFor] = useState(null);
+  const notificationDismissalRecordIdsRef = useRef(new Map());
   const [crews, setCrews] = useState([]);
   const [scheduleEntries, setScheduleEntries] = useState([]);
   const [settingsCompanyLat, setSettingsCompanyLat] = useState(() => {
@@ -1991,6 +1987,100 @@ useEffect(() => {
       }
     });
 }, []);
+
+useEffect(() => {
+  const userId = user?.id;
+  let active = true;
+  let loaded = false;
+  let unsubscribe;
+  const collection = pb.collection("notification_dismissals");
+  const realtimeEventsDuringLoad = new Map();
+
+  notificationDismissalRecordIdsRef.current = new Map();
+  setDismissedNotificationKeys({});
+  setNotificationDismissalsLoadedFor(null);
+  if (!userId) return undefined;
+
+  const applyRealtimeEvent = (event) => {
+    const record = event?.record;
+    if (!record || record.user !== userId) return;
+    const key = record.notification_key;
+    if (!key) return;
+
+    const eventValue = event.action === "delete"
+      ? null
+      : { id: record.id, dismissedAt: Number(record.dismissed_at) };
+    if (!loaded) realtimeEventsDuringLoad.set(key, eventValue);
+
+    if (eventValue) {
+      notificationDismissalRecordIdsRef.current.set(key, eventValue.id);
+      setDismissedNotificationKeys((previous) => ({ ...previous, [key]: eventValue.dismissedAt }));
+    } else {
+      notificationDismissalRecordIdsRef.current.delete(key);
+      setDismissedNotificationKeys((previous) => {
+        const next = { ...previous };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const loadDismissals = async () => {
+    try {
+      try {
+        unsubscribe = await collection.subscribe("*", applyRealtimeEvent);
+        if (!active) {
+          unsubscribe();
+          return;
+        }
+      } catch (error) {
+        if (!active) return;
+        console.error("Live-Synchronisierung der Benachrichtigungen fehlgeschlagen:", error);
+        setToast("Live-Synchronisierung der Benachrichtigungen fehlgeschlagen");
+      }
+
+      const records = await collection.getFullList({
+        filter: `user = "${userId}"`,
+        requestKey: null
+      });
+      if (!active) return;
+
+      const loadedIds = new Map();
+      const loadedKeys = {};
+      records.forEach((record) => {
+        loadedIds.set(record.notification_key, record.id);
+        loadedKeys[record.notification_key] = Number(record.dismissed_at);
+      });
+      realtimeEventsDuringLoad.forEach((eventValue, key) => {
+        if (eventValue) {
+          loadedIds.set(key, eventValue.id);
+          loadedKeys[key] = eventValue.dismissedAt;
+        } else {
+          loadedIds.delete(key);
+          delete loadedKeys[key];
+        }
+      });
+      notificationDismissalRecordIdsRef.current = loadedIds;
+      loaded = true;
+      setDismissedNotificationKeys(loadedKeys);
+      setNotificationDismissalsLoadedFor(userId);
+    } catch (error) {
+      if (!active) return;
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = undefined;
+      }
+      console.error("Benachrichtigungen konnten nicht synchronisiert werden:", error);
+      setToast("Benachrichtigungen konnten nicht synchronisiert werden");
+    }
+  };
+
+  loadDismissals();
+  return () => {
+    active = false;
+    if (unsubscribe) unsubscribe();
+  };
+}, [user?.id]);
 
 const updateMast = (index, field, value) => {
   setForm(prev => {
@@ -4656,10 +4746,6 @@ const createProject = async () => {
     localStorage.setItem('settings_geo_cell_size_km', String(settingsGeoCellSizeKm));
   }, [settingsGeoCellSizeKm]);
 
-  useEffect(() => {
-    localStorage.setItem('notif_dismissed_keys', JSON.stringify(dismissedNotificationKeys));
-  }, [dismissedNotificationKeys]);
-
   const exportAnalyticsToExcel = async () => {
     if (analyticsRows.length === 0) {
       setToast("Keine Daten fuer Excel-Export vorhanden");
@@ -5122,12 +5208,55 @@ const createProject = async () => {
       }
     }
   });
-  const visibleNotifications = notifications.filter((n) => {
+  const notificationDismissalsReady = !!user?.id && notificationDismissalsLoadedFor === user.id;
+  const visibleNotifications = notificationDismissalsReady ? notifications.filter((n) => {
     const dismissedAt = dismissedNotificationKeys[n.key];
     return !dismissedAt || (Date.now() - dismissedAt) >= 7 * 86400000;
-  });
+  }) : [];
   const unreadNotificationCount = visibleNotifications.length;
   const closeNotifications = () => setNotificationsOpen(false);
+  const saveNotificationDismissal = async (notification) => {
+    const userId = user?.id;
+    const dismissedAt = Date.now();
+    if (!userId) {
+      setDismissedNotificationKeys((previous) => ({ ...previous, [notification.key]: dismissedAt }));
+      return true;
+    }
+
+    const collection = pb.collection("notification_dismissals");
+    const body = {
+      user: userId,
+      notification_key: notification.key,
+      dismissed_at: dismissedAt
+    };
+
+    try {
+      let record;
+      const recordId = notificationDismissalRecordIdsRef.current.get(notification.key);
+      if (recordId) {
+        record = await collection.update(recordId, body);
+      } else {
+        try {
+          record = await collection.create(body);
+        } catch (error) {
+          if (error?.status !== 400 && error?.status !== 409) throw error;
+          const existing = await collection.getFirstListItem(
+            `user = "${userId}" && notification_key = "${notification.key}"`,
+            { requestKey: null }
+          );
+          record = await collection.update(existing.id, body);
+        }
+      }
+
+      notificationDismissalRecordIdsRef.current.set(notification.key, record.id);
+      setDismissedNotificationKeys((previous) => ({ ...previous, [notification.key]: dismissedAt }));
+      return true;
+    } catch (error) {
+      console.error("Benachrichtigung konnte nicht synchronisiert werden:", error);
+      setToast("Benachrichtigung konnte nicht synchronisiert werden");
+      return false;
+    }
+  };
   const confirmNotificationStatus = async (n) => {
     try {
       const replacedStatuses = getStatusesReplacedBy(n.newStatus);
@@ -5136,7 +5265,10 @@ const createProject = async () => {
         .sort((a, b) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b));
       const updated = await pb.collection('projects').update(n.project.id, { status: statuses[0], statuses });
       setProjects((prev) => prev.map((p) => (p.id === n.project.id ? { ...p, ...updated } : p)));
-      setToast(`Status von "${n.project.name || "Baustelle"}" auf ${n.newStatus} gesetzt`);
+      const dismissalSaved = await saveNotificationDismissal(n);
+      setToast(dismissalSaved
+        ? `Status von "${n.project.name || "Baustelle"}" auf ${n.newStatus} gesetzt`
+        : "Status geändert, Benachrichtigung konnte nicht synchronisiert werden");
     } catch (error) {
       console.error(error);
       setToast("Fehler beim Ändern des Status");
@@ -7915,7 +8047,7 @@ const createProject = async () => {
                           <button type="button" className="app-dialog-button app-dialog-button-primary" onClick={() => confirmNotificationStatus(n)}>Bestätigen</button>
                         )}
                         <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => openNotificationProject(n)}>Auftrag öffnen</button>
-                        <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => setDismissedNotificationKeys((prev) => ({ ...prev, [n.key]: Date.now() }))}>Verwerfen</button>
+                        <button type="button" className="app-dialog-button app-dialog-button-secondary" onClick={() => saveNotificationDismissal(n)}>Verwerfen</button>
                       </div>
                     </div>
                   );
