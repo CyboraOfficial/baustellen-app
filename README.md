@@ -63,6 +63,21 @@ Hinweis zur Backend-URL:
 
 Die Umschaltung erfolgt in `src/pocketbase.js` anhand von `import.meta.env.MODE`.
 
+## Deployment
+
+Der GitHub-Actions-Workflow deployt das Web-Frontend bei Pushes auf `master`.
+Wenn sich dabei Dateien unter `pb_migrations/` ändern, werden die Migrationen
+zusätzlich nach `/root/pb/pb_migrations` auf den VPS kopiert und danach
+`pocketbase.service` neu gestartet. PocketBase führt ausstehende Migrationen
+beim Start aus. Neue timestamp-basierte `.js`-Migrationen werden von Git
+berücksichtigt; die alten, bereits ausgeschlossenen Migrationen bleiben
+weiterhin ausgeschlossen.
+
+Der SSH-Benutzer aus dem GitHub-Secret `SERVER_USER` muss in dieses Verzeichnis
+schreiben dürfen und `sudo -n systemctl restart pocketbase.service` ohne
+Passwortabfrage ausführen dürfen. Der Workflow prüft anschließend, ob der
+Dienst wieder aktiv ist.
+
 ## NPM-Skripte
 
 - `npm run dev`: Vite Entwicklungsserver
