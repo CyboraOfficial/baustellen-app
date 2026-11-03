@@ -4746,6 +4746,120 @@ const createProject = async () => {
     localStorage.setItem('settings_geo_cell_size_km', String(settingsGeoCellSizeKm));
   }, [settingsGeoCellSizeKm]);
 
+  // Geräteübergreifende Synchronisierung der Einstellungen über PocketBase (user_settings)
+  const buildSettingsPayload = (source) => ({
+    proformaReminderDays: Number(source.proformaReminderDays),
+    companyLat: String(source.companyLat ?? ''),
+    companyLng: String(source.companyLng ?? ''),
+    clusterEnabled: source.clusterEnabled !== false && source.clusterEnabled !== 'false',
+    heatRadius: Number(source.heatRadius),
+    heatBlur: Number(source.heatBlur),
+    geoOverlayMode: String(source.geoOverlayMode || 'heat'),
+    geoCellSizeKm: Number(source.geoCellSizeKm)
+  });
+  const currentSettingsPayload = buildSettingsPayload({
+    proformaReminderDays,
+    companyLat: settingsCompanyLat,
+    companyLng: settingsCompanyLng,
+    clusterEnabled: settingsClusterEnabled,
+    heatRadius: settingsHeatRadius,
+    heatBlur: settingsHeatBlur,
+    geoOverlayMode: settingsGeoOverlayMode,
+    geoCellSizeKm: settingsGeoCellSizeKm
+  });
+  const currentSettingsJson = JSON.stringify(currentSettingsPayload);
+  const settingsPayloadRef = useRef(currentSettingsPayload);
+  settingsPayloadRef.current = currentSettingsPayload;
+  const settingsRecordIdRef = useRef(null);
+  const settingsSyncedJsonRef = useRef(null);
+  const [settingsSyncReadyFor, setSettingsSyncReadyFor] = useState(null);
+
+  useEffect(() => {
+    const userId = user?.id;
+    let active = true;
+    let unsubscribe;
+    const collection = pb.collection('user_settings');
+    settingsRecordIdRef.current = null;
+    settingsSyncedJsonRef.current = null;
+    setSettingsSyncReadyFor(null);
+    if (!userId) return undefined;
+
+    const applyRemote = (data) => {
+      if (!data || typeof data !== 'object') return;
+      const merged = buildSettingsPayload({ ...settingsPayloadRef.current, ...data });
+      const valid = (value, fallback) => (Number.isFinite(value) ? value : fallback);
+      const current = settingsPayloadRef.current;
+      merged.proformaReminderDays = valid(merged.proformaReminderDays, current.proformaReminderDays);
+      merged.heatRadius = valid(merged.heatRadius, current.heatRadius);
+      merged.heatBlur = valid(merged.heatBlur, current.heatBlur);
+      merged.geoCellSizeKm = valid(merged.geoCellSizeKm, current.geoCellSizeKm);
+      settingsSyncedJsonRef.current = JSON.stringify(merged);
+      setProformaReminderDays(merged.proformaReminderDays);
+      setSettingsCompanyLat(merged.companyLat);
+      setSettingsCompanyLng(merged.companyLng);
+      setSettingsClusterEnabled(merged.clusterEnabled);
+      setSettingsHeatRadius(merged.heatRadius);
+      setSettingsHeatBlur(merged.heatBlur);
+      setSettingsGeoOverlayMode(merged.geoOverlayMode);
+      setSettingsGeoCellSizeKm(merged.geoCellSizeKm);
+    };
+
+    const init = async () => {
+      try {
+        const records = await collection.getFullList({ filter: `user = "${userId}"`, requestKey: null });
+        if (!active) return;
+        if (records[0]) {
+          settingsRecordIdRef.current = records[0].id;
+          applyRemote(records[0].data);
+        }
+        unsubscribe = await collection.subscribe('*', (event) => {
+          const record = event?.record;
+          if (!record || record.user !== userId || event.action === 'delete') return;
+          settingsRecordIdRef.current = record.id;
+          if (JSON.stringify(buildSettingsPayload({ ...settingsPayloadRef.current, ...record.data })) === settingsSyncedJsonRef.current) return;
+          applyRemote(record.data);
+        });
+        if (!active) {
+          unsubscribe();
+          return;
+        }
+        setSettingsSyncReadyFor(userId);
+      } catch (error) {
+        if (active) console.error('Einstellungen konnten nicht synchronisiert werden:', error);
+      }
+    };
+    init();
+
+    return () => {
+      active = false;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || settingsSyncReadyFor !== userId) return undefined;
+    if (settingsSyncedJsonRef.current === currentSettingsJson) return undefined;
+
+    const timer = window.setTimeout(async () => {
+      const collection = pb.collection('user_settings');
+      const payload = settingsPayloadRef.current;
+      const json = JSON.stringify(payload);
+      try {
+        if (settingsRecordIdRef.current) {
+          await collection.update(settingsRecordIdRef.current, { data: payload }, { requestKey: null });
+        } else {
+          const record = await collection.create({ user: userId, data: payload }, { requestKey: null });
+          settingsRecordIdRef.current = record.id;
+        }
+        settingsSyncedJsonRef.current = json;
+      } catch (error) {
+        console.error('Einstellungen konnten nicht gespeichert werden:', error);
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [currentSettingsJson, settingsSyncReadyFor, user?.id]);
+
   const exportAnalyticsToExcel = async () => {
     if (analyticsRows.length === 0) {
       setToast("Keine Daten fuer Excel-Export vorhanden");
