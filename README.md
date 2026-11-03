@@ -66,12 +66,16 @@ Die Umschaltung erfolgt in `src/pocketbase.js` anhand von `import.meta.env.MODE`
 ## Deployment
 
 Der GitHub-Actions-Workflow deployt das Web-Frontend bei Pushes auf `master`.
-Wenn sich dabei Dateien unter `pb_migrations/` ändern, werden die Migrationen
-zusätzlich nach `/root/pb/pb_migrations` auf den VPS kopiert und danach
-`pocketbase.service` neu gestartet. PocketBase führt ausstehende Migrationen
-beim Start aus. Neue timestamp-basierte `.js`-Migrationen werden von Git
-berücksichtigt; die alten, bereits ausgeschlossenen Migrationen bleiben
-weiterhin ausgeschlossen.
+Wenn sich dabei Dateien unter `pb_migrations/` ändern, werden nur die neu
+hinzugefügten oder geänderten Migrationen nach `/root/pb/pb_migrations` auf den
+VPS kopiert und danach `pocketbase.service` neu gestartet. PocketBase führt
+ausstehende Migrationen beim Start aus. Die alten lokalen Migrationen, die in
+`.gitignore` stehen, werden bewusst nicht hochgeladen: Die Collections existieren
+auf dem Server bereits.
+
+Über **Actions → Deploy to VPS → Run workflow** lassen sich alle versionierten
+Migrationen manuell einmalig auf den Server laden (z. B. wenn sie bereits im
+Repository liegen, aber nie hochgeladen wurden).
 
 Der SSH-Benutzer aus dem GitHub-Secret `SERVER_USER` muss in dieses Verzeichnis
 schreiben dürfen und `sudo -n systemctl restart pocketbase.service` ohne

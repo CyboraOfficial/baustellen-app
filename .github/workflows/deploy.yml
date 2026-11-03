@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master 
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -26,12 +27,19 @@ jobs:
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
         run: |
-          if [[ "$BEFORE" =~ ^0+$ ]]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" "$SHA" -- pb_migrations/; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+          rm -rf migrations-upload
+          mkdir migrations-upload
+          # Manueller Start oder erster Push: alle versionierten Migrationen hochladen
+          if [[ -z "$BEFORE" || "$BEFORE" =~ ^0+$ ]]; then
+            FILES=$(git ls-files 'pb_migrations/*.js')
           else
+            FILES=$(git diff --name-only --diff-filter=AM "$BEFORE" "$SHA" -- 'pb_migrations/*.js')
+          fi
+          for f in $FILES; do cp "$f" migrations-upload/; done
+          if [ -n "$(ls -A migrations-upload)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install Dependencies
@@ -57,7 +65,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "pb_migrations/*.js"
+          source: "migrations-upload/*.js"
           target: "/root/pb/pb_migrations"
           strip_components: 1
 
