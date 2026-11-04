@@ -4814,7 +4814,11 @@ const createProject = async () => {
         }
         unsubscribe = await collection.subscribe('*', (event) => {
           const record = event?.record;
-          if (!record || record.user !== userId || event.action === 'delete') return;
+          if (!record || record.user !== userId) return;
+          if (event.action === 'delete') {
+            if (settingsRecordIdRef.current === record.id) settingsRecordIdRef.current = null;
+            return;
+          }
           settingsRecordIdRef.current = record.id;
           if (JSON.stringify(buildSettingsPayload({ ...settingsPayloadRef.current, ...record.data })) === settingsSyncedJsonRef.current) return;
           applyRemote(record.data);
@@ -4847,8 +4851,15 @@ const createProject = async () => {
       const json = JSON.stringify(payload);
       try {
         if (settingsRecordIdRef.current) {
-          await collection.update(settingsRecordIdRef.current, { data: payload }, { requestKey: null });
-        } else {
+          const recordId = settingsRecordIdRef.current;
+          try {
+            await collection.update(recordId, { data: payload }, { requestKey: null });
+          } catch (error) {
+            if (error?.status !== 404) throw error;
+            if (settingsRecordIdRef.current === recordId) settingsRecordIdRef.current = null;
+          }
+        }
+        if (!settingsRecordIdRef.current) {
           const record = await collection.create({ user: userId, data: payload }, { requestKey: null });
           settingsRecordIdRef.current = record.id;
         }
