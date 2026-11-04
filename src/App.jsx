@@ -4853,10 +4853,15 @@ const createProject = async () => {
         if (settingsRecordIdRef.current) {
           const recordId = settingsRecordIdRef.current;
           try {
-            await collection.update(recordId, { data: payload }, { requestKey: null });
+            await collection.update(recordId, { user: userId, data: payload }, { requestKey: null });
           } catch (error) {
             if (error?.status !== 404) throw error;
-            if (settingsRecordIdRef.current === recordId) settingsRecordIdRef.current = null;
+            // Datensatz per Filter neu suchen, bevor ein neuer angelegt wird (Unique-Index auf user)
+            const existing = await collection.getFullList({ filter: `user = "${userId}"`, requestKey: null });
+            settingsRecordIdRef.current = existing[0]?.id || null;
+            if (settingsRecordIdRef.current) {
+              await collection.update(settingsRecordIdRef.current, { user: userId, data: payload }, { requestKey: null });
+            }
           }
         }
         if (!settingsRecordIdRef.current) {
