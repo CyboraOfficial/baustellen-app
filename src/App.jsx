@@ -2541,6 +2541,10 @@ const uploadProjectFiles = async (projectId, files) => {
     if (controller.signal.aborted) {
       throw new Error('Zeitüberschreitung beim Hochladen der Dateien.');
     }
+    const serverMessage = error?.response?.data?.files?.message;
+    if (error?.status === 400 && serverMessage) {
+      error.userMessage = `Upload abgelehnt: ${serverMessage}`;
+    }
     throw error;
   } finally {
     window.clearTimeout(timeout);
@@ -5826,6 +5830,7 @@ const createProject = async () => {
           if (uploadToastId != null) dismissToast(uploadToastId);
           setToast(err.message === 'Zeitüberschreitung beim Hochladen der Dateien.'
             ? '❌ Upload abgebrochen: Zeitüberschreitung. Bitte erneut versuchen.'
+            : err.userMessage ? `❌ ${err.userMessage}`
             : '❌ Upload fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.');
           scheduleToastDismiss(6000);
         }
@@ -7846,6 +7851,7 @@ const createProject = async () => {
       if (uploadToastId != null) dismissToast(uploadToastId);
       setToast(err.message === 'Zeitüberschreitung beim Hochladen der Dateien.'
         ? '❌ Upload abgebrochen: Zeitüberschreitung. Bitte erneut versuchen.'
+        : err.userMessage ? `❌ ${err.userMessage}`
         : '❌ Upload fehlgeschlagen. Bitte Verbindung prüfen und erneut versuchen.');
       scheduleToastDismiss(6000);
     }
