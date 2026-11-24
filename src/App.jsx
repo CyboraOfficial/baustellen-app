@@ -13,6 +13,18 @@ import { buildProjectTemplate, LK_SIKA_TAUSCH_ACTION } from './projectTemplate.m
 import { calculateKabelSummen } from './aufmassKabel.mjs';
 
 const FileViewer = lazy(() => import('./FileViewer'));
+import UserAdminPanel, { MultiSelect } from './UserAdminPanel';
+import {
+  TAB_LEVELS,
+  TAB_BOOL_KEYS,
+  getAllowedFileSecurityLevels,
+  getEffectiveSecurityLevel,
+  getFileFolderId,
+  getFileSecurityLevel,
+  getVisibleProjectFiles,
+  parseFileFolders,
+  parseFileSecurityLevels
+} from './permissions';
 
 const enableLeafletHeatWillReadFrequently = () => {
   const HeatLayer = L?.HeatLayer;
@@ -418,7 +430,6 @@ const DEFAULT_AUFMASS_ALLGEMEIN = {
   transport: "",
   extraInfos: "",
   tatsaechlicheWerktage: "",
-  ansMindestansatzBeiUnter1m: false,
   einmessungWeggeschicktAm: "",
   materialbuchungErfolgtAm: "",
   proformaRechnungWeggeschicktAm: "",
@@ -892,6 +903,7 @@ function BauzeitenplanModal({
   onDeleteEntry,
   onCreateFreetextEntry,
   onOpenProject,
+  readOnly = false,
   setToast
 }) {
   const [search, setSearch] = useState("");
@@ -1206,7 +1218,7 @@ function BauzeitenplanModal({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
-          <h3 style={{ margin: 0 }}>Bauzeitenplan</h3>
+          <h3 style={{ margin: 0 }}>Bauzeitenplan{readOnly ? " (nur Ansicht)" : ""}</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={onClose} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Schließen</button>
           </div>
@@ -1712,11 +1724,17 @@ export default function App() {
   const [batchAktion, setBatchAktion] = useState('Tausch');
 
   const [selectedProject, setSelectedProject] = useState(null);
+  const selectedProjectRef = useRef(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [projectFileEditingIndex, setProjectFileEditingIndex] = useState(null);
   const [projectFileNameDraft, setProjectFileNameDraft] = useState("");
   const [projectFileSavingRename, setProjectFileSavingRename] = useState(false);
   const [fileViewer, setFileViewer] = useState(null);
+  const [fileUploadSecurityLevel, setFileUploadSecurityLevel] = useState(1);
+  const [fileFolders, setFileFolders] = useState([]);
+  const [newFileFolderName, setNewFileFolderName] = useState("");
+  const [newFileFolderLevel, setNewFileFolderLevel] = useState(1);
+  const [fileUploadFolderId, setFileUploadFolderId] = useState("");
   const [downloadFolder, setDownloadFolder] = useState("");
   const [downloadFolderLoading, setDownloadFolderLoading] = useState(false);
   const [downloadFolderError, setDownloadFolderError] = useState("");
@@ -1816,6 +1834,9 @@ export default function App() {
   });
 
   const [originalProject, setOriginalProject] = useState(null);
+  const formRef = useRef(null);
+  const originalProjectRef = useRef(null);
+  const activeTabRef = useRef(activeTab);
   const [toastMessages, setToastMessages] = useState([]);
   const toastMessagesRef = useRef([]);
   const toastSequenceRef = useRef(0);
@@ -1824,6 +1845,18 @@ export default function App() {
   const [appDialog, setAppDialog] = useState(null);
   const appDialogResolverRef = useRef(null);
   const [tempFiles, setTempFiles] = useState([]);
+
+  useEffect(() => {
+    selectedProjectRef.current = selectedProject;
+  }, [selectedProject]);
+
+  useEffect(() => {
+    originalProjectRef.current = originalProject;
+  }, [originalProject]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   const dismissToast = (id) => {
     const timer = toastTimersRef.current.get(id);
@@ -1956,6 +1989,10 @@ export default function App() {
   const [form, setForm] = useState(emptyForm);
   const [showAnfahrschadenPositionen, setShowAnfahrschadenPositionen] = useState(true);
 
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
   const tabs = [
     "Allgemein",
     "Dateien",
@@ -1971,6 +2008,11 @@ export default function App() {
 const [user, setUser] = useState(pb.authStore.model);
 const [loginEmail, setLoginEmail] = useState("");
 const [loginPass, setLoginPass] = useState("");
+const [registerMode, setRegisterMode] = useState(false);
+const [loginPass2, setLoginPass2] = useState("");
+const [loginNotice, setLoginNotice] = useState(null);
+const [rolePerms, setRolePerms] = useState({});
+const [darkMode, setDarkMode] = useState(() => localStorage.getItem("baustellen_dark_mode") === "1");
 
 useEffect(() => {
   if (!pb.authStore.isValid) {
@@ -1982,12 +2024,30 @@ useEffect(() => {
   pb.collection('users').authRefresh()
     .then(() => setUser(pb.authStore.model))
     .catch((error) => {
-      if (error?.status === 401) {
+      if ([400, 401, 403].includes(error?.status)) {
         pb.authStore.clear();
         setUser(null);
       }
     });
 }, []);
+
+useEffect(() => {
+  document.documentElement.classList.toggle("dark-mode", darkMode);
+  localStorage.setItem("baustellen_dark_mode", darkMode ? "1" : "0");
+}, [darkMode]);
+
+const loadRolePerms = async () => {
+  try {
+    const list = await pb.collection("role_permissions").getFullList({ requestKey: null });
+    setRolePerms(Object.fromEntries(list.flatMap((role) => [[role.id, role], [role.role, role]])));
+  } catch (err) {
+    console.error("Berechtigungen konnten nicht geladen werden:", err);
+  }
+};
+
+useEffect(() => {
+  if (user) loadRolePerms();
+}, [user?.id]);
 
 useEffect(() => {
   const userId = user?.id;
@@ -2082,6 +2142,76 @@ useEffect(() => {
     if (unsubscribe) unsubscribe();
   };
 }, [user?.id]);
+
+const assignedRoles = (user?.roles || []).map((id) => rolePerms[id]).filter(Boolean);
+const effectiveSecurityLevel = getEffectiveSecurityLevel(assignedRoles);
+const allowedFileSecurityLevels = getAllowedFileSecurityLevels(assignedRoles);
+const visibleFileFolders = fileFolders.filter(
+  (folder) => Number(folder.securityLevel) <= effectiveSecurityLevel
+);
+const getUserVisibleProjectFiles = (project) =>
+  getVisibleProjectFiles(project, effectiveSecurityLevel).filter((fileName) => {
+    const folderId = getFileFolderId(project, fileName);
+    if (!folderId) return true;
+    const folder = fileFolders.find((item) => item.id === folderId);
+    return !folder || Number(folder.securityLevel) <= effectiveSecurityLevel;
+  });
+
+useEffect(() => {
+  if (!visibleFileFolders.some((folder) => folder.id === fileUploadFolderId)) {
+    setFileUploadFolderId("");
+  }
+}, [effectiveSecurityLevel, fileFolders, fileUploadFolderId]);
+
+useEffect(() => {
+  const configured = Number(user?.defaultFileSecurityLevel);
+  setFileUploadSecurityLevel(
+    Number.isFinite(configured) && configured > 0
+      ? Math.min(Math.round(configured), effectiveSecurityLevel)
+      : effectiveSecurityLevel
+  );
+}, [user?.id, user?.defaultFileSecurityLevel, effectiveSecurityLevel]);
+
+const hasAdminRole = assignedRoles.some((role) => role.role === "admin");
+const can = (permission) => {
+  if (hasAdminRole) return true;
+  if (permission === "manageUsers") return false;
+  return assignedRoles.some((role) => !!role[permission]);
+};
+const parseVisibleStatuses = (role) => {
+  let list = role?.visibleStatuses;
+  if (typeof list === "string") {
+    try { list = JSON.parse(list); } catch { list = null; }
+  }
+  return Array.isArray(list) ? list : [];
+};
+const allowedStatuses = (() => {
+  if (hasAdminRole || assignedRoles.length === 0) return null;
+  const lists = assignedRoles.map(parseVisibleStatuses);
+  if (lists.some((list) => list.length === 0)) return null;
+  return new Set(lists.flat());
+})();
+const canViewTab = (tab) => (TAB_LEVELS[tab] ? can(TAB_LEVELS[tab].viewKey) : can(TAB_BOOL_KEYS[tab]));
+const canEditTab = (tab) => !!TAB_LEVELS[tab] && can(TAB_LEVELS[tab].viewKey) && can(TAB_LEVELS[tab].editKey);
+const isRestrictedUser = !hasAdminRole
+  && (assignedRoles.length === 0 || assignedRoles.every((role) => !!role.onlyAssignedProjects));
+const canEditAnyProjectTab = ["Allgemein", "Dateien", "Masten", "Aufmaß", "Abrechnung"].some(canEditTab);
+const visibleTabs = tabs.filter(canViewTab);
+const guardBzp = (fn) => (...args) => {
+  if (!can("editBauzeitenplan")) {
+    setToast("Keine Berechtigung zum Bearbeiten des Bauzeitenplans");
+    scheduleToastDismiss(2500);
+    return undefined;
+  }
+  return fn(...args);
+};
+const activeTabLocked = mode === "detail" && ["Allgemein", "Masten", "Aufmaß", "Abrechnung"].includes(activeTab) && !canEditTab(activeTab);
+
+useEffect(() => {
+  if (user && visibleTabs.length > 0 && !visibleTabs.includes(activeTab)) {
+    setActiveTab(visibleTabs[0]);
+  }
+}, [user, rolePerms, activeTab]);
 
 const updateMast = (index, field, value) => {
   setForm(prev => {
@@ -2333,6 +2463,152 @@ const updateLeuchte = (mastIndex, leuchtenIndex, field, value) => {
   });
 };
 
+const markFilesWithSecurityLevel = (files, level = fileUploadSecurityLevel) =>
+  files.map((file) => {
+    const safeLevel = Math.min(Math.max(1, Math.round(Number(level) || 1)), effectiveSecurityLevel);
+    try {
+      Object.defineProperty(file, "securityLevel", {
+        configurable: true,
+        value: safeLevel
+      });
+    } catch {
+      file.securityLevel = safeLevel;
+    }
+    return file;
+  });
+
+const buildNextFileSecurityLevels = (project, newNames = [], fallbackLevel = fileUploadSecurityLevel) => {
+  const levels = parseFileSecurityLevels(project?.fileSecurityLevels);
+  newNames.forEach((fileName) => {
+    if (!levels[fileName]) {
+      levels[fileName] = Math.min(Math.max(1, Math.round(Number(fallbackLevel) || 1)), effectiveSecurityLevel);
+    }
+  });
+  Object.keys(levels).forEach((fileName) => {
+    if (!(project?.files || []).includes(fileName)) delete levels[fileName];
+  });
+  return levels;
+};
+
+const markFilesWithFolder = (files, folderId = fileUploadFolderId) =>
+  files.map((file) => {
+    Object.defineProperty(file, "folderId", {
+      configurable: true,
+      value: visibleFileFolders.some((folder) => folder.id === folderId) ? folderId : ""
+    });
+    return file;
+  });
+
+const buildNextFileFolders = (project, newNames = []) => {
+  const folders = parseFileFolders(project?.fileFolders);
+  newNames.forEach((fileName) => {
+    if (!folders[fileName]) folders[fileName] = "";
+  });
+  Object.keys(folders).forEach((fileName) => {
+    if (!(project?.files || []).includes(fileName)) delete folders[fileName];
+  });
+  return folders;
+};
+
+const uploadProjectFiles = async (project, files) => {
+  const previousFiles = project?.files || [];
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files+", file));
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 120000);
+  let updatedProject;
+  try {
+    updatedProject = await pb.collection("projects").update(project.id, formData, {
+      requestKey: null,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Zeitüberschreitung beim Hochladen der Dateien.");
+    }
+    const serverMessage = error?.response?.data?.files?.message;
+    if (error?.status === 400 && serverMessage) {
+      error.userMessage = `Upload abgelehnt: ${serverMessage}`;
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+  const previousFileSet = new Set(previousFiles);
+  const newFileNames = (updatedProject.files || []).filter((fileName) => !previousFileSet.has(fileName));
+  const levelByFileIndex = files.map((file) => Number(file?.securityLevel) || fileUploadSecurityLevel);
+  const levels = buildNextFileSecurityLevels(updatedProject, newFileNames);
+  newFileNames.forEach((fileName, index) => {
+    levels[fileName] = Math.min(
+      Math.max(1, Math.round(levelByFileIndex[index] || fileUploadSecurityLevel)),
+      effectiveSecurityLevel
+    );
+  });
+  const fileFolderMap = buildNextFileFolders(updatedProject, newFileNames);
+  newFileNames.forEach((fileName, index) => {
+    fileFolderMap[fileName] = files[index]?.folderId || "";
+  });
+  updatedProject = await pb.collection("projects").update(project.id, {
+    fileSecurityLevels: levels,
+    fileFolders: fileFolderMap
+  });
+  return updatedProject;
+};
+
+const updateProjectFileFolder = async (fileName, folderId) => {
+  if (!selectedProject?.id) return;
+  if (folderId && !visibleFileFolders.some((folder) => folder.id === folderId)) return;
+  const folders = parseFileFolders(selectedProject.fileFolders);
+  folders[fileName] = folderId;
+  try {
+    const updatedProject = await pb.collection("projects").update(selectedProject.id, { fileFolders: folders });
+    setSelectedProject(updatedProject);
+    setOriginalProject(updatedProject);
+    setForm(updatedProject);
+    setProjects((previous) => previous.map((project) => project.id === updatedProject.id ? updatedProject : project));
+  } catch (error) {
+    console.error("Datei-Ordner konnte nicht geändert werden:", error);
+    setToast("❌ Datei-Ordner konnte nicht geändert werden.");
+    scheduleToastDismiss(3000);
+  }
+};
+
+const updateProjectFileSecurityLevel = async (fileName, requestedLevel) => {
+  if (!selectedProject?.id) return;
+  const level = Math.min(Math.max(1, Math.round(Number(requestedLevel) || 1)), effectiveSecurityLevel);
+  const levels = parseFileSecurityLevels(selectedProject.fileSecurityLevels);
+  levels[fileName] = level;
+  try {
+    const updatedProject = await pb.collection("projects").update(selectedProject.id, { fileSecurityLevels: levels });
+    setSelectedProject(updatedProject);
+    setOriginalProject(updatedProject);
+    setForm(updatedProject);
+    setProjects((previous) => previous.map((project) => project.id === updatedProject.id ? updatedProject : project));
+    setToast(`Sicherheitsstufe ${level} gespeichert.`);
+    scheduleToastDismiss(2000);
+  } catch (error) {
+    console.error("Datei-Sicherheitsstufe konnte nicht gespeichert werden:", error);
+    setToast("❌ Datei-Sicherheitsstufe konnte nicht gespeichert werden.");
+    scheduleToastDismiss(3000);
+  }
+};
+
+const saveFileUploadSecurityLevel = async (requestedLevel) => {
+  if (!user?.id) return;
+  const level = Math.min(Math.max(1, Math.round(Number(requestedLevel) || 1)), effectiveSecurityLevel);
+  setFileUploadSecurityLevel(level);
+  try {
+    const updatedUser = await pb.collection("users").update(user.id, { defaultFileSecurityLevel: level });
+    setUser(updatedUser);
+    setToast(`Standard-Sicherheitsstufe ${level} gespeichert.`);
+    scheduleToastDismiss(2000);
+  } catch (error) {
+    console.error("Standard-Sicherheitsstufe konnte nicht gespeichert werden:", error);
+    setToast("❌ Standard-Sicherheitsstufe konnte nicht gespeichert werden.");
+    scheduleToastDismiss(3000);
+  }
+};
+
 const getProjectFileUrl = async (project, fileName) => {
   const fallbackUrl = pb.files.getURL(project, fileName);
 
@@ -2417,7 +2693,10 @@ const renameProjectFile = async (fileName, fileIndex) => {
   if (mode === "create") {
     const oldFile = tempFiles[fileIndex];
     if (!oldFile) return;
-    const renamedFile = new File([oldFile], newFileName, { type: oldFile.type, lastModified: oldFile.lastModified });
+    const renamedFile = markFilesWithFolder(markFilesWithSecurityLevel(
+      [new File([oldFile], newFileName, { type: oldFile.type, lastModified: oldFile.lastModified })],
+      Number(oldFile.securityLevel) || fileUploadSecurityLevel
+    ), oldFile.folderId || "")[0];
     setTempFiles((previous) => previous.map((file, index) => index === fileIndex ? renamedFile : file));
     setProjectFileEditingIndex(null);
     return;
@@ -2453,6 +2732,24 @@ const renameProjectFile = async (fileName, fileIndex) => {
       setProjectFileEditingIndex(null);
       throw new Error(`Die neue Datei wurde hochgeladen, aber die alte Datei konnte nicht entfernt werden. Beide Dateien sind vorhanden. ${error.message || ""}`.trim());
     }
+
+    const levels = parseFileSecurityLevels(uploadedProject.fileSecurityLevels);
+    const addedFileName = (updatedProject.files || []).find(
+      (candidate) => !(selectedProject.files || []).includes(candidate)
+    );
+    const oldLevel = getFileSecurityLevel(selectedProject, fileName);
+    delete levels[fileName];
+    if (addedFileName) levels[addedFileName] = oldLevel;
+    updatedProject = await pb.collection("projects").update(selectedProject.id, {
+      fileSecurityLevels: buildNextFileSecurityLevels({ ...updatedProject, fileSecurityLevels: levels }),
+      fileFolders: (() => {
+        const folders = parseFileFolders(updatedProject.fileFolders);
+        const previousFolder = getFileFolderId(selectedProject, fileName);
+        delete folders[fileName];
+        if (addedFileName && previousFolder) folders[addedFileName] = previousFolder;
+        return folders;
+      })()
+    });
 
     setSelectedProject(updatedProject);
     setOriginalProject(updatedProject);
@@ -2527,31 +2824,6 @@ const compressFilesForUpload = async (rawFiles = []) => {
   );
 };
 
-const uploadProjectFiles = async (projectId, files) => {
-  const formData = new FormData();
-  files.forEach((file) => formData.append('files+', file));
-
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 120000);
-  try {
-    return await pb.collection('projects').update(projectId, formData, {
-      requestKey: null,
-      signal: controller.signal
-    });
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw new Error('Zeitüberschreitung beim Hochladen der Dateien.');
-    }
-    const serverMessage = error?.response?.data?.files?.message;
-    if (error?.status === 400 && serverMessage) {
-      error.userMessage = `Upload abgelehnt: ${serverMessage}`;
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
-};
-
 const removeLeuchte = (mastIndex, leuchtenIndex) => {
   setForm(prev => {
     const newMasten = [...(prev.masten || [])];
@@ -2601,7 +2873,39 @@ const handleLogin = async (e) => {
     }
 
   } catch (err) {
-    showAppMessage("Login fehlgeschlagen: " + err.message, "Anmeldung fehlgeschlagen");
+    setLoginPass("");
+    if (err?.status === 403) {
+      setLoginNotice({ type: "warning", text: "Dein Konto wurde noch nicht von einem Admin freigeschaltet. Bitte warte auf die Freigabe." });
+    } else if (err?.status === 400) {
+      setLoginNotice({ type: "error", text: "E-Mail oder Passwort ist falsch." });
+    } else {
+      setLoginNotice({ type: "error", text: "Login fehlgeschlagen: " + err.message });
+    }
+  }
+};
+
+const handleRegister = async (e) => {
+  e.preventDefault();
+  if (loginPass !== loginPass2) {
+    setLoginNotice({ type: "error", text: "Die Passwörter stimmen nicht überein." });
+    return;
+  }
+  try {
+    await pb.collection('users').create({
+      email: loginEmail,
+      password: loginPass,
+      passwordConfirm: loginPass2,
+      emailVisibility: true
+    });
+    setRegisterMode(false);
+    setLoginPass("");
+    setLoginPass2("");
+    setLoginNotice({ type: "success", text: "Registrierung erfolgreich. Ein Admin muss dein Konto noch freischalten, bevor du dich anmelden kannst." });
+  } catch (err) {
+    const detail = err?.response?.data
+      ? Object.values(err.response.data).map((v) => v?.message).filter(Boolean).join(" ")
+      : "";
+    setLoginNotice({ type: "error", text: "Registrierung fehlgeschlagen. " + (detail || err.message) });
   }
 };
 
@@ -2659,6 +2963,69 @@ const createLogEntry = (message) => {
     loadProjects();
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    let unsubscribe;
+    let cancelled = false;
+
+    const subscribe = async () => {
+      try {
+        unsubscribe = await pb.collection("projects").subscribe("*", (event) => {
+          const record = event.record;
+          if (!record?.id) return;
+
+          setProjects((previous) => {
+            if (event.action === "delete") {
+              return previous.filter((project) => project.id !== record.id);
+            }
+
+            const existing = previous.find((project) => project.id === record.id);
+            if (existing) {
+              return previous.map((project) => project.id === record.id ? record : project);
+            }
+            return [record, ...previous];
+          });
+
+          const currentProject = selectedProjectRef.current;
+          if (currentProject?.id !== record.id) return;
+
+          if (event.action === "delete") {
+            setSelectedProject(null);
+            setOriginalProject(null);
+            setForm(emptyForm);
+            setMode("list");
+            setToast("Die geöffnete Baustelle wurde in einer anderen Sitzung gelöscht.");
+            scheduleToastDismiss(3000);
+            return;
+          }
+
+          const hasUnsavedChanges = getFormSnapshot(formRef.current) !== getFormSnapshot(originalProjectRef.current);
+          setSelectedProject(record);
+
+          if (!hasUnsavedChanges) {
+            const currentTab = activeTabRef.current;
+            openProject(record);
+            setActiveTab(currentTab);
+          }
+        }, { requestKey: null });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Live-Synchronisierung der Baustellen konnte nicht gestartet werden:", error);
+        }
+      }
+    };
+
+    subscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      pb.collection("projects").unsubscribe("*").catch((error) => {
+        console.error("Live-Synchronisierung der Baustellen konnte nicht beendet werden:", error);
+      });
+    };
+  }, [user?.id]);
+
   const loadCrews = async () => {
     try {
       const records = await pb.collection('crews').getFullList({ sort: 'sortOrder,name', requestKey: null });
@@ -2668,19 +3035,200 @@ const createLogEntry = (message) => {
     }
   };
 
-  const loadScheduleEntries = async () => {
+  const loadFileFolders = async () => {
     try {
-      const records = await pb.collection('schedule_entries').getFullList({ expand: 'project,crew', requestKey: null });
-      setScheduleEntries(records);
+      const records = await pb.collection("file_folders").getFullList({
+        sort: "sortOrder,name",
+        requestKey: null
+      });
+      setFileFolders(records);
     } catch (error) {
-      console.error("Fehler beim Laden des Bauzeitenplans:", error);
+      console.error("Dateiordner konnten nicht geladen werden:", error);
+      setToast("Dateiordner konnten nicht geladen werden.");
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) loadFileFolders();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let unsubscribe;
+    pb.collection("file_folders").subscribe("*", (event) => {
+      setFileFolders((previous) => {
+        if (event.action === "delete") return previous.filter((folder) => folder.id !== event.record.id);
+        const next = previous.some((folder) => folder.id === event.record.id)
+          ? previous.map((folder) => folder.id === event.record.id ? event.record : folder)
+          : [...previous, event.record];
+        return next.sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+      });
+    }, { requestKey: null })
+      .then((callback) => { unsubscribe = callback; })
+      .catch((error) => console.error("Live-Synchronisierung der Dateiordner fehlgeschlagen:", error));
+    return () => {
+      unsubscribe?.();
+      pb.collection("file_folders").unsubscribe("*").catch(() => {});
+    };
+  }, [user?.id]);
+
+  const createFileFolder = async (event) => {
+    event.preventDefault();
+    if (!hasAdminRole) return;
+    const name = newFileFolderName.trim();
+    if (!name) return;
+    try {
+      const folder = await pb.collection("file_folders").create({
+        name,
+        securityLevel: Math.min(Math.max(1, Number(newFileFolderLevel) || 1), effectiveSecurityLevel),
+        sortOrder: fileFolders.length
+      });
+      setFileFolders((previous) =>
+        previous.some((item) => item.id === folder.id)
+          ? previous
+          : [...previous, folder].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+      );
+      setNewFileFolderName("");
+    } catch (error) {
+      const detail = error?.response?.data
+        ? Object.values(error.response.data).map((value) => value?.message).filter(Boolean).join(" ")
+        : "";
+      setToast(`❌ Dateiordner konnte nicht angelegt werden: ${detail || error.message}`);
+      scheduleToastDismiss(4000);
+    }
+  };
+
+  const updateFileFolder = async (folder, values) => {
+    if (!hasAdminRole) return;
+    try {
+      const updated = await pb.collection("file_folders").update(folder.id, values);
+      setFileFolders((previous) => previous.map((item) => item.id === updated.id ? updated : item));
+    } catch (error) {
+      console.error("Dateiordner konnte nicht geändert werden:", error);
+      setToast(`❌ Dateiordner konnte nicht geändert werden: ${error.message}`);
+      scheduleToastDismiss(3000);
+    }
+  };
+
+  const deleteFileFolder = async (folder) => {
+    if (!hasAdminRole) return;
+    if (!await requestAppConfirmation(
+      `Ordner „${folder.name}“ wirklich löschen? Die Dateien bleiben erhalten und wechseln in „Ohne Ordner“.`,
+      "Dateiordner löschen?",
+      selectedProject?.id || null
+    )) return;
+    try {
+      await pb.collection("file_folders").delete(folder.id);
+      setFileFolders((previous) => previous.filter((item) => item.id !== folder.id));
+    } catch (error) {
+      console.error("Dateiordner konnte nicht gelöscht werden:", error);
+      setToast(`❌ Dateiordner konnte nicht gelöscht werden: ${error.message}`);
+      scheduleToastDismiss(3000);
     }
   };
 
   useEffect(() => {
     loadCrews();
-    loadScheduleEntries();
-  }, []);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setScheduleEntries([]);
+      return undefined;
+    }
+
+    let active = true;
+    let loaded = false;
+    let unsubscribe;
+    const collection = pb.collection('schedule_entries');
+    const pendingEvents = new Map();
+
+    const applyRecord = (record, action) => {
+      if (!record?.id) return;
+      setScheduleEntries((previous) => {
+        if (action === 'delete') {
+          return previous.filter((entry) => entry.id !== record.id);
+        }
+
+        const existingIndex = previous.findIndex((entry) => entry.id === record.id);
+        if (existingIndex < 0) return [...previous, record];
+        const next = [...previous];
+        next[existingIndex] = {
+          ...previous[existingIndex],
+          ...record,
+          expand: record.expand || previous[existingIndex].expand
+        };
+        return next;
+      });
+    };
+
+    const handleRealtimeEvent = async (event) => {
+      const record = event?.record;
+      if (!record?.id) return;
+
+      let resolvedRecord = record;
+      if (event.action !== 'delete') {
+        try {
+          resolvedRecord = await collection.getOne(record.id, {
+            expand: 'project,crew',
+            requestKey: null
+          });
+        } catch (error) {
+          console.warn('Bauzeitenplan-Eintrag konnte nicht vollständig aktualisiert werden:', error);
+        }
+      }
+
+      if (!loaded) pendingEvents.set(record.id, { record: resolvedRecord, action: event.action });
+      if (active) {
+        applyRecord(resolvedRecord, event.action);
+        void loadProjects();
+      }
+    };
+
+    const init = async () => {
+      try {
+        try {
+          unsubscribe = await collection.subscribe('*', handleRealtimeEvent, { requestKey: null });
+          if (!active) {
+            unsubscribe();
+            return;
+          }
+        } catch (error) {
+          if (!active) return;
+          console.error("Live-Synchronisierung des Bauzeitenplans konnte nicht gestartet werden:", error);
+        }
+
+        const records = await collection.getFullList({
+          expand: 'project,crew',
+          requestKey: null
+        });
+        if (!active) return;
+
+        const mergedRecords = [...records];
+        pendingEvents.forEach(({ record, action }, id) => {
+          const index = mergedRecords.findIndex((entry) => entry.id === id);
+          if (action === 'delete') {
+            if (index >= 0) mergedRecords.splice(index, 1);
+          } else if (index >= 0) {
+            mergedRecords[index] = { ...mergedRecords[index], ...record, expand: record.expand || mergedRecords[index].expand };
+          } else {
+            mergedRecords.push(record);
+          }
+        });
+        loaded = true;
+        pendingEvents.clear();
+        setScheduleEntries(mergedRecords);
+      } catch (error) {
+        if (active) console.error("Fehler beim Synchronisieren des Bauzeitenplans:", error);
+      }
+    };
+
+    init();
+    return () => {
+      active = false;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [user?.id]);
 
   const addCrew = async (name) => {
     try {
@@ -2928,6 +3476,7 @@ const createLogEntry = (message) => {
         p.ab_mueller?.toLowerCase().includes(text) ||
         p.type?.toLowerCase().includes(text) ||
         p.pgk?.toLowerCase().includes(text)) &&
+      (!allowedStatuses || getProjectStatuses(p).some((s) => allowedStatuses.has(s))) &&
       matchesStatusFilter(getProjectStatuses(p)) &&
       matchesTypeFilter(p.type)
     );
@@ -3402,7 +3951,6 @@ const openProject = (p) => {
   let allgemeinTransport = "";
   let allgemeinExtraInfos = "";
   let allgemeinTatsaechlicheWerktage = "";
-  let allgemeinAnsMindestansatzBeiUnter1m = false;
   let allgemeinEinmessungWeggeschicktAm = "";
   let allgemeinMaterialbuchungErfolgtAm = "";
   let allgemeinProformaRechnungWeggeschicktAm = "";
@@ -3418,7 +3966,6 @@ const openProject = (p) => {
       allgemeinTransport = rawAufmass.allgemein?.transport || "";
       allgemeinExtraInfos = rawAufmass.allgemein?.extraInfos || "";
       allgemeinTatsaechlicheWerktage = rawAufmass.allgemein?.tatsaechlicheWerktage || rawAufmass.allgemein?.echteWerktage || "";
-      allgemeinAnsMindestansatzBeiUnter1m = !!rawAufmass.allgemein?.ansMindestansatzBeiUnter1m;
       allgemeinEinmessungWeggeschicktAm = rawAufmass.allgemein?.einmessungWeggeschicktAm || "";
       allgemeinMaterialbuchungErfolgtAm = rawAufmass.allgemein?.materialbuchungErfolgtAm || "";
       allgemeinProformaRechnungWeggeschicktAm = rawAufmass.allgemein?.proformaRechnungWeggeschicktAm || "";
@@ -3502,7 +4049,6 @@ const openProject = (p) => {
         transport: allgemeinTransport,
         extraInfos: allgemeinExtraInfos,
         tatsaechlicheWerktage: allgemeinTatsaechlicheWerktage,
-        ansMindestansatzBeiUnter1m: allgemeinAnsMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: allgemeinEinmessungWeggeschicktAm,
         materialbuchungErfolgtAm: allgemeinMaterialbuchungErfolgtAm,
         proformaRechnungWeggeschicktAm: allgemeinProformaRechnungWeggeschicktAm,
@@ -3765,7 +4311,6 @@ useEffect(() => {
         transport: data.allgemein?.transport || "",
         extraInfos: data.allgemein?.extraInfos || "",
         tatsaechlicheWerktage: data.allgemein?.tatsaechlicheWerktage || data.allgemein?.echteWerktage || "",
-        ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
         einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
         materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
         proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
@@ -3824,7 +4369,6 @@ const normalizeAufmass = (data) => {
       transport: data.allgemein?.transport || "",
       extraInfos: data.allgemein?.extraInfos || "",
       tatsaechlicheWerktage: data.allgemein?.tatsaechlicheWerktage || data.allgemein?.echteWerktage || "",
-      ansMindestansatzBeiUnter1m: !!data.allgemein?.ansMindestansatzBeiUnter1m,
       einmessungWeggeschicktAm: data.allgemein?.einmessungWeggeschicktAm || "",
       materialbuchungErfolgtAm: data.allgemein?.materialbuchungErfolgtAm || "",
       proformaRechnungWeggeschicktAm: data.allgemein?.proformaRechnungWeggeschicktAm || "",
@@ -3843,7 +4387,7 @@ const normalizeAufmass = (data) => {
   // --- AUTOSAVE EFFEKT ---
 const saveAction = async () => {
   // 1. Guard: Verhindere mehrfache Ausführung & Abbruchbedingungen
-  if (isSavingRef.current || !selectedProject?.id || mode !== "detail") return;
+  if (isSavingRef.current || !selectedProject?.id || mode !== "detail" || !canEditAnyProjectTab) return;
   isSavingRef.current = true;
   setIsSaving(true);
 
@@ -4056,9 +4600,21 @@ const createProject = async () => {
 
     // Dateien hinzufügen
     if (tempFiles.length > 0) {
+      formData.append('fileSecurityLevels', JSON.stringify(
+        Object.fromEntries(tempFiles.map((file) => [
+          file.name,
+          Math.min(Number(file.securityLevel) || fileUploadSecurityLevel, effectiveSecurityLevel)
+        ]))
+      ));
+      formData.append('fileFolders', JSON.stringify(
+        Object.fromEntries(tempFiles.map((file) => [file.name, file.folderId || ""]))
+      ));
       tempFiles.forEach((file) => {
         formData.append('files', file);
       });
+    } else {
+      formData.append('fileSecurityLevels', JSON.stringify({}));
+      formData.append('fileFolders', JSON.stringify({}));
     }
 
     console.log("Sende Daten an PocketBase...");
@@ -5266,6 +5822,12 @@ const createProject = async () => {
   });
   const notificationDismissalsReady = !!user?.id && notificationDismissalsLoadedFor === user.id;
   const visibleNotifications = notificationDismissalsReady ? notifications.filter((n) => {
+    // Nur Hinweise anzeigen, die die Rolle auch sehen bzw. umsetzen darf.
+    if (n.type === "done" || n.type === "start") {
+      if (!can("bauzeitenplan") || !canEditTab("Allgemein")) return false;
+    } else if (!canViewTab("Abrechnung")) {
+      return false;
+    }
     const dismissedAt = dismissedNotificationKeys[n.key];
     return !dismissedAt || (Date.now() - dismissedAt) >= 7 * 86400000;
   }) : [];
@@ -5388,6 +5950,11 @@ const createProject = async () => {
 }}>
   <form onSubmit={(e) => {
     e.preventDefault();
+    setLoginNotice(null);
+    if (registerMode) {
+      handleRegister(e);
+      return;
+    }
     // Speichern der E-Mail, wenn Checkbox aktiv ist
     if (rememberMe) {
       localStorage.setItem("baustellen_remembered_email", loginEmail);
@@ -5399,7 +5966,17 @@ const createProject = async () => {
     backgroundColor: 'white', padding: '30px', borderRadius: '8px', 
     display: 'flex', flexDirection: 'column', width: '300px', gap: '15px'
   }}>
-    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>Baustellen Login</h2>
+    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>{registerMode ? "Registrieren" : "Baustellen Login"}</h2>
+
+    {loginNotice && (
+      <div role="alert" style={{
+        padding: '10px', borderRadius: '4px', fontSize: '13px', lineHeight: 1.4,
+        background: loginNotice.type === "success" ? '#dcfce7' : loginNotice.type === "warning" ? '#fef3c7' : '#fee2e2',
+        color: loginNotice.type === "success" ? '#166534' : loginNotice.type === "warning" ? '#92400e' : '#991b1b'
+      }}>
+        {loginNotice.text}
+      </div>
+    )}
     
     <input 
       type="email" placeholder="E-Mail" value={loginEmail} 
@@ -5415,7 +5992,18 @@ const createProject = async () => {
       required 
     />
 
+    {registerMode && (
+      <input
+        type="password" placeholder="Passwort wiederholen" value={loginPass2}
+        onChange={(e) => setLoginPass2(e.target.value)}
+        minLength={8}
+        style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+        required
+      />
+    )}
+
     {/* --- NEU: "Merken" Checkbox --- */}
+    {!registerMode && (
     <label style={{ 
       display: 'flex', 
       alignItems: 'center', 
@@ -5433,13 +6021,19 @@ const createProject = async () => {
       />
       E-Mail Adresse merken
     </label>
+    )}
 
     <button type="submit" style={{
       padding: '10px', backgroundColor: '#3498db', color: 'white', 
       border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold',
       marginTop: '5px'
     }}>
-      Anmelden
+      {registerMode ? "Registrieren" : "Anmelden"}
+    </button>
+    <button type="button" onClick={() => { setRegisterMode(!registerMode); setLoginPass2(""); setLoginNotice(null); }} style={{
+      background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', textDecoration: 'underline'
+    }}>
+      {registerMode ? "Zurück zum Login" : "Noch kein Konto? Registrieren"}
     </button>
   </form>
 </div>
@@ -5488,6 +6082,7 @@ const createProject = async () => {
           overflow: 'visible'
         }}>
       <div className="header-bar">
+        {can("createProject") && (
         <button onClick={() => {
             setShowAnfahrschadenPositionen(true);
             setMode("create");
@@ -5500,10 +6095,13 @@ const createProject = async () => {
           }}>
           + Neue Baustelle
         </button>
+        )}
         <button onClick={handleBack}>← Zurück </button>
+        {can("bauzeitenplan") && (
         <button onClick={() => setBauzeitenplanOpen(true)} style={{ backgroundColor: '#0f766e' }}>
           Bauzeitenplan
         </button>
+        )}
         <button onClick={() => {
           setSettingsModalTab("Einstellungen");
           setSettingsOpen(true);
@@ -5664,7 +6262,7 @@ const createProject = async () => {
                   gap: "8px",                            // Abstand zwischen den Feldern
                   marginBottom: "16px" 
                 }}>
-                  {tabs.map((t) => (
+                  {visibleTabs.map((t) => (
                     <div 
                       key={t} 
                       className={`tab ${activeTab === t ? "active" : ""}`} 
@@ -5730,10 +6328,12 @@ const createProject = async () => {
 
         let uploadToastId = null;
         try {
-          const compressedFiles = await compressFilesForUpload(rawFiles);
+          const compressedFiles = markFilesWithFolder(
+            markFilesWithSecurityLevel(await compressFilesForUpload(rawFiles))
+          );
           uploadToastId = pushToast("⏳ Upload läuft...", p.id, "info", null);
 
-          const updatedRecord = await uploadProjectFiles(p.id, compressedFiles);
+          const updatedRecord = await uploadProjectFiles(p, compressedFiles);
 
           // 3. State synchronisieren
           setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
@@ -5796,7 +6396,15 @@ const createProject = async () => {
         )}
 
         {(mode === "detail" || mode === "create") && (
-          <>
+          <fieldset
+            disabled={activeTabLocked}
+            style={{ border: 0, margin: 0, padding: 0, minWidth: 0, opacity: activeTabLocked ? 0.85 : 1 }}
+          >
+            {activeTabLocked && (
+              <div style={{ background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "6px 10px", fontSize: 12, marginBottom: 8 }}>
+                Nur Ansicht – keine Berechtigung zum Bearbeiten.
+              </div>
+            )}
 
             {activeTab === "Allgemein" && (
               <>
@@ -5923,7 +6531,7 @@ const createProject = async () => {
     >
       ✔ Baustelle speichern
     </button>
-  ) : (
+  ) : can("deleteProject") && (
     <button 
       className="delete-btn" 
       onClick={() => deleteProject(selectedProject.id)}
@@ -6385,21 +6993,6 @@ const createProject = async () => {
         </span>
         <span className="ans-toggle-label">ANS Montagegrube unter 1m</span>
       </label>
-
-      {normalizeProjectType(form.type) === "anfahrschaden" && (
-        <label className="ans-toggle" title="Anfahrschaden-Positionen in der Abrechnung ein- oder ausblenden">
-          <input
-            type="checkbox"
-            className="ans-toggle-input"
-            checked={showAnfahrschadenPositionen}
-            onChange={(e) => setShowAnfahrschadenPositionen(e.target.checked)}
-          />
-          <span className="ans-toggle-track" aria-hidden="true">
-            <span className="ans-toggle-thumb" />
-          </span>
-          <span className="ans-toggle-label">Anfahrschaden-Positionen anzeigen</span>
-        </label>
-      )}
 
       <div className="aufmass-date-field">
         <span className="aufmass-section-title">📏 Einmessung weggeschickt:</span>
@@ -7184,7 +7777,6 @@ const createProject = async () => {
 
       const dataHsw = buildData();
       const dataMueller = buildData();
-      const ansMindestansatzBeiUnter1mAktiv = !!form.aufmass?.allgemein?.ansMindestansatzBeiUnter1m;
 
       if (normalizeProjectType(form.type) === "anfahrschaden") {
         dataHsw.stoerungseinsatzGefahrImVerzug.total = 1;
@@ -7365,12 +7957,11 @@ const createProject = async () => {
           };
 
           const netzanschlussBis1mCount = num(m.netzanschlussBis1m);
-          const ansMindestEinheiten = ansMindestansatzBeiUnter1mAktiv ? netzanschlussBis1mCount : 0;
 
-          const laengeGrabenAns = num(m.grabenTiefeBreite) + ansMindestEinheiten;
+          const laengeGrabenAns = num(m.grabenTiefeBreite);
           const laengeGrabenAend = num(m.grabenTiefeBreiteTausch);
           const laengeGrabenAbr = num(m.grabenTiefeBreiteDemo);
-          const countGrubenAns = num(m.montagegrube) + ansMindestEinheiten;
+          const countGrubenAns = num(m.montagegrube);
 
           // Graben-Oberflächen: je Typ mit eigener zugeordneter Länge (m) statt einer einzigen Oberfläche für den gesamten Graben.
           normalizeGrabenSurfaces(m.grabenOberflaechenAns).forEach((entry) => {
@@ -7791,7 +8382,19 @@ const createProject = async () => {
     </div>
 
     {/* Drag & Drop Zone */}
-    <div 
+    {(mode === "create" || canEditTab("Dateien")) && (
+    <div className="project-file-upload-controls">
+      <label className="project-file-upload-folder">
+        Upload-Ordner
+        <select value={fileUploadFolderId} onChange={(event) => setFileUploadFolderId(event.target.value)}>
+          <option value="">Ohne Ordner</option>
+          {visibleFileFolders
+            .map((folder) => (
+              <option key={folder.id} value={folder.id}>{folder.name}</option>
+            ))}
+        </select>
+      </label>
+    <div
   onDragOver={(e) => e.preventDefault()} 
   onDrop={async (e) => {
   e.preventDefault();
@@ -7802,7 +8405,9 @@ const createProject = async () => {
   if (mode === "create") {
     // Hier brauchen wir noch kein Offline-Sync, da das Projekt noch gar nicht in PB existiert
     try {
-      const uploadFiles = await compressFilesForUpload(rawFiles);
+      const uploadFiles = markFilesWithFolder(
+        markFilesWithSecurityLevel(await compressFilesForUpload(rawFiles))
+      );
       setTempFiles(prev => [...prev, ...uploadFiles]);
     } catch (error) {
       console.error("Dateien konnten nicht vorbereitet werden:", error);
@@ -7817,10 +8422,11 @@ const createProject = async () => {
 
     let uploadToastId = null;
     try {
-      const uploadFiles = await compressFilesForUpload(rawFiles);
+      const uploadFiles = markFilesWithFolder(
+        markFilesWithSecurityLevel(await compressFilesForUpload(rawFiles))
+      );
       uploadToastId = pushToast("⏳ Upload läuft...", selectedProject.id, "info", null);
-
-      const updatedRecord = await uploadProjectFiles(selectedProject.id, uploadFiles);
+      const updatedRecord = await uploadProjectFiles(selectedProject, uploadFiles);
 
       // States aktualisieren
       setProjects(prev => prev.map(p => p.id === updatedRecord.id ? updatedRecord : p));
@@ -7847,15 +8453,45 @@ const createProject = async () => {
 >
   Dateien
 </div>
+    </div>
+)}
 
     {/* Anzeige der Dateien */}
-    {(mode === "create" ? tempFiles : selectedProject?.files || []).map((f, i) => {
+    {(mode === "create" ? tempFiles : getUserVisibleProjectFiles(selectedProject))
+      .slice()
+      .sort((a, b) => {
+        const getFolderPosition = (file) => {
+          const folderId = mode === "create" ? file.folderId || "" : getFileFolderId(selectedProject, file);
+          const index = visibleFileFolders.findIndex((folder) => folder.id === folderId);
+          return index < 0 ? visibleFileFolders.length : index;
+        };
+        return getFolderPosition(a) - getFolderPosition(b);
+      })
+      .map((f, i, displayedFiles) => {
   const displayName = mode === "create" ? f.name : f;
   const fileIconType = getProjectFileIconType(displayName);
   const isEditingFileName = projectFileEditingIndex === i;
+  const fileSecurityLevel = mode === "create"
+    ? Number(f.securityLevel) || fileUploadSecurityLevel
+    : getFileSecurityLevel(selectedProject, f);
+  const storedFileFolderId = mode === "create" ? f.folderId || "" : getFileFolderId(selectedProject, f);
+  const fileFolderId = visibleFileFolders.some((folder) => folder.id === storedFileFolderId)
+    ? storedFileFolderId
+    : "";
+  const previousFolderId = i > 0
+    ? (mode === "create" ? displayedFiles[i - 1].folderId || "" : getFileFolderId(selectedProject, displayedFiles[i - 1]))
+    : null;
+  const currentFolder = visibleFileFolders.find((folder) => folder.id === fileFolderId);
 
   return (
-    <div key={i} className="project-file-row">
+    <React.Fragment key={mode === "create" ? `${f.name}-${f.lastModified}` : f}>
+      {fileFolderId !== previousFolderId && (
+        <div className="project-file-folder-heading">
+          <span aria-hidden="true">📁</span>
+          {currentFolder?.name || "Ohne Ordner"}
+        </div>
+      )}
+    <div className="project-file-row">
       <div className="project-file-name-area">
         <svg className={`project-file-icon project-file-icon-${fileIconType}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10z" />
@@ -7899,7 +8535,7 @@ const createProject = async () => {
                   const url = await getProjectFileUrl(selectedProject, f);
                   setFileViewer({
                     fileName: f,
-                    fileNames: selectedProject.files || [],
+                    fileNames: getUserVisibleProjectFiles(selectedProject),
                     projectName: selectedProject.name,
                     projectId: selectedProject.id,
                     url
@@ -7915,6 +8551,53 @@ const createProject = async () => {
             <span className="project-file-name-text">{displayName}</span>
           </button>
         )}
+        <div className="project-file-security">
+          {(mode === "create" || canEditTab("Dateien")) ? (
+            <select
+              value={fileSecurityLevel}
+              aria-label={`Sicherheitsstufe für ${displayName}`}
+              title="Sicherheitsstufe der Datei"
+              onChange={(event) => {
+                const nextLevel = Number(event.target.value);
+                if (mode === "create") {
+                  markFilesWithSecurityLevel([f], nextLevel);
+                  setTempFiles((previous) => [...previous]);
+                } else {
+                  updateProjectFileSecurityLevel(f, nextLevel);
+                }
+              }}
+            >
+              {allowedFileSecurityLevels.map((level) => (
+                <option key={level} value={level}>Stufe {level}</option>
+              ))}
+            </select>
+          ) : (
+            <span>Stufe {fileSecurityLevel}</span>
+          )}
+        </div>
+        <div className="project-file-folder-picker">
+          <select
+            value={fileFolderId}
+            aria-label={`Ordner für ${displayName}`}
+            title="Datei-Ordner"
+            disabled={mode !== "create" && !canEditTab("Dateien")}
+            onChange={(event) => {
+              const nextFolderId = event.target.value;
+              if (mode === "create") {
+                markFilesWithFolder([f], nextFolderId);
+                setTempFiles((previous) => [...previous]);
+              } else {
+                updateProjectFileFolder(f, nextFolderId);
+              }
+            }}
+          >
+            <option value="">Ohne Ordner</option>
+            {visibleFileFolders
+              .map((folder) => (
+                <option key={folder.id} value={folder.id}>{folder.name}</option>
+              ))}
+          </select>
+        </div>
       </div>
 
   <div className="project-file-actions">
@@ -7947,6 +8630,7 @@ const createProject = async () => {
       </>
     ) : (
       <>
+    {(mode === "create" || canEditTab("Dateien")) && (
     <button
       type="button"
       className="project-file-action"
@@ -7961,6 +8645,7 @@ const createProject = async () => {
         <path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20z" />
       </svg>
     </button>
+    )}
     {mode !== "create" && (
       <>
     <button
@@ -7993,6 +8678,7 @@ const createProject = async () => {
   </div>
       
 {/* LÖSCH-KNOPF */}
+      {(mode === "create" || canEditTab("Dateien")) && (
       <button 
         type="button"
         className="project-file-delete"
@@ -8009,7 +8695,17 @@ const createProject = async () => {
               try {
                 // Das Suffix "-" entfernt den Wert f aus dem Array in PocketBase
                 const updatedRecord = await pb.collection('projects').update(selectedProject.id, {
-                  "files-": [f] 
+                  "files-": [f],
+                  fileSecurityLevels: (() => {
+                    const levels = parseFileSecurityLevels(selectedProject.fileSecurityLevels);
+                    delete levels[f];
+                    return levels;
+                  })(),
+                  fileFolders: (() => {
+                    const folders = parseFileFolders(selectedProject.fileFolders);
+                    delete folders[f];
+                    return folders;
+                  })()
                 });
 
                 setSelectedProject(updatedRecord);
@@ -8029,13 +8725,15 @@ const createProject = async () => {
           <path d="M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3" />
         </svg>
       </button>
+      )}
     </div>
+    </React.Fragment>
   );
 })}
   </>
 )}
-            </>
-          )}
+          </fieldset>
+        )}
         </div>
       </div>
     </div>
@@ -8047,6 +8745,8 @@ const createProject = async () => {
   style={{ height: "100%", width: "100%" }}
   >
   <TileLayer 
+    key={isSatellite ? 'sat' : 'osm'}
+    className={isSatellite ? 'tiles-satellite' : 'tiles-map'}
     url={isSatellite ? satUrl : osmUrl} 
     attribution={isSatellite ? 'Esri Satellite' : 'OpenStreetMap'}
   />
@@ -8269,15 +8969,16 @@ const createProject = async () => {
         open={bauzeitenplanOpen}
         onClose={() => setBauzeitenplanOpen(false)}
         projectRows={bzpProjectRows}
-        crews={crews}
+        crews={isRestrictedUser ? crews.filter((c) => (user?.crews || []).includes(c.id)) : crews}
         scheduleEntries={scheduleEntries}
-        onAddCrew={addCrew}
-        onDeleteCrew={deleteCrew}
-        onReorderCrews={reorderCrews}
-        onCreateEntry={createScheduleEntry}
-        onUpdateEntry={updateScheduleEntry}
-        onDeleteEntry={deleteScheduleEntry}
-        onCreateFreetextEntry={createFreetextEntry}
+        readOnly={!can("editBauzeitenplan")}
+        onAddCrew={guardBzp(addCrew)}
+        onDeleteCrew={guardBzp(deleteCrew)}
+        onReorderCrews={guardBzp(reorderCrews)}
+        onCreateEntry={guardBzp(createScheduleEntry)}
+        onUpdateEntry={guardBzp(updateScheduleEntry)}
+        onDeleteEntry={guardBzp(deleteScheduleEntry)}
+        onCreateFreetextEntry={guardBzp(createFreetextEntry)}
         onOpenProject={(projectId) => {
           const project = projects.find((p) => p.id === projectId);
           if (!project) return;
@@ -8304,7 +9005,7 @@ const createProject = async () => {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: 'min(1100px, 95vw)',
+              width: 'min(1800px, 96vw)',
               maxHeight: '90vh',
               overflow: 'auto',
               background: '#0f172a',
@@ -8317,12 +9018,14 @@ const createProject = async () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <h3 style={{ margin: 0 }}>Einstellungen</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
+                {can("nachkalkulation") && (<>
                 <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Nachkalkulation Excel Export
                 </button>
                 <button onClick={openOrdersExportPopup} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Aufträge Excel Export
                 </button>
+                </>)}
                 <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
                   Logout
                 </button>
@@ -8401,7 +9104,12 @@ const createProject = async () => {
             </div>
 
             <div role="tablist" aria-label="Einstellungen" style={{ display: 'flex', gap: '8px', marginTop: '12px', borderBottom: '1px solid #334155' }}>
-              {["Nachkalkulation", "Einstellungen"].map((tab) => (
+              {["Nachkalkulation", "Einstellungen", "Dateiordner", "Benutzer"].filter((tab) => (
+                tab === "Nachkalkulation" ? can("nachkalkulation")
+                  : tab === "Benutzer" ? can("manageUsers")
+                    : tab === "Dateiordner" ? hasAdminRole
+                      : true
+              )).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -8436,18 +9144,6 @@ const createProject = async () => {
                     Download-Speicherort
                   </button>
                 </div>
-                <label className="ans-toggle" style={{ display: 'flex', width: '100%', marginTop: '12px', padding: '10px 12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
-                  <input
-                    type="checkbox"
-                    className="ans-toggle-input"
-                    checked={settingsClusterEnabled}
-                    onChange={(event) => setSettingsClusterEnabled(event.target.checked)}
-                  />
-                  <span className="ans-toggle-track" aria-hidden="true">
-                    <span className="ans-toggle-thumb" />
-                  </span>
-                  <span className="ans-toggle-label">Marker-Cluster auf der Karte verwenden</span>
-                </label>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
@@ -8569,59 +9265,124 @@ const createProject = async () => {
               </div>
             </div>
 
-                <div style={{ marginTop: '12px', padding: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
-                  <h4 style={{ margin: '0 0 8px', color: '#93c5fd' }}>Karten-Heatmap</h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung:</span>
-                    {[
-                      { id: 'heat', label: 'Wärmewolke' },
-                      { id: 'raster', label: 'Raster' },
-                      { id: 'points', label: 'Punkte' }
-                    ].map((overlayMode) => (
-                      <button
-                        key={overlayMode.id}
-                        type="button"
-                        onClick={() => setSettingsGeoOverlayMode(overlayMode.id)}
-                        style={{
-                          background: settingsGeoOverlayMode === overlayMode.id ? '#0284c7' : '#1e293b',
-                          color: 'white',
-                          border: '1px solid #334155',
-                          borderRadius: '6px',
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          fontSize: '11px',
-                          fontWeight: 600
-                        }}
-                      >
-                        {overlayMode.label}
-                      </button>
-                    ))}
-                    {settingsGeoOverlayMode === 'raster' && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#94a3b8' }}>
-                        Rastergröße (km):
-                        <input
-                          type="number"
-                          min={0.1}
-                          max={25}
-                          step={0.1}
-                          value={settingsGeoCellSizeKm}
-                          onChange={(e) => {
-                            const nextValue = Number(e.target.value);
-                            if (!Number.isFinite(nextValue)) return;
-                            setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
-                          }}
-                          className="mast-input-base"
-                          style={{ width: '88px', marginTop: 0 }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
 
-            {settingsModalTab === "Nachkalkulation" && (
+            {settingsModalTab === "Dateiordner" && hasAdminRole && (
+              <section className="settings-file-folders">
+                <h4>Dateiordner</h4>
+                <p>Ordner und ihre Berechtigung können ausschließlich von Admins verwaltet werden.</p>
+                <form className="settings-file-folder-create" onSubmit={createFileFolder}>
+                  <input
+                    type="text"
+                    required
+                    maxLength={120}
+                    value={newFileFolderName}
+                    onChange={(event) => setNewFileFolderName(event.target.value)}
+                    placeholder="Name des Ordners"
+                  />
+                  <select
+                    value={newFileFolderLevel}
+                    onChange={(event) => setNewFileFolderLevel(Number(event.target.value))}
+                    aria-label="Sicherheitsstufe des neuen Ordners"
+                  >
+                    {allowedFileSecurityLevels.map((level) => (
+                      <option key={level} value={level}>Stufe {level}</option>
+                    ))}
+                  </select>
+                  <button type="submit">Ordner anlegen</button>
+                </form>
+                <div className="settings-file-folder-list">
+                  {fileFolders.map((folder) => (
+                    <div className="settings-file-folder-row" key={folder.id}>
+                      <span aria-hidden="true">📁</span>
+                      <input
+                        type="text"
+                        value={folder.name}
+                        aria-label={`Name des Ordners ${folder.name}`}
+                        onChange={(event) => setFileFolders((previous) => previous.map((item) =>
+                          item.id === folder.id ? { ...item, name: event.target.value } : item
+                        ))}
+                        onBlur={(event) => {
+                          const name = event.target.value.trim();
+                          if (name) updateFileFolder(folder, { name });
+                        }}
+                      />
+                      <select
+                        value={Number(folder.securityLevel) || 1}
+                        aria-label={`Berechtigung für ${folder.name}`}
+                        onChange={(event) => updateFileFolder(folder, { securityLevel: Number(event.target.value) })}
+                      >
+                        {allowedFileSecurityLevels.map((level) => (
+                          <option key={level} value={level}>Stufe {level}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="settings-file-folder-delete"
+                        onClick={() => deleteFileFolder(folder)}
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  ))}
+                  {fileFolders.length === 0 && (
+                    <div className="settings-file-folder-empty">Noch keine Dateiordner angelegt.</div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {settingsModalTab === "Benutzer" && can("manageUsers") && (
+              <UserAdminPanel currentUserId={user?.id} rolePerms={rolePerms} onPermsChanged={loadRolePerms} />
+            )}
+
+            {settingsModalTab === "Nachkalkulation" && can("nachkalkulation") && (
               <div>
+            <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
+                <div style={{ marginTop: '4px' }}>
+                  <MultiSelect
+                    single
+                    options={analyticsTypeOptions.map((type) => ({ id: type, label: type }))}
+                    selected={[settingsTypeFilter]}
+                    placeholder="Typ auswählen"
+                    summary={(ids) => ids[0]}
+                    onChange={(id) => setSettingsTypeFilter(id)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd.mm.yyyy"
+                  value={normalizeDateValue(settingsDateFrom)}
+                  onChange={(e) => setSettingsDateFrom(e.target.value)}
+                  onBlur={(e) => setSettingsDateFrom(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="dd.mm.yyyy"
+                  value={normalizeDateValue(settingsDateTo)}
+                  onChange={(e) => setSettingsDateTo(e.target.value)}
+                  onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
+                  className="mast-input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+            </div>
+
             <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
               <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
                 <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gewichteter Stundenlohn (Filter)</div>
@@ -8759,6 +9520,41 @@ const createProject = async () => {
               {settingsChartView === 'geo-heatmap' && (
                 <>
                   <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Karten-Heatmap: Stundenlohn und Entfernung zur Firma</h4>
+
+                                    <div style={{ marginBottom: '10px', display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                      <div>
+                                        <label style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung</label>
+                                        <select
+                                          value={settingsGeoOverlayMode}
+                                          onChange={(e) => setSettingsGeoOverlayMode(e.target.value)}
+                                          className="mast-input-base"
+                                          style={{ display: 'block', marginTop: '4px', minWidth: '160px' }}
+                                        >
+                                          <option value="heat">Wärmewolke</option>
+                                          <option value="raster">Raster</option>
+                                          <option value="points">Punkte</option>
+                                        </select>
+                                      </div>
+                                      {settingsGeoOverlayMode === 'raster' && (
+                                        <div>
+                                          <label style={{ fontSize: '11px', color: '#94a3b8' }}>Rastergröße (km)</label>
+                                          <input
+                                            type="number"
+                                            min={0.1}
+                                            max={25}
+                                            step={0.1}
+                                            value={settingsGeoCellSizeKm}
+                                            onChange={(e) => {
+                                              const nextValue = Number(e.target.value);
+                                              if (!Number.isFinite(nextValue)) return;
+                                              setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
+                                            }}
+                                            className="mast-input-base"
+                                            style={{ display: 'block', marginTop: '4px', width: '100px' }}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
 
                   {!hasCompanyCoordinates && (
                     <div style={{ marginBottom: '8px', color: '#fda4af', fontSize: '12px' }}>
