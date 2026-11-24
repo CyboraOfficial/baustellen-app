@@ -10,6 +10,7 @@ import { useMap } from "react-leaflet";
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
 import { buildProjectTemplate, LK_SIKA_TAUSCH_ACTION } from './projectTemplate.mjs';
+import { calculateKabelSummen } from './aufmassKabel.mjs';
 
 const FileViewer = lazy(() => import('./FileViewer'));
 
@@ -5202,6 +5203,7 @@ const createProject = async () => {
 
   // Prüfe: Ist der Tab korrekt UND sind wir in der Detailansicht (Projekt offen)?
   const isWideLayout = (activeTab === "Aufmaß" || activeTab === "Abrechnung" || activeTab === "Dateien") && !!selectedProject;
+  const kabelSummen = calculateKabelSummen(form.aufmass?.masten);
   const dialogRelatedProject = appDialog?.relatedProjectId
     ? projects.find((project) => project.id === appDialog.relatedProjectId)
       || (selectedProject?.id === appDialog.relatedProjectId ? selectedProject : null)
@@ -6473,10 +6475,68 @@ const createProject = async () => {
       <details className="aufmass-summen-details">
         <summary className="aufmass-summen-summary">📦 Summen</summary>
         <div className="aufmass-summen-content">
-          <div>Kabel: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(String(m.aufmassKabel || '').replace(',', '.')) || 0), 0) : 0} m</strong></div>
-          <div>Muffen: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) : 0} Stk</strong></div>
-                   <div>Endmuffen: <strong className="aufmass-summen-val">{Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenAns) || 0) + (Number(m.endmuffenTausch) || 0) + (Number(m.endmuffenDemo) || 0), 0) : 0} Stk</strong></div>
-                 </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '12px' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #64748b' }}>
+                <th style={{ textAlign: 'left', padding: '8px', fontWeight: '600', color: '#e2e8f0' }}>Material</th>
+                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#22c55e' }}>ANS</th>
+                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#a855f7' }}>ÄND</th>
+                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#f43f5e' }}>ABR</th>
+                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#94a3b8' }}>Gesamt</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #334155' }}>
+                <td style={{ padding: '8px', color: '#cbd5e1' }}>Kabel (m)</td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#22c55e', fontWeight: '600' }}>
+                  {kabelSummen.ans}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#a855f7', fontWeight: '600' }}>
+                  {kabelSummen.aend}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#f43f5e', fontWeight: '600' }}>
+                  {kabelSummen.abr}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#94a3b8', fontWeight: '600' }}>
+                  {kabelSummen.gesamt}
+                </td>
+              </tr>
+              <tr style={{ borderBottom: '1px solid #334155' }}>
+                <td style={{ padding: '8px', color: '#cbd5e1' }}>Muffen (Stk)</td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#22c55e', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0), 0) : 0}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#a855f7', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenTausch) || 0), 0) : 0}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#f43f5e', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenDemo) || 0), 0) : 0}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#94a3b8', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) : 0}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: '8px', color: '#cbd5e1' }}>Endmuffen (Stk)</td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#22c55e', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenAns) || 0), 0) : 0}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#a855f7', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenTausch) || 0), 0) : 0}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#f43f5e', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenDemo) || 0), 0) : 0}
+                </td>
+                <td style={{ textAlign: 'center', padding: '8px', color: '#94a3b8', fontWeight: '600' }}>
+                  {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenAns) || 0) + (Number(m.endmuffenTausch) || 0) + (Number(m.endmuffenDemo) || 0), 0) : 0}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {kabelSummen.nichtZugeordnet !== 0 && (
+            <div>Kabel ohne zugeordnete Mastaktion: {kabelSummen.nichtZugeordnet} m</div>
+          )}
+        </div>
       </details>
       </div>
     </div>
