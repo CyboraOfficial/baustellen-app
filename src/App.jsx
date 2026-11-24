@@ -5784,6 +5784,12 @@ const createProject = async () => {
               ))}
             </div>
           )}
+          {p.notes?.trim() && (
+            <div className="project-card-notes">
+              <strong>Notizen:</strong>
+              <div>{p.notes}</div>
+            </div>
+          )}
         </div>
       ))}
           </>

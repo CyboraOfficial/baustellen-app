@@ -848,6 +848,13 @@ hr {
   background: #f0f6ff;
 }
 
+.project-card-notes {
+  margin-top: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .file-list {
   margin-top: 10px;
   display: grid;
