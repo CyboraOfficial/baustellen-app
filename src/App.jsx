@@ -9134,15 +9134,69 @@ const createProject = async () => {
 
             {settingsModalTab === "Einstellungen" && (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    title="Download-Speicherort"
-                    onClick={() => setDownloadFolderPopupOpen(true)}
-                    style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}
-                  >
-                    Download-Speicherort
-                  </button>
+                <div style={{ marginTop: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
+                  {[
+                    {
+                      key: 'file-security',
+                      label: 'Standard-Sicherheitsstufe neuer Dateien',
+                      control: (
+                        <select
+                          value={fileUploadSecurityLevel}
+                          onChange={(event) => saveFileUploadSecurityLevel(event.target.value)}
+                          aria-label="Standard-Sicherheitsstufe neuer Dateien"
+                          className="mast-input-base"
+                          style={{ margin: 0, minWidth: '120px', color: '#e2e8f0' }}
+                        >
+                          {allowedFileSecurityLevels.map((level) => (
+                            <option key={level} value={level}>Stufe {level}</option>
+                          ))}
+                        </select>
+                      )
+                    },
+                    {
+                      key: 'download-folder',
+                      label: 'Download-Speicherort',
+                      control: (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <span title={downloadFolder || undefined} style={{ color: '#94a3b8', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {downloadFolder || (window.desktopAPI?.getDownloadFolder ? 'Standardordner' : 'Vom Browser verwaltet')}
+                          </span>
+                          <button
+                            type="button"
+                            title="Download-Speicherort"
+                            onClick={() => setDownloadFolderPopupOpen(true)}
+                            style={{ margin: 0, backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}
+                          >
+                            Ändern
+                          </button>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'darkmode',
+                      label: 'Dark Mode',
+                      control: (
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-label="Dark Mode"
+                          aria-checked={darkMode}
+                          onClick={() => setDarkMode((previous) => !previous)}
+                          style={{ margin: 0, backgroundColor: darkMode ? '#0284c7' : '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '999px', padding: '4px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                        >
+                          {darkMode ? '🌙 An' : '☀️ Aus'}
+                        </button>
+                      )
+                    }
+                  ].map((row, index) => (
+                    <div
+                      key={row.key}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderTop: index === 0 ? 'none' : '1px solid #334155' }}
+                    >
+                      <span style={{ fontSize: '13px' }}>{row.label}</span>
+                      {row.control}
+                    </div>
+                  ))}
                 </div>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
