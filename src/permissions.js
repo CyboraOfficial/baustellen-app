@@ -5,6 +5,72 @@ export const ROLE_LABELS = {
   monteur: "Monteur"
 };
 
+export const DEFAULT_ROLE_SECURITY_LEVELS = {
+  admin: 4,
+  buero: 3,
+  bauleiter: 2,
+  monteur: 1
+};
+
+export const getRoleSecurityLevel = (role) => {
+  const stored = Number(role?.securityLevel);
+  if (Number.isFinite(stored) && stored > 0) return Math.round(stored);
+  return DEFAULT_ROLE_SECURITY_LEVELS[role?.role] || 1;
+};
+
+export const getEffectiveSecurityLevel = (roles) => Math.max(
+  1,
+  ...(Array.isArray(roles) ? roles.map(getRoleSecurityLevel) : [])
+);
+
+export const getAllowedFileSecurityLevels = (roles) =>
+  Array.from({ length: getEffectiveSecurityLevel(roles) }, (_, index) => index + 1);
+
+export const parseFileSecurityLevels = (value) => {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return {};
+    }
+  }
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(parsed)
+      .map(([fileName, level]) => [fileName, Math.max(1, Math.round(Number(level) || 1))])
+      .filter(([fileName]) => Boolean(fileName))
+  );
+};
+
+export const getFileSecurityLevel = (project, fileName) =>
+  parseFileSecurityLevels(project?.fileSecurityLevels)[fileName] || 1;
+
+export const getVisibleProjectFiles = (project, securityLevel) =>
+  (Array.isArray(project?.files) ? project.files : [])
+    .filter((fileName) => getFileSecurityLevel(project, fileName) <= securityLevel);
+
+export const parseFileFolders = (value) => {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return {};
+    }
+  }
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(parsed)
+      .map(([fileName, folderId]) => [fileName, String(folderId || "")])
+      .filter(([fileName]) => Boolean(fileName))
+  );
+};
+
+export const getFileFolderId = (project, fileName) =>
+  parseFileFolders(project?.fileFolders)[fileName] || "";
+
 // Bereiche mit drei Stufen: kein Zugriff / nur ansehen / bearbeiten.
 // viewKey = sichtbar, editKey = bearbeitbar (setzt Sichtbarkeit voraus).
 export const LEVEL_DEFS = [

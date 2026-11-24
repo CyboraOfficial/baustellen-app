@@ -12,7 +12,17 @@ import imageCompression from 'browser-image-compression';
 import * as XLSX from 'xlsx';
 import FileViewer from './FileViewer';
 import UserAdminPanel, { MultiSelect } from './UserAdminPanel';
-import { TAB_LEVELS, TAB_BOOL_KEYS } from './permissions';
+import {
+  TAB_LEVELS,
+  TAB_BOOL_KEYS,
+  getAllowedFileSecurityLevels,
+  getEffectiveSecurityLevel,
+  getFileFolderId,
+  getFileSecurityLevel,
+  getVisibleProjectFiles,
+  parseFileFolders,
+  parseFileSecurityLevels
+} from './permissions';
 
 const enableLeafletHeatWillReadFrequently = () => {
   const HeatLayer = L?.HeatLayer;
@@ -1433,11 +1443,17 @@ export default function App() {
   const [batchAktion, setBatchAktion] = useState('Tausch');
 
   const [selectedProject, setSelectedProject] = useState(null);
+  const selectedProjectRef = useRef(null);
   const [selectedPosition, setSelectedPosition] = useState(null);
   const [projectFileEditingIndex, setProjectFileEditingIndex] = useState(null);
   const [projectFileNameDraft, setProjectFileNameDraft] = useState("");
   const [projectFileSavingRename, setProjectFileSavingRename] = useState(false);
   const [fileViewer, setFileViewer] = useState(null);
+  const [fileUploadSecurityLevel, setFileUploadSecurityLevel] = useState(1);
+  const [fileFolders, setFileFolders] = useState([]);
+  const [newFileFolderName, setNewFileFolderName] = useState("");
+  const [newFileFolderLevel, setNewFileFolderLevel] = useState(1);
+  const [fileUploadFolderId, setFileUploadFolderId] = useState("");
   const [downloadFolder, setDownloadFolder] = useState("");
   const [downloadFolderLoading, setDownloadFolderLoading] = useState(false);
   const [downloadFolderError, setDownloadFolderError] = useState("");
@@ -1537,6 +1553,9 @@ export default function App() {
   });
 
   const [originalProject, setOriginalProject] = useState(null);
+  const formRef = useRef(null);
+  const originalProjectRef = useRef(null);
+  const activeTabRef = useRef(activeTab);
   const [toastMessages, setToastMessages] = useState([]);
   const toastMessagesRef = useRef([]);
   const toastSequenceRef = useRef(0);
@@ -1545,6 +1564,18 @@ export default function App() {
   const [appDialog, setAppDialog] = useState(null);
   const appDialogResolverRef = useRef(null);
   const [tempFiles, setTempFiles] = useState([]);
+
+  useEffect(() => {
+    selectedProjectRef.current = selectedProject;
+  }, [selectedProject]);
+
+  useEffect(() => {
+    originalProjectRef.current = originalProject;
+  }, [originalProject]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   const pushToast = (message, projectId = null, variant = "info") => {
     const key = `${projectId || ""}:${message}`;
@@ -1668,6 +1699,10 @@ export default function App() {
 
   const [form, setForm] = useState(emptyForm);
 
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
   const tabs = [
     "Allgemein",
     "Dateien",
@@ -1723,6 +1758,32 @@ useEffect(() => {
 }, [user?.id]);
 
 const assignedRoles = (user?.roles || []).map((id) => rolePerms[id]).filter(Boolean);
+const effectiveSecurityLevel = getEffectiveSecurityLevel(assignedRoles);
+const allowedFileSecurityLevels = getAllowedFileSecurityLevels(assignedRoles);
+const visibleFileFolders = fileFolders.filter(
+  (folder) => Number(folder.securityLevel) <= effectiveSecurityLevel
+);
+const getUserVisibleProjectFiles = (project) =>
+  getVisibleProjectFiles(project, effectiveSecurityLevel).filter((fileName) => {
+    const folderId = getFileFolderId(project, fileName);
+    if (!folderId) return true;
+    const folder = fileFolders.find((item) => item.id === folderId);
+    return !folder || Number(folder.securityLevel) <= effectiveSecurityLevel;
+  });
+useEffect(() => {
+  if (!visibleFileFolders.some((folder) => folder.id === fileUploadFolderId)) {
+    setFileUploadFolderId("");
+  }
+}, [effectiveSecurityLevel, fileFolders, fileUploadFolderId]);
+useEffect(() => {
+  const configured = Number(user?.defaultFileSecurityLevel);
+  const fallback = effectiveSecurityLevel;
+  setFileUploadSecurityLevel(
+    Number.isFinite(configured) && configured > 0
+      ? Math.min(Math.round(configured), effectiveSecurityLevel)
+      : fallback
+  );
+}, [user?.id, user?.defaultFileSecurityLevel, effectiveSecurityLevel]);
 const hasAdminRole = assignedRoles.some((role) => role.role === "admin");
 const can = (permission) => {
   if (hasAdminRole) return true;
@@ -2016,6 +2077,133 @@ const updateLeuchte = (mastIndex, leuchtenIndex, field, value) => {
   });
 };
 
+const markFilesWithSecurityLevel = (files, level = fileUploadSecurityLevel) =>
+  files.map((file) => {
+    const safeLevel = Math.min(Math.max(1, Math.round(Number(level) || 1)), effectiveSecurityLevel);
+    try {
+      Object.defineProperty(file, "securityLevel", {
+        configurable: true,
+        value: safeLevel
+      });
+    } catch {
+      file.securityLevel = safeLevel;
+    }
+    return file;
+  });
+
+const buildNextFileSecurityLevels = (project, newNames = [], fallbackLevel = fileUploadSecurityLevel) => {
+  const levels = parseFileSecurityLevels(project?.fileSecurityLevels);
+  newNames.forEach((fileName) => {
+    if (!levels[fileName]) {
+      levels[fileName] = Math.min(Math.max(1, Math.round(Number(fallbackLevel) || 1)), effectiveSecurityLevel);
+    }
+  });
+  Object.keys(levels).forEach((fileName) => {
+    if (!(project?.files || []).includes(fileName)) delete levels[fileName];
+  });
+  return levels;
+};
+
+const markFilesWithFolder = (files, folderId = fileUploadFolderId) =>
+  files.map((file) => {
+    Object.defineProperty(file, "folderId", {
+      configurable: true,
+      value: visibleFileFolders.some((folder) => folder.id === folderId) ? folderId : ""
+    });
+    return file;
+  });
+
+const buildNextFileFolders = (project, newNames = []) => {
+  const folders = parseFileFolders(project?.fileFolders);
+  newNames.forEach((fileName) => {
+    if (!folders[fileName]) folders[fileName] = "";
+  });
+  Object.keys(folders).forEach((fileName) => {
+    if (!(project?.files || []).includes(fileName)) delete folders[fileName];
+  });
+  return folders;
+};
+
+const uploadProjectFiles = async (project, files) => {
+  const previousFiles = project?.files || [];
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files+", file));
+  let updatedProject = await pb.collection("projects").update(project.id, formData);
+  const previousFileSet = new Set(previousFiles);
+  const newFileNames = (updatedProject.files || []).filter((fileName) => !previousFileSet.has(fileName));
+  const levelByFileIndex = files.map((file) => Number(file?.securityLevel) || fileUploadSecurityLevel);
+  const levels = buildNextFileSecurityLevels(updatedProject, newFileNames);
+  newFileNames.forEach((fileName, index) => {
+    levels[fileName] = Math.min(
+      Math.max(1, Math.round(levelByFileIndex[index] || fileUploadSecurityLevel)),
+      effectiveSecurityLevel
+    );
+  });
+  const fileFolderMap = buildNextFileFolders(updatedProject, newFileNames);
+  newFileNames.forEach((fileName, index) => {
+    fileFolderMap[fileName] = files[index]?.folderId || "";
+  });
+  updatedProject = await pb.collection("projects").update(project.id, {
+    fileSecurityLevels: levels,
+    fileFolders: fileFolderMap
+  });
+  return updatedProject;
+};
+
+const updateProjectFileFolder = async (fileName, folderId) => {
+  if (!selectedProject?.id) return;
+  if (folderId && !visibleFileFolders.some((folder) => folder.id === folderId)) return;
+  const folders = parseFileFolders(selectedProject.fileFolders);
+  folders[fileName] = folderId;
+  try {
+    const updatedProject = await pb.collection("projects").update(selectedProject.id, { fileFolders: folders });
+    setSelectedProject(updatedProject);
+    setOriginalProject(updatedProject);
+    setForm(updatedProject);
+    setProjects((previous) => previous.map((project) => project.id === updatedProject.id ? updatedProject : project));
+  } catch (error) {
+    console.error("Datei-Ordner konnte nicht geändert werden:", error);
+    setToast("❌ Datei-Ordner konnte nicht geändert werden.");
+    scheduleToastDismiss(3000);
+  }
+};
+
+const updateProjectFileSecurityLevel = async (fileName, requestedLevel) => {
+  if (!selectedProject?.id) return;
+  const level = Math.min(Math.max(1, Math.round(Number(requestedLevel) || 1)), effectiveSecurityLevel);
+  const levels = parseFileSecurityLevels(selectedProject.fileSecurityLevels);
+  levels[fileName] = level;
+  try {
+    const updatedProject = await pb.collection("projects").update(selectedProject.id, { fileSecurityLevels: levels });
+    setSelectedProject(updatedProject);
+    setOriginalProject(updatedProject);
+    setForm(updatedProject);
+    setProjects((previous) => previous.map((project) => project.id === updatedProject.id ? updatedProject : project));
+    setToast(`Sicherheitsstufe ${level} gespeichert.`);
+    scheduleToastDismiss(2000);
+  } catch (error) {
+    console.error("Datei-Sicherheitsstufe konnte nicht gespeichert werden:", error);
+    setToast("❌ Datei-Sicherheitsstufe konnte nicht gespeichert werden.");
+    scheduleToastDismiss(3000);
+  }
+};
+
+const saveFileUploadSecurityLevel = async (requestedLevel) => {
+  if (!user?.id) return;
+  const level = Math.min(Math.max(1, Math.round(Number(requestedLevel) || 1)), effectiveSecurityLevel);
+  setFileUploadSecurityLevel(level);
+  try {
+    const updatedUser = await pb.collection("users").update(user.id, { defaultFileSecurityLevel: level });
+    setUser(updatedUser);
+    setToast(`Standard-Sicherheitsstufe ${level} gespeichert.`);
+    scheduleToastDismiss(2000);
+  } catch (error) {
+    console.error("Standard-Sicherheitsstufe konnte nicht gespeichert werden:", error);
+    setToast("❌ Standard-Sicherheitsstufe konnte nicht gespeichert werden.");
+    scheduleToastDismiss(3000);
+  }
+};
+
 const getProjectFileUrl = async (project, fileName) => {
   const fallbackUrl = pb.files.getURL(project, fileName);
 
@@ -2100,7 +2288,10 @@ const renameProjectFile = async (fileName, fileIndex) => {
   if (mode === "create") {
     const oldFile = tempFiles[fileIndex];
     if (!oldFile) return;
-    const renamedFile = new File([oldFile], newFileName, { type: oldFile.type, lastModified: oldFile.lastModified });
+    const renamedFile = markFilesWithFolder(markFilesWithSecurityLevel(
+      [new File([oldFile], newFileName, { type: oldFile.type, lastModified: oldFile.lastModified })],
+      Number(oldFile.securityLevel) || fileUploadSecurityLevel
+    ), oldFile.folderId || "")[0];
     setTempFiles((previous) => previous.map((file, index) => index === fileIndex ? renamedFile : file));
     setProjectFileEditingIndex(null);
     return;
@@ -2136,6 +2327,24 @@ const renameProjectFile = async (fileName, fileIndex) => {
       setProjectFileEditingIndex(null);
       throw new Error(`Die neue Datei wurde hochgeladen, aber die alte Datei konnte nicht entfernt werden. Beide Dateien sind vorhanden. ${error.message || ""}`.trim());
     }
+
+    const levels = parseFileSecurityLevels(uploadedProject.fileSecurityLevels);
+    const addedFileName = (updatedProject.files || []).find(
+      (candidate) => !(selectedProject.files || []).includes(candidate)
+    );
+    const oldLevel = getFileSecurityLevel(selectedProject, fileName);
+    delete levels[fileName];
+    if (addedFileName) levels[addedFileName] = oldLevel;
+    updatedProject = await pb.collection("projects").update(selectedProject.id, {
+      fileSecurityLevels: buildNextFileSecurityLevels({ ...updatedProject, fileSecurityLevels: levels }),
+      fileFolders: (() => {
+        const folders = parseFileFolders(updatedProject.fileFolders);
+        const previousFolder = getFileFolderId(selectedProject, fileName);
+        delete folders[fileName];
+        if (addedFileName && previousFolder) folders[addedFileName] = previousFolder;
+        return folders;
+      })()
+    });
 
     setSelectedProject(updatedProject);
     setOriginalProject(updatedProject);
@@ -2425,12 +2634,167 @@ Weitere Infos: ${form.notes || ""}
     loadProjects();
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    let unsubscribe;
+    let cancelled = false;
+
+    const subscribe = async () => {
+      try {
+        unsubscribe = await pb.collection("projects").subscribe("*", (event) => {
+          const record = event.record;
+          if (!record?.id) return;
+
+          setProjects((previous) => {
+            if (event.action === "delete") {
+              return previous.filter((project) => project.id !== record.id);
+            }
+
+            const existing = previous.find((project) => project.id === record.id);
+            if (existing) {
+              return previous.map((project) => project.id === record.id ? record : project);
+            }
+            return [record, ...previous];
+          });
+
+          const currentProject = selectedProjectRef.current;
+          if (currentProject?.id !== record.id) return;
+
+          if (event.action === "delete") {
+            setSelectedProject(null);
+            setOriginalProject(null);
+            setForm(emptyForm);
+            setMode("list");
+            setToast("Die geöffnete Baustelle wurde in einer anderen Sitzung gelöscht.");
+            scheduleToastDismiss(3000);
+            return;
+          }
+
+          const hasUnsavedChanges = getFormSnapshot(formRef.current) !== getFormSnapshot(originalProjectRef.current);
+          setSelectedProject(record);
+
+          if (!hasUnsavedChanges) {
+            const currentTab = activeTabRef.current;
+            openProject(record);
+            setActiveTab(currentTab);
+          }
+        }, { requestKey: null });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Live-Synchronisierung der Baustellen konnte nicht gestartet werden:", error);
+        }
+      }
+    };
+
+    subscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      pb.collection("projects").unsubscribe("*").catch((error) => {
+        console.error("Live-Synchronisierung der Baustellen konnte nicht beendet werden:", error);
+      });
+    };
+  }, [user?.id]);
+
   const loadCrews = async () => {
     try {
       const records = await pb.collection('crews').getFullList({ sort: 'sortOrder,name', requestKey: null });
       setCrews(records);
     } catch (error) {
       console.error("Fehler beim Laden der Truppen:", error);
+    }
+  };
+
+  const loadFileFolders = async () => {
+    try {
+      const records = await pb.collection("file_folders").getFullList({
+        sort: "sortOrder,name",
+        requestKey: null
+      });
+      setFileFolders(records);
+    } catch (error) {
+      console.error("Dateiordner konnten nicht geladen werden:", error);
+      setToast("Dateiordner konnten nicht geladen werden.");
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) loadFileFolders();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let unsubscribe;
+    pb.collection("file_folders").subscribe("*", (event) => {
+      setFileFolders((previous) => {
+        if (event.action === "delete") return previous.filter((folder) => folder.id !== event.record.id);
+        const next = previous.some((folder) => folder.id === event.record.id)
+          ? previous.map((folder) => folder.id === event.record.id ? event.record : folder)
+          : [...previous, event.record];
+        return next.sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+      });
+    }, { requestKey: null })
+      .then((callback) => { unsubscribe = callback; })
+      .catch((error) => console.error("Live-Synchronisierung der Dateiordner fehlgeschlagen:", error));
+    return () => {
+      unsubscribe?.();
+      pb.collection("file_folders").unsubscribe("*").catch(() => {});
+    };
+  }, [user?.id]);
+
+  const createFileFolder = async (event) => {
+    event.preventDefault();
+    if (!hasAdminRole) return;
+    const name = newFileFolderName.trim();
+    if (!name) return;
+    try {
+      const folder = await pb.collection("file_folders").create({
+        name,
+        securityLevel: Math.min(Math.max(1, Number(newFileFolderLevel) || 1), effectiveSecurityLevel),
+        sortOrder: fileFolders.length
+      });
+      setFileFolders((previous) =>
+        previous.some((item) => item.id === folder.id)
+          ? previous
+          : [...previous, folder].sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+      );
+      setNewFileFolderName("");
+    } catch (error) {
+      const detail = error?.response?.data
+        ? Object.values(error.response.data).map((value) => value?.message).filter(Boolean).join(" ")
+        : "";
+      setToast(`❌ Dateiordner konnte nicht angelegt werden: ${detail || error.message}`);
+      scheduleToastDismiss(4000);
+    }
+  };
+
+  const updateFileFolder = async (folder, values) => {
+    if (!hasAdminRole) return;
+    try {
+      const updated = await pb.collection("file_folders").update(folder.id, values);
+      setFileFolders((previous) => previous.map((item) => item.id === updated.id ? updated : item));
+    } catch (error) {
+      console.error("Dateiordner konnte nicht geändert werden:", error);
+      setToast(`❌ Dateiordner konnte nicht geändert werden: ${error.message}`);
+      scheduleToastDismiss(3000);
+    }
+  };
+
+  const deleteFileFolder = async (folder) => {
+    if (!hasAdminRole) return;
+    if (!await requestAppConfirmation(
+      `Ordner „${folder.name}“ wirklich löschen? Die Dateien bleiben erhalten und wechseln in „Ohne Ordner“.`,
+      "Dateiordner löschen?",
+      selectedProject?.id || null
+    )) return;
+    try {
+      await pb.collection("file_folders").delete(folder.id);
+      setFileFolders((previous) => previous.filter((item) => item.id !== folder.id));
+    } catch (error) {
+      console.error("Dateiordner konnte nicht gelöscht werden:", error);
+      setToast(`❌ Dateiordner konnte nicht gelöscht werden: ${error.message}`);
+      scheduleToastDismiss(3000);
     }
   };
 
@@ -3806,9 +4170,21 @@ const createProject = async () => {
 
     // Dateien hinzufügen
     if (tempFiles.length > 0) {
+      formData.append('fileSecurityLevels', JSON.stringify(
+        Object.fromEntries(tempFiles.map((file) => [
+          file.name,
+          Math.min(Number(file.securityLevel) || fileUploadSecurityLevel, effectiveSecurityLevel)
+        ]))
+      ));
+      formData.append('fileFolders', JSON.stringify(
+        Object.fromEntries(tempFiles.map((file) => [file.name, file.folderId || ""]))
+      ));
       tempFiles.forEach((file) => {
         formData.append('files', file);
       });
+    } else {
+      formData.append('fileSecurityLevels', JSON.stringify({}));
+      formData.append('fileFolders', JSON.stringify({}));
     }
 
     console.log("Sende Daten an PocketBase...");
@@ -5308,19 +5684,14 @@ const createProject = async () => {
         const rawFiles = Array.from(e.dataTransfer.files);
         if (rawFiles.length === 0) return;
 
-        const compressedFiles = await compressFilesForUpload(rawFiles);
+        const compressedFiles = markFilesWithFolder(markFilesWithSecurityLevel(await compressFilesForUpload(rawFiles)));
         const filesForQueue = [...compressedFiles];
 
         try {
           setToast(`⏳ Upload läuft...`);
 
-          const formData = new FormData();
-          compressedFiles.forEach((file) => {
-            formData.append('files+', file);
-          });
-
           // 2. Upload Versuch zu PocketBase
-          const updatedRecord = await pb.collection('projects').update(p.id, formData);
+          const updatedRecord = await uploadProjectFiles(p, compressedFiles);
 
           // 3. State synchronisieren
           setProjects(prev => prev.map(proj => proj.id === updatedRecord.id ? updatedRecord : proj));
@@ -7297,14 +7668,25 @@ const createProject = async () => {
 
     {/* Drag & Drop Zone */}
     {(mode === "create" || canEditTab("Dateien")) && (
-    <div 
+    <div className="project-file-upload-controls">
+      <label className="project-file-upload-folder">
+        Upload-Ordner
+        <select value={fileUploadFolderId} onChange={(event) => setFileUploadFolderId(event.target.value)}>
+          <option value="">Ohne Ordner</option>
+          {visibleFileFolders
+            .map((folder) => (
+              <option key={folder.id} value={folder.id}>{folder.name}</option>
+            ))}
+        </select>
+      </label>
+    <div
   onDragOver={(e) => e.preventDefault()} 
   onDrop={async (e) => {
   e.preventDefault();
   const rawFiles = Array.from(e.dataTransfer.files);
   if (rawFiles.length === 0) return;
 
-  const uploadFiles = await compressFilesForUpload(rawFiles);
+  const uploadFiles = markFilesWithFolder(markFilesWithSecurityLevel(await compressFilesForUpload(rawFiles)));
 
   // FALL A: Neues Projekt wird gerade erst erstellt (Lokal speichern)
   if (mode === "create") {
@@ -7319,12 +7701,7 @@ const createProject = async () => {
     try {
       setToast("⏳ Upload läuft...");
 
-      const formData = new FormData();
-      uploadFiles.forEach(file => {
-        formData.append('files+', file); 
-      });
-
-      const updatedRecord = await pb.collection('projects').update(selectedProject.id, formData);
+      const updatedRecord = await uploadProjectFiles(selectedProject, uploadFiles);
 
       // States aktualisieren
       setProjects(prev => prev.map(p => p.id === updatedRecord.id ? updatedRecord : p));
@@ -7353,16 +7730,45 @@ const createProject = async () => {
 >
   Dateien
 </div>
+    </div>
 )}
 
     {/* Anzeige der Dateien */}
-    {(mode === "create" ? tempFiles : selectedProject?.files || []).map((f, i) => {
+    {(mode === "create" ? tempFiles : getUserVisibleProjectFiles(selectedProject))
+      .slice()
+      .sort((a, b) => {
+        const getFolderPosition = (file) => {
+          const folderId = mode === "create" ? file.folderId || "" : getFileFolderId(selectedProject, file);
+          const index = visibleFileFolders.findIndex((folder) => folder.id === folderId);
+          return index < 0 ? visibleFileFolders.length : index;
+        };
+        return getFolderPosition(a) - getFolderPosition(b);
+      })
+      .map((f, i, displayedFiles) => {
   const displayName = mode === "create" ? f.name : f;
   const fileIconType = getProjectFileIconType(displayName);
   const isEditingFileName = projectFileEditingIndex === i;
+  const fileSecurityLevel = mode === "create"
+    ? Number(f.securityLevel) || fileUploadSecurityLevel
+    : getFileSecurityLevel(selectedProject, f);
+  const storedFileFolderId = mode === "create" ? f.folderId || "" : getFileFolderId(selectedProject, f);
+  const fileFolderId = visibleFileFolders.some((folder) => folder.id === storedFileFolderId)
+    ? storedFileFolderId
+    : "";
+  const previousFolderId = i > 0
+    ? (mode === "create" ? displayedFiles[i - 1].folderId || "" : getFileFolderId(selectedProject, displayedFiles[i - 1]))
+    : null;
+  const currentFolder = visibleFileFolders.find((folder) => folder.id === fileFolderId);
 
   return (
-    <div key={i} className="project-file-row">
+    <React.Fragment key={mode === "create" ? `${f.name}-${f.lastModified}` : f}>
+      {fileFolderId !== previousFolderId && (
+        <div className="project-file-folder-heading">
+          <span aria-hidden="true">📁</span>
+          {currentFolder?.name || "Ohne Ordner"}
+        </div>
+      )}
+    <div className="project-file-row">
       <div className="project-file-name-area">
         <svg className={`project-file-icon project-file-icon-${fileIconType}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10z" />
@@ -7406,7 +7812,7 @@ const createProject = async () => {
                   const url = await getProjectFileUrl(selectedProject, f);
                   setFileViewer({
                     fileName: f,
-                    fileNames: selectedProject.files || [],
+                    fileNames: getUserVisibleProjectFiles(selectedProject),
                     projectName: selectedProject.name,
                     projectId: selectedProject.id,
                     url
@@ -7422,6 +7828,53 @@ const createProject = async () => {
             <span className="project-file-name-text">{displayName}</span>
           </button>
         )}
+        <div className="project-file-security">
+          {(mode === "create" || canEditTab("Dateien")) ? (
+            <select
+              value={fileSecurityLevel}
+              aria-label={`Sicherheitsstufe für ${displayName}`}
+              title="Sicherheitsstufe der Datei"
+              onChange={(event) => {
+                const nextLevel = Number(event.target.value);
+                if (mode === "create") {
+                  markFilesWithSecurityLevel([f], nextLevel);
+                  setTempFiles((previous) => [...previous]);
+                } else {
+                  updateProjectFileSecurityLevel(f, nextLevel);
+                }
+              }}
+            >
+              {allowedFileSecurityLevels.map((level) => (
+                <option key={level} value={level}>Stufe {level}</option>
+              ))}
+            </select>
+          ) : (
+            <span>Stufe {fileSecurityLevel}</span>
+          )}
+        </div>
+        <div className="project-file-folder-picker">
+          <select
+            value={fileFolderId}
+            aria-label={`Ordner für ${displayName}`}
+            title="Datei-Ordner"
+            disabled={mode !== "create" && !canEditTab("Dateien")}
+            onChange={(event) => {
+              const nextFolderId = event.target.value;
+              if (mode === "create") {
+                markFilesWithFolder([f], nextFolderId);
+                setTempFiles((previous) => [...previous]);
+              } else {
+                updateProjectFileFolder(f, nextFolderId);
+              }
+            }}
+          >
+            <option value="">Ohne Ordner</option>
+            {visibleFileFolders
+              .map((folder) => (
+                <option key={folder.id} value={folder.id}>{folder.name}</option>
+              ))}
+          </select>
+        </div>
       </div>
 
   <div className="project-file-actions">
@@ -7519,7 +7972,17 @@ const createProject = async () => {
               try {
                 // Das Suffix "-" entfernt den Wert f aus dem Array in PocketBase
                 const updatedRecord = await pb.collection('projects').update(selectedProject.id, {
-                  "files-": [f] 
+                  "files-": [f],
+                  fileSecurityLevels: (() => {
+                    const levels = parseFileSecurityLevels(selectedProject.fileSecurityLevels);
+                    delete levels[f];
+                    return levels;
+                  })(),
+                  fileFolders: (() => {
+                    const folders = parseFileFolders(selectedProject.fileFolders);
+                    delete folders[f];
+                    return folders;
+                  })()
                 });
 
                 setSelectedProject(updatedRecord);
@@ -7541,6 +8004,7 @@ const createProject = async () => {
       </button>
       )}
     </div>
+    </React.Fragment>
   );
 })}
   </>
@@ -7913,7 +8377,12 @@ const createProject = async () => {
             </div>
 
             <div role="tablist" aria-label="Einstellungen" style={{ display: 'flex', gap: '8px', marginTop: '12px', borderBottom: '1px solid #334155' }}>
-              {["Nachkalkulation", "Einstellungen", "Benutzer"].filter((tab) => (tab === "Nachkalkulation" ? can("nachkalkulation") : tab === "Benutzer" ? can("manageUsers") : true)).map((tab) => (
+              {["Nachkalkulation", "Einstellungen", "Dateiordner", "Benutzer"].filter((tab) => (
+                tab === "Nachkalkulation" ? can("nachkalkulation")
+                  : tab === "Benutzer" ? can("manageUsers")
+                    : tab === "Dateiordner" ? hasAdminRole
+                      : true
+              )).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -7940,6 +8409,23 @@ const createProject = async () => {
               <div>
                 <div style={{ marginTop: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
                   {[
+                    {
+                      key: 'file-security',
+                      label: 'Standard-Sicherheitsstufe neuer Dateien',
+                      control: (
+                        <select
+                          value={fileUploadSecurityLevel}
+                          onChange={(event) => saveFileUploadSecurityLevel(event.target.value)}
+                          aria-label="Standard-Sicherheitsstufe neuer Dateien"
+                          className="mast-input-base"
+                          style={{ margin: 0, minWidth: '120px', color: '#e2e8f0' }}
+                        >
+                          {allowedFileSecurityLevels.map((level) => (
+                            <option key={level} value={level}>Stufe {level}</option>
+                          ))}
+                        </select>
+                      )
+                    },
                     {
                       key: 'download-folder',
                       label: 'Download-Speicherort',
@@ -8056,6 +8542,71 @@ const createProject = async () => {
             </div>
 
               </div>
+            )}
+
+            {settingsModalTab === "Dateiordner" && hasAdminRole && (
+              <section className="settings-file-folders">
+                <h4>Dateiordner</h4>
+                <p>Ordner und ihre Berechtigung können ausschließlich von Admins verwaltet werden.</p>
+                <form className="settings-file-folder-create" onSubmit={createFileFolder}>
+                  <input
+                    type="text"
+                    required
+                    maxLength={120}
+                    value={newFileFolderName}
+                    onChange={(event) => setNewFileFolderName(event.target.value)}
+                    placeholder="Name des Ordners"
+                  />
+                  <select
+                    value={newFileFolderLevel}
+                    onChange={(event) => setNewFileFolderLevel(Number(event.target.value))}
+                    aria-label="Sicherheitsstufe des neuen Ordners"
+                  >
+                    {allowedFileSecurityLevels.map((level) => (
+                      <option key={level} value={level}>Stufe {level}</option>
+                    ))}
+                  </select>
+                  <button type="submit">Ordner anlegen</button>
+                </form>
+                <div className="settings-file-folder-list">
+                  {fileFolders.map((folder) => (
+                    <div className="settings-file-folder-row" key={folder.id}>
+                      <span aria-hidden="true">📁</span>
+                      <input
+                        type="text"
+                        value={folder.name}
+                        aria-label={`Name des Ordners ${folder.name}`}
+                        onChange={(event) => setFileFolders((previous) => previous.map((item) =>
+                          item.id === folder.id ? { ...item, name: event.target.value } : item
+                        ))}
+                        onBlur={(event) => {
+                          const name = event.target.value.trim();
+                          if (name) updateFileFolder(folder, { name });
+                        }}
+                      />
+                      <select
+                        value={Number(folder.securityLevel) || 1}
+                        aria-label={`Berechtigung für ${folder.name}`}
+                        onChange={(event) => updateFileFolder(folder, { securityLevel: Number(event.target.value) })}
+                      >
+                        {allowedFileSecurityLevels.map((level) => (
+                          <option key={level} value={level}>Stufe {level}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="settings-file-folder-delete"
+                        onClick={() => deleteFileFolder(folder)}
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  ))}
+                  {fileFolders.length === 0 && (
+                    <div className="settings-file-folder-empty">Noch keine Dateiordner angelegt.</div>
+                  )}
+                </div>
+              </section>
             )}
 
             {settingsModalTab === "Benutzer" && can("manageUsers") && (

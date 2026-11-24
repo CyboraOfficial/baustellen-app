@@ -1,7 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { flushSync } from "react-dom";
 import { pb } from "./pocketbase";
-import { ROLE_LABELS, LEVEL_DEFS, BOOL_DEFS, ALL_PERMISSION_KEYS, STATUS_OPTIONS, getLevel, levelToValues } from "./permissions";
+import {
+  ROLE_LABELS,
+  LEVEL_DEFS,
+  BOOL_DEFS,
+  ALL_PERMISSION_KEYS,
+  STATUS_OPTIONS,
+  getLevel,
+  levelToValues,
+  getRoleSecurityLevel
+} from "./permissions";
 import "./UserAdminPanel.css";
 
 export function MultiSelect({ options, selected, disabled, onChange, placeholder, summary, single = false }) {
@@ -100,6 +110,9 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
   const [newPass, setNewPass] = useState("");
   const [newRoles, setNewRoles] = useState(null);
   const [newRoleName, setNewRoleName] = useState("");
+  const [securityPopupOpen, setSecurityPopupOpen] = useState(false);
+  const [securityOrder, setSecurityOrder] = useState(null);
+  const [securityDrag, setSecurityDrag] = useState(null);
 
   const load = async () => {
     try {
@@ -113,7 +126,8 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
       setRoles([...roleList].sort((a, b) => {
         if (a.role === "admin") return -1;
         if (b.role === "admin") return 1;
-        return (ROLE_LABELS[a.role] || a.role).localeCompare(ROLE_LABELS[b.role] || b.role, "de", { sensitivity: "base" });
+        return getRoleSecurityLevel(b) - getRoleSecurityLevel(a)
+          || a.role.localeCompare(b.role, "de");
       }));
       setNewRoles((current) => current === null
         ? roleList.filter((role) => role.role === "monteur").map((role) => role.id)
@@ -178,7 +192,7 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
     if (!name) return;
     run(async () => {
       const permissions = Object.fromEntries(ALL_PERMISSION_KEYS.map((key) => [key, false]));
-      await pb.collection("role_permissions").create({ role: name, ...permissions });
+      await pb.collection("role_permissions").create({ role: name, securityLevel: 1, ...permissions });
       setNewRoleName("");
       await onPermsChanged?.();
     });
@@ -215,6 +229,34 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
     await onPermsChanged?.();
   });
 
+  const saveSecurityOrder = (orderedRoles) => run(async () => {
+    const admin = orderedRoles.find((role) => role.role === "admin");
+    const highestLevel = Math.max(
+      orderedRoles.length,
+      admin ? getRoleSecurityLevel(admin) : 1,
+      ...orderedRoles.map(getRoleSecurityLevel)
+    );
+    await Promise.all(orderedRoles
+      .filter((role) => role.role !== "admin")
+      .map((role, index) =>
+        pb.collection("role_permissions").update(role.id, {
+          securityLevel: Math.max(1, highestLevel - index - 1)
+        })
+      ));
+    await onPermsChanged?.();
+  });
+
+  const moveSecurityRole = (role, direction) => {
+    if (role.role === "admin") return;
+    const ordered = [...orderedSecurityRoles];
+    const index = ordered.findIndex((item) => item.id === role.id);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex <= 0 || targetIndex >= ordered.length) return;
+    [ordered[index], ordered[targetIndex]] = [ordered[targetIndex], ordered[index]];
+    updateSecurityOrderWithAnimation(ordered);
+    saveSecurityOrder(ordered);
+  };
+
   const pending = users.filter((u) => !u.approved);
   const input = "admin-input";
   const roleLabel = (role) => ROLE_LABELS[role.role] || role.role;
@@ -222,6 +264,55 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
   const roleOptions = roles.map((role) => ({ id: role.id, label: roleLabel(role) }));
   const roleSummary = (ids) => ids.map((id) => roleOptions.find((o) => o.id === id)?.label).filter(Boolean).join(", ");
   const crewOptions = crews.map((crew) => ({ id: crew.id, label: crew.name }));
+  const orderedSecurityRoles = securityOrder
+    ? securityOrder.map((id) => roles.find((role) => role.id === id)).filter(Boolean)
+    : [...roles].sort((a, b) => {
+      if (a.role === "admin") return -1;
+      if (b.role === "admin") return 1;
+      return getRoleSecurityLevel(b) - getRoleSecurityLevel(a);
+    });
+
+  const openSecurityPopup = () => {
+    setSecurityOrder([...roles]
+      .sort((a, b) => {
+        if (a.role === "admin") return -1;
+        if (b.role === "admin") return 1;
+        return getRoleSecurityLevel(b) - getRoleSecurityLevel(a);
+      })
+      .map((role) => role.id));
+    setSecurityPopupOpen(true);
+  };
+
+  const closeSecurityPopup = () => {
+    setSecurityPopupOpen(false);
+    setSecurityOrder(null);
+    setSecurityDrag(null);
+  };
+
+  const updateSecurityOrderWithAnimation = (nextRoles) => {
+    const commit = () => flushSync(() => {
+      setSecurityOrder(nextRoles.map((role) => role.id));
+    });
+    if (document.startViewTransition) {
+      document.startViewTransition(commit);
+    } else {
+      commit();
+    }
+  };
+
+  const moveDraggedRole = (targetId) => {
+    if (!securityDrag || targetId === securityDrag.id) return;
+    const order = securityOrder || orderedSecurityRoles.map((role) => role.id);
+    const sourceIndex = order.indexOf(securityDrag.id);
+    const targetIndex = order.indexOf(targetId);
+    if (sourceIndex < 0 || targetIndex <= 0 || sourceIndex === targetIndex) return;
+    const next = [...order];
+    next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, securityDrag.id);
+    updateSecurityOrderWithAnimation(
+      next.map((id) => roles.find((role) => role.id === id)).filter(Boolean)
+    );
+  };
 
   const renderRoleCheckboxes = (user, disabled = false) => (
     <MultiSelect
@@ -434,6 +525,7 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
         {roles.map((role) => (
           <div key={role.id} className="admin-role-chip">
             <span>{roleLabel(role)}</span>
+            <span className="admin-security-badge" title="Sicherheitsstufe">Stufe {getRoleSecurityLevel(role)}</span>
             {role.role === "admin"
               ? <span className="admin-muted admin-small">System</span>
               : (
@@ -450,7 +542,120 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
               )}
           </div>
         ))}
+        <button
+          type="button"
+          className="admin-button admin-button-primary"
+          onClick={openSecurityPopup}
+        >
+          Sicherheitsstufen anordnen
+        </button>
       </div>
+
+      {securityPopupOpen && createPortal(
+        <div className="admin-security-overlay" role="presentation" onMouseDown={closeSecurityPopup}>
+          <section
+            className="admin-security-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-security-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="admin-security-header">
+              <div>
+                <h3 id="admin-security-title">Sicherheitsstufen der Rollen</h3>
+                <p>Oben ist die höchste Priorität. Eine Rolle sieht ihre eigene Stufe und alle darunter.</p>
+              </div>
+              <button
+                type="button"
+                className="admin-security-close"
+                aria-label="Popup schließen"
+                onClick={closeSecurityPopup}
+              >
+                ×
+              </button>
+            </div>
+            <div className="admin-security-order">
+              {orderedSecurityRoles.map((role, index, orderedRoles) => (
+                  <div
+                    key={role.id}
+                    className={`admin-security-role${securityDrag?.id === role.id ? " is-dragging" : ""}`}
+                    style={{ viewTransitionName: `security-role-${role.id}` }}
+                    draggable={!busy && role.role !== "admin"}
+                    onDragStart={(event) => {
+                      const transparentDragImage = document.createElement("canvas");
+                      transparentDragImage.width = 1;
+                      transparentDragImage.height = 1;
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", role.id);
+                      event.dataTransfer.setDragImage(transparentDragImage, 0, 0);
+                      setSecurityDrag({ id: role.id, x: event.clientX, y: event.clientY });
+                    }}
+                    onDrag={(event) => {
+                      if (event.clientX || event.clientY) {
+                        setSecurityDrag((current) => current ? { ...current, x: event.clientX, y: event.clientY } : current);
+                      }
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      moveDraggedRole(role.id);
+                    }}
+                    onDrop={(event) => event.preventDefault()}
+                    onDragEnd={() => {
+                      if (securityDrag && securityOrder) saveSecurityOrder(orderedSecurityRoles);
+                      setSecurityDrag(null);
+                    }}
+                  >
+                    <span className="admin-security-grip" aria-hidden="true">☰</span>
+                    <span className="admin-security-level">
+                      {index === 0 ? getRoleSecurityLevel(role) : Math.max(1, orderedRoles.length - index)}
+                    </span>
+                    <strong>{roleLabel(role)}</strong>
+                    <div className="admin-security-move">
+                      <button
+                        type="button"
+                        disabled={busy || role.role === "admin" || index === 1}
+                        aria-label={`${roleLabel(role)} eine Stufe nach oben`}
+                        onClick={() => moveSecurityRole(role, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || role.role === "admin" || index === orderedRoles.length - 1}
+                        aria-label={`${roleLabel(role)} eine Stufe nach unten`}
+                        onClick={() => moveSecurityRole(role, 1)}
+                      >
+                        ↓
+                      </button>
+                    </div>
+                  </div>
+                  ))}
+            </div>
+            <div className="admin-security-footer">
+              <span>Ziehen oder die Pfeile verwenden, um Reihenfolge und Zahl neu zu vergeben.</span>
+              <button type="button" className="admin-button admin-button-primary" onClick={closeSecurityPopup}>
+                Fertig
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
+      {securityDrag && createPortal(
+        <div
+          className="admin-security-drag-preview"
+          style={{ left: securityDrag.x, top: securityDrag.y }}
+          aria-hidden="true"
+        >
+          <span className="admin-security-grip">☰</span>
+          <span className="admin-security-level">
+            {Math.max(1, orderedSecurityRoles.length - orderedSecurityRoles.findIndex((role) => role.id === securityDrag.id))}
+          </span>
+          <strong>{roleLabel(roles.find((role) => role.id === securityDrag.id))}</strong>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

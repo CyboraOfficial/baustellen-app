@@ -471,6 +471,154 @@ hr {
   min-width: 0;
 }
 
+.project-file-security {
+  flex: 0 0 auto;
+}
+
+.project-file-security select,
+.project-file-security > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 0;
+  padding: 3px 7px;
+  color: #075985;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.project-file-folder-picker {
+  flex: 0 0 auto;
+}
+
+.project-file-folder-picker select {
+  min-height: 26px;
+  max-width: 150px;
+  margin: 0;
+  padding: 3px 7px;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.project-file-folder-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 2px 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.project-file-upload-controls {
+  margin-bottom: 10px;
+}
+
+.project-file-upload-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.project-file-upload-folder select {
+  min-width: 180px;
+  margin: 0;
+}
+
+.settings-file-folders {
+  margin-top: 14px;
+}
+
+.settings-file-folders h4 {
+  margin: 0 0 4px;
+}
+
+.settings-file-folders > p {
+  margin: 0 0 12px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.settings-file-folder-create,
+.settings-file-folder-row {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) 150px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-file-folder-create {
+  grid-template-columns: minmax(180px, 1fr) 150px auto;
+  margin-bottom: 12px;
+}
+
+.settings-file-folder-create input,
+.settings-file-folder-create select,
+.settings-file-folder-row input,
+.settings-file-folder-row select {
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 9px;
+  color: #e2e8f0;
+  background: #111827;
+  border: 1px solid #475569;
+  border-radius: 6px;
+}
+
+.settings-file-folder-create button,
+.settings-file-folder-delete {
+  min-height: 34px;
+  margin: 0;
+  padding: 6px 11px;
+  color: white;
+  background: #0284c7;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.settings-file-folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-file-folder-delete {
+  background: #dc2626;
+}
+
+.settings-file-folder-empty {
+  padding: 18px;
+  color: #94a3b8;
+  background: #111827;
+  border: 1px dashed #475569;
+  border-radius: 8px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .settings-file-folder-create,
+  .settings-file-folder-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-file-folder-row > span {
+    display: none;
+  }
+}
+
 .project-file-icon {
   width: 20px;
   height: 20px;
