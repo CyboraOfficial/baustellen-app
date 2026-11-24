@@ -14,6 +14,7 @@ Die Anwendung kombiniert:
 - Datei-Upload und projektbezogene Dokumentablage
 - Desktop-spezifische Dateisystem-Funktionen (Ordner oeffnen, lokale Projektstruktur)
 - Auto-Update fuer die Electron-Anwendung
+- Kopierbare Projektvorlage mit Mastaktionen und geplanten Leuchten; LK / SiKa Tausch wird separat gezaehlt.
 
 ## Technologie-Stack
 

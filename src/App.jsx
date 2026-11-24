@@ -9,6 +9,7 @@ import "leaflet.heat/dist/leaflet-heat.js";
 import { useMap } from "react-leaflet"; 
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
+import { buildProjectTemplate, LK_SIKA_TAUSCH_ACTION } from './projectTemplate.mjs';
 
 const FileViewer = lazy(() => import('./FileViewer'));
 
@@ -440,7 +441,6 @@ const MAST_OUTPUT_PER_DAY = {
   tausch: 1.2,
   demontage: 3.7
 };
-const LK_SIKA_TAUSCH_ACTION = "LK / SiKa Tausch";
 const LK_SIKA_HSW_FIELDS = [
   { key: 'lkMontieren', title: 'LK montieren (Stk)' },
   { key: 'lkDemontieren', title: 'LK demontieren (Stk)' },
@@ -2632,87 +2632,7 @@ const createLogEntry = (message) => {
   }, [form.notes]);
 
   const copyTemplate = () => {
-  const mastenStats = {};
-
-  (form.masten || []).forEach((m) => {
-    // 1. DEMONTAGE-LOGIK (Was kommt weg?)
-    if (m.aktion === "Demontage" || m.aktion === "Tausch") {
-      const artAlt = m.mastTypAlt || "Gerade";
-      const keyAlt = `${m.lphAlt || "Unbekannt"}m Stahl ${artAlt}`;
-      
-      if (!mastenStats[keyAlt]) {
-        mastenStats[keyAlt] = { rein: 0, raus: 0 };
-      }
-      mastenStats[keyAlt].raus += 1;
-    }
-
-    // 2. MONTAGE-LOGIK (Was wird neu gesetzt?)
-    if (m.aktion === "Montage" || m.aktion === "Tausch") {
-      const artNeu = m.mastTypNeu || "Gerade";
-      const keyNeu = `${m.lphNeu || "Unbekannt"}m Stahl ${artNeu}`;
-      
-      if (!mastenStats[keyNeu]) {
-        mastenStats[keyNeu] = { rein: 0, raus: 0 };
-      }
-      mastenStats[keyNeu].rein += 1;
-    }
-  });
-
-  // Statistik-Text generieren
-  const mastenText = Object.entries(mastenStats)
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-    .map(([beschreibung, w]) => {
-      const info = [];
-      if (w.rein > 0) info.push(`Montage: ${w.rein}`);
-      if (w.raus > 0) info.push(`Demontage: ${w.raus}`);
-      
-      return `${beschreibung} → ${info.join(" | ")}`;
-    })
-    .join("\n");
-
-  // Leuchten-Statistik (bleibt gleich)
-  const leuchtenGruppiert = {};
-  (form.masten || []).forEach((m) => {
-    if (m.aktion === "Montage" || m.aktion === "Tausch") {
-      (m.leuchten || []).forEach((l) => {
-        if (!l.typ) return;
-        const key = `${l.typ}_${l.lumen}`;
-        if (!leuchtenGruppiert[key]) {
-          leuchtenGruppiert[key] = { typ: l.typ, lumen: l.lumen, anzahl: 0 };
-        }
-        leuchtenGruppiert[key].anzahl += 1;
-      });
-    }
-  });
-
-  const leuchtenText = Object.values(leuchtenGruppiert)
-    .map(l => `${l.typ} → ${l.anzahl} Stk${l.lumen ? ` | ${l.lumen}lm` : ""}`)
-    .join("\n");
-
-  const text = `Ort: ${form.address || ""}
-
-Westnetz Nr.: 
-${form.westnetz || ""}
-
-Maßnahme: ${form.type || ""}
-Einmesser: Elektro Hegener
-Bauplan: Liegen Bei
-Pläne Strom: Liegen Bei
-Pläne Gas: Liegen Bei
-Pläne Telekom: Liegen bei
-
-Masten Übersicht:
-${mastenText || "Keine Einträge"}
-
-Leuchten Übersicht:
-${leuchtenText || "Keine neuen Leuchten geplant"}
-
-PGK: ${form.pgk || ""}
-
-Weitere Infos: ${form.notes || ""}
-`;
-
-  navigator.clipboard.writeText(text);
+  navigator.clipboard.writeText(buildProjectTemplate(form));
   if (setToast) {
     setToast("Vorlage kopiert!");
     scheduleToastDismiss(2000);
