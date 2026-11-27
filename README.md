@@ -104,6 +104,10 @@ Wichtige Verzeichnisse:
 - `pb_migrations/`: PocketBase Migrationen
 - `pb_data/`: Lokale PocketBase-Daten (entwicklungsnaher Zustand)
 
+## UI/UX-Richtlinie
+
+Für konsistente Oberflächen und UI-Änderungen gilt der [UI/UX-Leitfaden](./UI_UX_GUIDELINES.md). Er dokumentiert Layout, Farben, Komponenten, Interaktionen, Barrierefreiheit und responsive Regeln und kann als Referenz für Entwickler und KI-Assistenten verwendet werden.
+
 ## Sicherheitshinweise
 
 - Die Content-Security-Policy ist in `index.html` definiert.

@@ -502,7 +502,7 @@ hr {
   color: #334155;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 999px;
   font-size: 11px;
 }
 
@@ -511,11 +511,34 @@ hr {
   align-items: center;
   gap: 7px;
   margin: 14px 2px 6px;
+  padding: 0;
   color: #334155;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 800;
+  text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.project-file-folder-heading:hover {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.project-file-folder-heading:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.project-file-folder-chevron {
+  width: 12px;
+  color: #64748b;
+  font-size: 14px;
+  text-align: center;
 }
 
 .project-file-upload-controls {
@@ -554,7 +577,7 @@ hr {
 .settings-file-folder-create,
 .settings-file-folder-row {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) 150px auto;
+  grid-template-columns: auto minmax(180px, 1fr) 150px auto auto;
   align-items: center;
   gap: 8px;
 }

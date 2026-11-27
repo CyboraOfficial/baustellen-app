@@ -1732,6 +1732,7 @@ export default function App() {
   const [fileViewer, setFileViewer] = useState(null);
   const [fileUploadSecurityLevel, setFileUploadSecurityLevel] = useState(1);
   const [fileFolders, setFileFolders] = useState([]);
+  const [fileFolderExpansionOverrides, setFileFolderExpansionOverrides] = useState({});
   const [newFileFolderName, setNewFileFolderName] = useState("");
   const [newFileFolderLevel, setNewFileFolderLevel] = useState(1);
   const [fileUploadFolderId, setFileUploadFolderId] = useState("");
@@ -3129,6 +3130,7 @@ const createLogEntry = (message) => {
       const folder = await pb.collection("file_folders").create({
         name,
         securityLevel: Math.min(Math.max(1, Number(newFileFolderLevel) || 1), effectiveSecurityLevel),
+        defaultExpanded: true,
         sortOrder: fileFolders.length
       });
       setFileFolders((previous) =>
@@ -3151,6 +3153,13 @@ const createLogEntry = (message) => {
     try {
       const updated = await pb.collection("file_folders").update(folder.id, values);
       setFileFolders((previous) => previous.map((item) => item.id === updated.id ? updated : item));
+      if ("defaultExpanded" in values) {
+        setFileFolderExpansionOverrides((previous) => {
+          const next = { ...previous };
+          delete next[folder.id];
+          return next;
+        });
+      }
     } catch (error) {
       console.error("Dateiordner konnte nicht geändert werden:", error);
       setToast(`❌ Dateiordner konnte nicht geändert werden: ${error.message}`);
@@ -8550,19 +8559,36 @@ const createProject = async () => {
   const fileFolderId = visibleFileFolders.some((folder) => folder.id === storedFileFolderId)
     ? storedFileFolderId
     : "";
-  const previousFolderId = i > 0
+  const previousStoredFolderId = i > 0
     ? (mode === "create" ? displayedFiles[i - 1].folderId || "" : getFileFolderId(selectedProject, displayedFiles[i - 1]))
     : null;
+  const previousFolderId = i > 0 && visibleFileFolders.some((folder) => folder.id === previousStoredFolderId)
+    ? previousStoredFolderId
+    : "";
   const currentFolder = visibleFileFolders.find((folder) => folder.id === fileFolderId);
+  const folderKey = fileFolderId || "";
+  const isFolderExpanded = fileFolderExpansionOverrides[folderKey] ?? (currentFolder?.defaultExpanded !== false);
 
   return (
     <React.Fragment key={mode === "create" ? `${f.name}-${f.lastModified}` : f}>
       {fileFolderId !== previousFolderId && (
-        <div className="project-file-folder-heading">
+        <button
+          type="button"
+          className="project-file-folder-heading"
+          aria-expanded={isFolderExpanded}
+          onClick={() => setFileFolderExpansionOverrides((previous) => ({
+            ...previous,
+            [folderKey]: !isFolderExpanded
+          }))}
+        >
+          <span className="project-file-folder-chevron" aria-hidden="true">
+            {isFolderExpanded ? "▾" : "▸"}
+          </span>
           <span aria-hidden="true">📁</span>
           {currentFolder?.name || "Ohne Ordner"}
-        </div>
+        </button>
       )}
+    {isFolderExpanded && (
     <div className="project-file-row">
       <div className="project-file-name-area">
         <svg className={`project-file-icon project-file-icon-${fileIconType}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -8799,6 +8825,7 @@ const createProject = async () => {
       </button>
       )}
     </div>
+      )}
     </React.Fragment>
   );
 })}
@@ -9479,6 +9506,14 @@ const createProject = async () => {
                         {allowedFileSecurityLevels.map((level) => (
                           <option key={level} value={level}>Stufe {level}</option>
                         ))}
+                      </select>
+                      <select
+                        value={folder.defaultExpanded === false ? "false" : "true"}
+                        aria-label={`Standardzustand des Ordners ${folder.name}`}
+                        onChange={(event) => updateFileFolder(folder, { defaultExpanded: event.target.value === "true" })}
+                      >
+                        <option value="true">Aufgeklappt</option>
+                        <option value="false">Eingeklappt</option>
                       </select>
                       <button
                         type="button"
