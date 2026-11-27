@@ -66,22 +66,22 @@ Die Umschaltung erfolgt in `src/pocketbase.js` anhand von `import.meta.env.MODE`
 
 ## Deployment
 
-Der GitHub-Actions-Workflow deployt das Web-Frontend bei Pushes auf `master`.
-Wenn sich dabei Dateien unter `pb_migrations/` ändern, werden nur die neu
-hinzugefügten oder geänderten Migrationen nach `/root/pb/pb_migrations` auf den
-VPS kopiert und danach `pocketbase.service` neu gestartet. PocketBase führt
-ausstehende Migrationen beim Start aus. Die alten lokalen Migrationen, die in
-`.gitignore` stehen, werden bewusst nicht hochgeladen: Die Collections existieren
-auf dem Server bereits.
+Nach erfolgreicher Versionierung eines Pushes auf `master` deployt GitHub
+Actions das Web-Frontend aus demselben Versionsstand wie den Electron-Build.
+Versionierte Migrationen und Hooks werden zunächst auf dem VPS verglichen.
+Nur bei Änderungen werden sie übernommen, Migrationen ausgeführt und
+`pocketbase.service` neu gestartet. So gehen auch bei übersprungenen älteren
+Deployments keine Dateien verloren. Die alten lokalen Migrationen, die in
+`.gitignore` stehen, werden bewusst nicht hochgeladen.
 
-Über **Actions → Deploy to VPS → Run workflow** lassen sich alle versionierten
-Migrationen manuell einmalig auf den Server laden (z. B. wenn sie bereits im
-Repository liegen, aber nie hochgeladen wurden).
+Über **Actions → Deploy to VPS → Run workflow** lässt sich das Deployment
+weiterhin manuell starten.
 
 Der SSH-Benutzer aus dem GitHub-Secret `SERVER_USER` muss in dieses Verzeichnis
 schreiben dürfen und `sudo -n systemctl restart pocketbase.service` ohne
 Passwortabfrage ausführen dürfen. Der Workflow prüft anschließend, ob der
-Dienst wieder aktiv ist.
+Dienst wieder aktiv ist. Temporäre Deployment-Verzeichnisse und eine
+Wiederholungsmarkierung werden unter `/root/pb` angelegt.
 
 ## Electron-Releases
 
@@ -90,6 +90,21 @@ Bei einem Push auf `master` erhöht GitHub Actions die Patch-Version in
 zugehörigen Tag (z. B. `v1.5.2`). Anschließend baut und veröffentlicht der
 bestehende Electron-Workflow das Release. Manuell gepushte `v*`-Tags lösen
 den Release-Workflow weiterhin aus.
+
+Nutzerrelevante Änderungen werden als kurze deutsche Stichpunkte unter
+`Unveröffentlicht` in [APP_CHANGELOG.md](./APP_CHANGELOG.md) eingetragen.
+Der Versionsworkflow übernimmt sie in den Abschnitt der neuen Version; ohne
+Einträge wird ebenfalls veröffentlicht. KI-Assistenten werden über die
+Repository-Anweisungen zur Pflege angehalten. Es wird kein KI-Dienst automatisch
+aufgerufen, daher müssen andere Änderungen bei Bedarf manuell dokumentiert
+werden. Die ignorierte lokale `CHANGELOG.md` bleibt davon unberührt.
+
+Nach einem Update zeigt die App die seit dem bestätigten Stand verpassten
+Änderungen an. Der Stand wird nach Anmeldung pro Konto in PocketBase gespeichert
+und zwischen Web und Desktop synchronisiert. Beim ersten Öffnen wird zunächst
+ein Ausgangsstand ohne Popup gespeichert. Dafür müssen die neue Migration und
+der neue PocketBase-Hook auf dem Server installiert sein. „Später“ schließt den
+Hinweis, ohne die Änderungen als gelesen zu markieren.
 
 Major und Minor werden in `package.json` vorgegeben: Aus `1.5.0` wird beim
 nächsten Push beispielsweise `1.5.1`. Die Versionsnummer muss dem Format
@@ -101,7 +116,8 @@ GitHub Actions benötigt Schreibrechte für Repository-Inhalte und muss auf
 `master` pushen dürfen. Branch-Schutzregeln können den Versions-Commit
 verhindern; in diesem Fall schlägt der Workflow sichtbar fehl. Der automatisch
 erzeugte Commit und Tag verwenden `GITHUB_TOKEN` und starten daher keine
-weiteren Push-Workflows. Der Release-Workflow wird stattdessen direkt aufgerufen.
+weiteren Push-Workflows. Release und Web-Deployment werden stattdessen direkt
+aufgerufen.
 
 ## NPM-Skripte
 

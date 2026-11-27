@@ -61,6 +61,51 @@ body,
   padding: 20px 16px;
 }
 
+.app-dialog-backdrop.release-notes-backdrop {
+  align-items: center;
+  padding: 20px 16px;
+}
+
+.app-dialog.release-notes-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100dvh - 40px);
+}
+
+.release-notes-dialog h2,
+.release-notes-dialog h3 {
+  margin: 0;
+}
+
+.release-notes-dialog h3 {
+  font-size: var(--ui-font-size-base);
+}
+
+.release-notes-list {
+  overflow-y: auto;
+  width: 100%;
+  min-height: 0;
+}
+
+.release-notes-list ul {
+  margin: 8px 0 16px;
+  padding-left: 22px;
+}
+
+.release-notes-list li {
+  margin-bottom: 6px;
+}
+
+.release-notes-error {
+  margin: 0;
+  color: var(--ui-color-red-600);
+}
+
+.release-notes-dialog .app-dialog-actions {
+  width: 100%;
+}
+
 .notification-dialog-header {
   display: flex;
   flex: 0 0 auto;

@@ -11,6 +11,7 @@ import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Or
 import imageCompression from 'browser-image-compression';
 import { buildProjectTemplate, LK_SIKA_TAUSCH_ACTION } from './projectTemplate.mjs';
 import { calculateKabelSummen } from './aufmassKabel.mjs';
+import ReleaseNotesDialog from './ReleaseNotesDialog';
 
 const FileViewer = lazy(() => import('./FileViewer'));
 import UserAdminPanel, { MultiSelect } from './UserAdminPanel';
@@ -8747,6 +8748,7 @@ const createProject = async () => {
           </div>,
           document.body
         )}
+        <ReleaseNotesDialog userId={user?.id} />
         {appDialog && typeof document !== "undefined" && createPortal(
           <div className="app-dialog-backdrop" onClick={() => closeAppDialog(false)}>
             <section

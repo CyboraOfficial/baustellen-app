@@ -1,10 +1,16 @@
 name: Deploy to VPS
 
 on:
-  push:
-    branches:
-      - master 
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -15,30 +21,41 @@ jobs:
         uses: actions/checkout@v4 # Aktualisiert
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Check release is current
+        id: current
+        env:
+          AUTOMATIC: ${{ inputs.ref != '' }}
+        shell: bash
+        run: |
+          if [[ "$AUTOMATIC" == "true" ]]; then
+            git fetch origin '+refs/heads/master:refs/remotes/origin/master'
+            if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]]; then
+              echo "deploy=false" >> "$GITHUB_OUTPUT"
+              echo "A newer master version exists; skipping this deployment."
+              exit 0
+            fi
+          fi
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
+        if: steps.current.outputs.deploy == 'true'
         uses: actions/setup-node@v4 # Aktualisiert
         with:
           node-version: '20'
 
-      - name: Detect PocketBase changes
+      - name: Collect PocketBase files
+        if: steps.current.outputs.deploy == 'true'
         id: migrations
-        env:
-          BEFORE: ${{ github.event.before }}
-          SHA: ${{ github.sha }}
         run: |
           rm -rf migrations-upload
           mkdir migrations-upload
           rm -rf hooks-upload
           mkdir hooks-upload
-          # Manueller Start oder erster Push: alle versionierten Dateien hochladen
-          if [[ -z "$BEFORE" || "$BEFORE" =~ ^0+$ ]]; then
-            MIGRATIONS=$(git ls-files 'pb_migrations/*.js')
-            HOOKS=$(git ls-files 'pb_hooks/*')
-          else
-            MIGRATIONS=$(git diff --name-only --diff-filter=AM "$BEFORE" "$SHA" -- 'pb_migrations/*.js')
-            HOOKS=$(git diff --name-only --diff-filter=AM "$BEFORE" "$SHA" -- 'pb_hooks/*')
-          fi
+          # Auch bei übersprungenen Deployments müssen alle Migrationen und Hooks ankommen.
+          MIGRATIONS=$(git ls-files 'pb_migrations/*.js')
+          HOOKS=$(git ls-files 'pb_hooks/*')
           for f in $MIGRATIONS; do cp "$f" migrations-upload/; done
           for f in $HOOKS; do cp "$f" hooks-upload/; done
           if [ -n "$(ls -A migrations-upload)" ]; then
@@ -53,12 +70,73 @@ jobs:
           fi
 
       - name: Install Dependencies
+        if: steps.current.outputs.deploy == 'true'
         run: npm install
 
       - name: Build Project
+        if: steps.current.outputs.deploy == 'true'
         run: npm run build
 
+      - name: Stage PocketBase migrations
+        if: steps.migrations.outputs.migrations_changed == 'true'
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "migrations-upload/*.js"
+          target: "/root/pb/baustellen-deploy-${{ github.run_id }}-${{ github.run_attempt }}/migrations"
+          strip_components: 1
+
+      - name: Stage PocketBase hooks
+        if: steps.migrations.outputs.hooks_changed == 'true'
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "hooks-upload/*"
+          target: "/root/pb/baustellen-deploy-${{ github.run_id }}-${{ github.run_attempt }}/hooks"
+          strip_components: 1
+
+      - name: Apply changed PocketBase files
+        if: steps.current.outputs.deploy == 'true'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -eu
+            cd /root/pb
+            stage="/root/pb/baustellen-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
+            pending="/root/pb/.baustellen-deploy-pending"
+            for kind in migrations hooks; do
+              if [ "$kind" = migrations ]; then target="/root/pb/pb_migrations"; else target="/root/pb/pb_hooks"; fi
+              for file in "$stage/$kind/"*; do
+                [ -f "$file" ] || continue
+                if ! cmp -s "$file" "$target/$(basename "$file")"; then
+                  touch "$pending"
+                  cp "$file" "$target/"
+                fi
+              done
+            done
+            if [ -f "$pending" ]; then
+              ./pocketbase migrate up
+              sudo -n systemctl restart pocketbase.service
+              sudo -n systemctl is-active --quiet pocketbase.service
+              rm -f "$pending"
+            fi
+            for kind in migrations hooks; do
+              if [ -d "$stage/$kind" ]; then
+                rm -f "$stage/$kind/"*
+                rmdir "$stage/$kind"
+              fi
+            done
+            if [ -d "$stage" ]; then rmdir "$stage"; fi
+
       - name: Deploy to VPS
+        if: steps.current.outputs.deploy == 'true'
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -67,39 +145,3 @@ jobs:
           source: "dist/*"
           target: "/root/pb/pb_public"
           strip_components: 1
-
-      - name: Deploy PocketBase migrations
-        if: steps.migrations.outputs.migrations_changed == 'true'
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "migrations-upload/*.js"
-          target: "/root/pb/pb_migrations"
-          strip_components: 1
-
-      - name: Deploy PocketBase hooks
-        if: steps.migrations.outputs.hooks_changed == 'true'
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "hooks-upload/*"
-          target: "/root/pb/pb_hooks"
-          strip_components: 1
-
-      - name: Apply migrations and restart PocketBase
-        if: steps.migrations.outputs.migrations_changed == 'true' || steps.migrations.outputs.hooks_changed == 'true'
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            cd /root/pb
-            ./pocketbase migrate up
-            sudo -n systemctl restart pocketbase.service
-            sudo -n systemctl is-active --quiet pocketbase.service
