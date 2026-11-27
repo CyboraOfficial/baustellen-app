@@ -42,18 +42,22 @@ export function MultiSelect({ options, selected, disabled, onChange, placeholder
       }
     };
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+        toggleRef.current?.focus();
+      }
     };
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     document.addEventListener("pointerdown", closeOnOutside);
-    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", closeOnEscape, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("pointerdown", closeOnOutside);
-      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", closeOnEscape, true);
     };
   }, [open, options.length]);
 
@@ -64,6 +68,7 @@ export function MultiSelect({ options, selected, disabled, onChange, placeholder
         type="button"
         className="admin-crew-toggle"
         aria-expanded={open}
+        aria-label={`${placeholder}: ${selected.length ? summary(selected) : "Keine Auswahl"}`}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
@@ -109,6 +114,8 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
   const [newEmail, setNewEmail] = useState("");
   const [newPass, setNewPass] = useState("");
   const [newRoles, setNewRoles] = useState(null);
+  const [createPopupOpen, setCreatePopupOpen] = useState(false);
+  const createButtonRef = React.useRef(null);
   const [newRoleName, setNewRoleName] = useState("");
   const [securityPopupOpen, setSecurityPopupOpen] = useState(false);
   const [securityOrder, setSecurityOrder] = useState(null);
@@ -166,9 +173,17 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
         roles: newRoles || [],
         approved: true
       });
-      setNewEmail("");
-      setNewPass("");
+      closeCreatePopup();
     });
+  };
+
+  const closeCreatePopup = () => {
+    setCreatePopupOpen(false);
+    setNewEmail("");
+    setNewPass("");
+    setNewRoles(roles.filter((role) => role.role === "monteur").map((role) => role.id));
+    setError("");
+    createButtonRef.current?.focus();
   };
 
   const update = (u, data) => run(() => pb.collection("users").update(u.id, data));
@@ -327,7 +342,7 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
 
   return (
     <div className="user-admin-panel">
-      {error && <div role="alert" className="admin-error">{error}</div>}
+      {error && !createPopupOpen && <div role="alert" className="admin-error">{error}</div>}
 
       {pending.length > 0 && (
         <div className="admin-pending">
@@ -349,23 +364,80 @@ export default function UserAdminPanel({ currentUserId, rolePerms = {}, onPermsC
         </div>
       )}
 
-      <form onSubmit={createUser} className="admin-create-user">
-        <input type="email" required placeholder="E-Mail" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className={input} />
-        <input type="password" required minLength={8} placeholder="Passwort (min. 8 Zeichen)" value={newPass} onChange={(e) => setNewPass(e.target.value)} className={input} />
-        <div className="admin-create-roles">
-          <MultiSelect
-            options={roleOptions}
-            selected={newRoles || []}
-            disabled={busy}
-            placeholder="Rollen auswählen"
-            summary={roleSummary}
-            onChange={(roleId, checked) => setNewRoles((current) => checked
-              ? [...new Set([...(current || []), roleId])]
-              : (current || []).filter((id) => id !== roleId))}
-          />
-        </div>
-        <button type="submit" disabled={busy || !(newRoles || []).length} className="admin-button admin-button-primary">Benutzer anlegen</button>
-      </form>
+      <button
+        ref={createButtonRef}
+        type="button"
+        className="admin-button admin-button-primary admin-create-trigger"
+        onClick={() => { setError(""); setCreatePopupOpen(true); }}
+      >
+        Benutzer anlegen
+      </button>
+
+      {createPopupOpen && createPortal(
+        <div className="admin-security-overlay admin-create-overlay" role="presentation" onMouseDown={() => {
+          if (!busy) closeCreatePopup();
+        }}>
+          <section
+            className="admin-security-dialog admin-create-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-create-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                if (!busy) closeCreatePopup();
+              } else if (event.key === "Tab") {
+                const controls = Array.from(event.currentTarget.querySelectorAll("input:not(:disabled), button:not(:disabled)"));
+                const picker = event.currentTarget.querySelector(".admin-crew-toggle");
+                const menu = document.querySelector(".admin-crew-menu");
+                if (picker && menu) {
+                  controls.splice(controls.indexOf(picker) + 1, 0,
+                    ...menu.querySelectorAll("input:not(:disabled), button:not(:disabled)"));
+                }
+                const index = controls.indexOf(document.activeElement);
+                event.preventDefault();
+                controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus();
+              }
+            }}
+          >
+            <div className="admin-security-header">
+              <h3 id="admin-create-title">Benutzer anlegen</h3>
+              <button type="button" className="admin-security-close" aria-label="Popup schließen"
+                disabled={busy} onClick={closeCreatePopup}>×</button>
+            </div>
+            {error && <div role="alert" className="admin-error">{error}</div>}
+            <form onSubmit={createUser} className="admin-create-user">
+              <label htmlFor="admin-create-email">E-Mail</label>
+              <input id="admin-create-email" type="email" required autoFocus autoComplete="email"
+                value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className={input} />
+              <label htmlFor="admin-create-password">Passwort</label>
+              <input id="admin-create-password" type="password" required minLength={8} autoComplete="new-password"
+                placeholder="Mindestens 8 Zeichen" value={newPass} onChange={(e) => setNewPass(e.target.value)} className={input} />
+              <span id="admin-create-roles-label">Rollen</span>
+              <div className="admin-create-roles" aria-labelledby="admin-create-roles-label">
+                <MultiSelect
+                  options={roleOptions}
+                  selected={newRoles || []}
+                  disabled={busy}
+                  placeholder="Rollen auswählen"
+                  summary={roleSummary}
+                  onChange={(roleId, checked) => setNewRoles((current) => checked
+                    ? [...new Set([...(current || []), roleId])]
+                    : (current || []).filter((id) => id !== roleId))}
+                />
+              </div>
+              <div className="admin-create-actions">
+                <button type="button" disabled={busy} className="admin-button admin-button-secondary" onClick={closeCreatePopup}>Abbrechen</button>
+                <button type="submit" disabled={busy || !(newRoles || []).length} className="admin-button admin-button-primary">
+                  {busy ? "Wird angelegt…" : "Benutzer anlegen"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>,
+        document.body
+      )}
 
       <div className="admin-table-scroll">
         <table className="admin-table">

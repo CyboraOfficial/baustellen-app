@@ -29,15 +29,18 @@ export function parseReleaseNotes(markdown) {
   return sections;
 }
 
-export function unreadReleaseNotes(sections, seenVersion, currentVersion) {
+export function releaseHistory(sections, currentVersion) {
   return sections
-    .filter(({ version, entries }) =>
+    .filter(({ version }) =>
       version !== "Unveröffentlicht" &&
-      entries.length > 0 &&
-      compareVersions(version, seenVersion) > 0 &&
       compareVersions(version, currentVersion) <= 0
     )
     .sort((a, b) => compareVersions(b.version, a.version));
+}
+
+export function unreadReleaseNotes(sections, seenVersion, currentVersion) {
+  return releaseHistory(sections, currentVersion)
+    .filter(({ version, entries }) => entries.length > 0 && compareVersions(version, seenVersion) > 0);
 }
 
 export function promoteReleaseNotes(markdown, version) {

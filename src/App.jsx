@@ -1688,6 +1688,8 @@ export default function App() {
   const [searchAddress, setSearchAddress] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsModalTab, setSettingsModalTab] = useState("Einstellungen");
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  const changelogButtonRef = useRef(null);
   const [settingsTypeFilter, setSettingsTypeFilter] = useState("Alle");
   const [settingsSortBy, setSettingsSortBy] = useState("date-desc");
   const [settingsDateFrom, setSettingsDateFrom] = useState(() => getCurrentYearStartDateString());
@@ -8748,7 +8750,14 @@ const createProject = async () => {
           </div>,
           document.body
         )}
-        <ReleaseNotesDialog userId={user?.id} />
+        <ReleaseNotesDialog
+          userId={user?.id}
+          historyOpen={changelogOpen}
+          onCloseHistory={() => {
+            setChangelogOpen(false);
+            changelogButtonRef.current?.focus();
+          }}
+        />
         {appDialog && typeof document !== "undefined" && createPortal(
           <div className="app-dialog-backdrop" onClick={() => closeAppDialog(false)}>
             <section
@@ -8878,6 +8887,9 @@ const createProject = async () => {
                   Aufträge Excel Export
                 </button>
                 </>)}
+                <button ref={changelogButtonRef} type="button" onClick={() => setChangelogOpen(true)} className="jsx-style-9b27dfe3fb">
+                  Changelog anzeigen
+                </button>
                 <button onClick={handleLogout} className="jsx-style-a71d2a571f" >
                   Logout
                 </button>

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { compareVersions, parseReleaseNotes, promoteReleaseNotes, unreadReleaseNotes } from "./releaseNotes.mjs";
+import { compareVersions, parseReleaseNotes, promoteReleaseNotes, releaseHistory, unreadReleaseNotes } from "./releaseNotes.mjs";
 
 const notes = parseReleaseNotes(`# Änderungen
 
@@ -28,6 +28,12 @@ test("zeigt alle verpassten Einträge bis zur installierten Version", () => {
 test("zeigt keine zukünftigen oder bereits bestätigten Änderungen", () => {
   assert.deepEqual(unreadReleaseNotes(notes, "1.6.1", "1.5.9"), []);
   assert.deepEqual(unreadReleaseNotes(notes, "1.5.9", "1.6.0"), []);
+});
+
+test("zeigt im Changelog veröffentlichte Versionen einschließlich leerer Einträge", () => {
+  const history = releaseHistory(notes, "1.6.0");
+  assert.deepEqual(history.map(({ version }) => version), ["1.6.0", "1.5.9", "1.5.8"]);
+  assert.deepEqual(history[0].entries, []);
 });
 
 test("vergleicht Versionsbestandteile numerisch und lehnt ungültige Versionen ab", () => {
