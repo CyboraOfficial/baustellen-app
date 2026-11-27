@@ -63,9 +63,10 @@ Die App hat eine helle Hauptarbeitsfläche und dunkle Einstellungs-/Adminbereich
 
 ## 4. Typografie, Abstände und Formen
 
-- Standardschrift: `Arial, Helvetica, sans-serif`.
-- Fließtext ist gut lesbar und knapp. Kompakte Listen verwenden kleinere Schriftgrößen (häufig 11–13 px); Hilfstexte sind zurückhaltend, aber lesbar.
-- Abstände folgen überwiegend einem kompakten Raster aus etwa 4, 6, 8, 10, 12 und 16 px. Gleichartige Elemente mit gleichen Abständen ausrichten.
+- Standardschrift: `Arial, Helvetica, sans-serif`, zentral definiert in `src/ui-tokens.css`.
+- Schriftgrößen über die gemeinsamen Tokens in `src/ui-tokens.css` steuern: 10, 12, 14, 16, 18 und 20 px für die Standardskala; 24 px für größere Bedienelemente und 48 px für große Icons.
+- Fließtext ist gut lesbar und knapp. Kompakte Listen verwenden die kleineren Stufen der Skala; Hilfstexte sind zurückhaltend, aber lesbar.
+- Abstände folgen einem kompakten Raster. In der Projektübersicht gilt ein einheitlicher Abstand von `9px` über `--project-overview-space` für Zwischenräume und Karteninnenabstände. Der bestehende `15px`-Innenrand der Seitenleiste bleibt erhalten. Funktionsbedingte Freiräume (zum Beispiel neben einem Dropdown-Pfeil) bleiben davon ausgenommen.
 - Bestehende Rundungen unterscheiden sich nach Kontext: allgemeine Felder meist `10px`, Dateiaktionen/Zeilen meist `8px`, Dialoge/Karten etwa `14–16px`, Badges und kompakte Datei-Picker pillenförmig (`999px`), dichte Adminfelder teils `6px`.
 - Neue Bedienelemente sollen die Rundung ihrer direkten Nachbarn übernehmen. Nicht für jedes Element eine neue Rundung erfinden.
 - Schatten sparsam einsetzen, vor allem zur Abgrenzung schwebender Seitenleisten, Dialoge und Datei-Vorschauen.
@@ -138,9 +139,9 @@ Die App ist eine Desktop-/Kartenanwendung, muss aber auch auf schmalen Fenstern 
 
 1. Vor dem Ändern `src/styles.css` sowie die Styles der betroffenen Komponente lesen.
 2. Vorhandene Komponenten, Klassen, Farben und Statusmeldungen wiederverwenden.
-3. Styles möglichst in der passenden CSS-Datei ergänzen. Globale Regeln nur ändern, wenn die Änderung tatsächlich appweit gelten soll.
+3. Styles möglichst in der passenden CSS-Datei ergänzen. Globale Regeln nur ändern, wenn die Änderung tatsächlich appweit gelten soll. Farb- und Schriftgrößen-Tokens aus `src/ui-tokens.css` wiederverwenden. Dialoge, die per Portal direkt in `document.body` gerendert werden, benötigen CSS-Selektoren, die nicht von `#root` abhängen.
 4. Bei globalen Button-/Input-Regeln die resultierenden Hover-, Fokus- und Disabled-Stile der betroffenen Komponente kontrollieren.
-5. Keine Inline-Styles für neue wiederverwendbare Komponenten einführen, wenn ein Klassenstil besser passt. Bestehende Inline-Styles nicht ohne Zusammenhang umschreiben.
+5. Keine statischen Inline-Styles in JSX ergänzen. Bestehende statische App-Styles liegen in `src/app-inline-styles.css`; neue Styles gehören in die passende Komponenten-CSS-Datei. Inline-Styles sind für tatsächlich dynamische Werte wie berechnete Positionen oder Größen reserviert.
 6. Keine Abhängigkeit für reine CSS-Anpassungen hinzufügen.
 7. Geänderte UI mindestens mit `npm run build` prüfen; bei Verhaltensänderungen zusätzlich relevante Tests ausführen.
 8. Änderungen am Dark Mode und an Browser-nativen Controls nach Möglichkeit in den tatsächlich unterstützten Laufzeitumgebungen prüfen.
@@ -164,6 +165,8 @@ Vor Abschluss einer UI-Änderung prüfen:
 ## Quellen im Repository
 
 - Hauptstyles und Layout: [`src/styles.css`](./src/styles.css)
+- Zentrale Farb- und Typografie-Tokens: [`src/ui-tokens.css`](./src/ui-tokens.css)
+- Ausgelagerte statische App-Styles: [`src/app-inline-styles.css`](./src/app-inline-styles.css)
 - Datei-Vorschau: [`src/FileViewer.css`](./src/FileViewer.css)
 - Benutzerverwaltung: [`src/UserAdminPanel.css`](./src/UserAdminPanel.css)
 - React-Ansichten und Interaktionen: [`src/App.jsx`](./src/App.jsx)

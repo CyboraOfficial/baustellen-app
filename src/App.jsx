@@ -6,7 +6,7 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "leaflet.heat/dist/leaflet-heat.js";
-import { useMap } from "react-leaflet"; 
+import { useMap } from "react-leaflet";
 import { pb } from './pocketbase'; // Punkt-Schrägstrich bedeutet: im selben Ordner
 import imageCompression from 'browser-image-compression';
 import { buildProjectTemplate, LK_SIKA_TAUSCH_ACTION } from './projectTemplate.mjs';
@@ -100,7 +100,7 @@ function MarkerCluster({ projects, openProject, clusterEnabled }) {
         { icon: createProjectStatusIcon(p) }
       );
 
-      marker._id = p.id; 
+      marker._id = p.id;
       marker.on("click", () => openProject(p));
       markers.addLayer(marker);
     });
@@ -125,7 +125,7 @@ function FitBounds({ projects, enabled, mode }) {
   // Zugriff auf das Unter-Objekt 'position'
   const lat = p.position?.lat;
   const lng = p.position?.lng;
-  
+
   return lat !== undefined && lat !== null && !isNaN(lat) &&
          lng !== undefined && lng !== null && !isNaN(lng);
 });
@@ -140,7 +140,7 @@ function FitBounds({ projects, enabled, mode }) {
       console.log("Abbruch: Keine gültigen Projekte zum Zoomen gefunden");
       return;
     }
-    
+
     const coords = validProjects.map(p => [p.position.lat, p.position.lng]);
     const bounds = L.latLngBounds(coords);
 
@@ -1205,38 +1205,32 @@ function BauzeitenplanModal({
   return (
     <div
       onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.7)', zIndex: 12000,
-        display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px'
-      }}
+      className="jsx-style-b2b3e31fe0"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '98vw', height: '96vh', display: 'flex', flexDirection: 'column',
-          background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: '#e2e8f0'
-        }}
+        className="jsx-style-f37debde2a"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flexShrink: 0 }}>
-          <h3 style={{ margin: 0 }}>Bauzeitenplan{readOnly ? " (nur Ansicht)" : ""}</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={onClose} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Schließen</button>
+        <div className="jsx-style-b976126d9d" >
+          <h3 className="jsx-style-c45ee5e511" >Bauzeitenplan{readOnly ? " (nur Ansicht)" : ""}</h3>
+          <div className="jsx-style-2755deced1" >
+            <button onClick={onClose} className="jsx-style-9b27dfe3fb" >Schließen</button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '16px', marginTop: '12px', flex: 1, minHeight: 0 }}>
+        <div className="jsx-style-3ed8490931" >
           {/* Linke Liste: Baustellen */}
-          <div style={{ width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div className="jsx-style-ab783f249d" >
             <input
               type="text"
               placeholder="Baustelle suchen..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="mast-input-base"
-              style={{ width: '100%', marginBottom: '6px' }}
+              className="mast-input-base jsx-style-46172dc47f"
+
             />
-            <div className="filter-multi" ref={projectTypeFilterRef} style={{ marginBottom: '6px' }}>
-              <label className="filter-multi-label" style={{ color: '#94a3b8' }}>Auftragstyp</label>
+            <div className="filter-multi jsx-style-ab4876db6b" ref={projectTypeFilterRef} >
+              <label className="filter-multi-label jsx-style-26123368f0" >Auftragstyp</label>
               <button
                 type="button"
                 onClick={() => setTypeFilterOpen((previous) => !previous)}
@@ -1268,7 +1262,7 @@ function BauzeitenplanModal({
                 </div>
               )}
             </div>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="mast-input-base" style={{ width: '100%', marginBottom: '6px' }}>
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="mast-input-base jsx-style-46172dc47f" >
               <option value="name-asc">Name (A-Z)</option>
               <option value="name-desc">Name (Z-A)</option>
               <option value="weeks-desc">Zeitbedarf (viel zuerst)</option>
@@ -1276,12 +1270,12 @@ function BauzeitenplanModal({
               <option value="remaining-desc">Offene Werktage (viel zuerst)</option>
               <option value="created-desc">Erstellt (neu zuerst)</option>
             </select>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+            <div className="jsx-style-5b31790982" >
               Baustellen per Drag & Drop einer Truppe im Kalender zuordnen. Einträge vertikal ziehen, um sie einer anderen Truppe zuzuweisen. Freie Fläche im Kalender aufziehen für Freitext.
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #334155', borderRadius: '8px', background: '#111827' }}>
+            <div className="jsx-style-78b9924ceb" >
               {filteredRows.length === 0 && (
-                <div style={{ padding: '12px', color: '#94a3b8', fontSize: '12px' }}>Keine Baustellen mit Zeitbedarf gefunden.</div>
+                <div className="jsx-style-1aa5c7297a" >Keine Baustellen mit Zeitbedarf gefunden.</div>
               )}
               {filteredRows.map((row) => {
                 const assignedCount = scheduleEntries.filter((entry) => entry.project === row.id).length;
@@ -1295,29 +1289,26 @@ function BauzeitenplanModal({
                       setDraggingId(row.id);
                     }}
                     onDragEnd={() => setDraggingId(null)}
-                    style={{
-                      padding: '8px 10px', borderBottom: '1px solid #1f2937', cursor: 'grab',
-                      opacity: draggingId === row.id ? 0.4 : 1
-                    }}
+                    className="jsx-style-41950d9d66" style={{ opacity: draggingId === row.id ? 0.4 : 1 }}
                     title={row.address}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px' }}>
-                      <strong style={{ fontSize: '13px' }}>{row.name}</strong>
+                    <div className="jsx-style-071a8e9fff" >
+                      <strong className="jsx-style-f61f4b2d9b" >{row.name}</strong>
                       {assignedCount > 0 && (
-                        <span style={{ fontSize: '10px', background: '#0284c7', borderRadius: '999px', padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                        <span className="jsx-style-2d6fba3c64" >
                           {assignedCount}x geplant
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>{row.address}</div>
-                    <div style={{ fontSize: '11px', color: '#cbd5e1', marginTop: '2px' }}>
+                    <div className="jsx-style-fba9fd3e71" >{row.address}</div>
+                    <div className="jsx-style-48823907cd" >
                       Auftragstyp: {row.type}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#93c5fd', marginTop: '2px' }}>
+                    <div className="jsx-style-54e283d2ef" >
                       Zeitbedarf: {row.isKonzept ? (row.zeitbedarfWeeks > 0 ? `${row.zeitbedarfWeeks} Wochen (${row.workDays} WT)` : '–') : '1 WT'}
                     </div>
                     {row.workDays > 0 && (
-                      <div style={{ fontSize: '11px', marginTop: '2px', color: row.remainingWorkDays > 0 ? '#fbbf24' : '#4ade80' }}>
+                      <div className="jsx-style-2286b0d3c9" style={{ color: row.remainingWorkDays > 0 ? '#fbbf24' : '#4ade80' }}>
                         {row.scheduledWorkDays} / {row.workDays} WT verplant
                         {row.remainingWorkDays > 0 ? ` · ${row.remainingWorkDays} WT offen` : ' · vollständig verplant'}
                       </div>
@@ -1329,33 +1320,30 @@ function BauzeitenplanModal({
           </div>
 
           {/* Rechte Seite: Truppenverwaltung + Kalender */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="jsx-style-d822e95891" >
+            <div className="jsx-style-a8553e5b66" >
               <input
                 type="text"
                 placeholder="Neue Truppe anlegen..."
                 value={newCrewName}
                 onChange={(e) => setNewCrewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddCrew(); }}
-                className="mast-input-base"
-                style={{ width: '220px' }}
+                className="mast-input-base jsx-style-da10a34a1a"
+
               />
-              <button onClick={handleAddCrew} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+              <button onClick={handleAddCrew} className="jsx-style-84b41be2cc" >
                 + Truppe anlegen
               </button>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <div role="group" aria-label="Kalendersteuerung" style={{
-                display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '4px',
-                background: '#111827', border: '1px solid #334155', borderRadius: '8px'
-              }}>
+            <div className="jsx-style-82d1f35996" >
+              <div role="group" aria-label="Kalendersteuerung" className="jsx-style-e460430bab" >
                 <button
                   type="button"
                   aria-label="Zurück"
                   title="Zurück"
                   onClick={() => navigateCalendar(-1)}
-                  style={{ width: '34px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: '#cbd5e1', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                  className="jsx-style-ca8c925d31"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path d="m10 3-5 5 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1369,7 +1357,7 @@ function BauzeitenplanModal({
                     setViewDate(startOfDay(new Date()));
                     setTodayFocusRequest((request) => request + 1);
                   }}
-                  style={{ minWidth: '36px', height: '32px', display: 'grid', placeItems: 'center', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '15px' }}
+                  className="jsx-style-917d107f81"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <rect x="2" y="3.5" width="12" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.4" />
@@ -1382,24 +1370,24 @@ function BauzeitenplanModal({
                   aria-label="Weiter"
                   title="Weiter"
                   onClick={() => navigateCalendar(1)}
-                  style={{ width: '34px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: '#cbd5e1', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                  className="jsx-style-ca8c925d31"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
-                <span aria-hidden="true" style={{ width: '1px', height: '22px', margin: '0 4px', background: '#334155' }} />
+                <span aria-hidden="true" className="jsx-style-f22a602cab"  />
                 <button
                   type="button"
                   aria-label="Tage verkleinern"
                   title="Tage verkleinern"
                   disabled={calendarZoom <= 0.75}
                   onClick={() => setCalendarZoom((zoom) => Math.max(0.75, Math.round((zoom - 0.25) * 100) / 100))}
-                  style={{ width: '30px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: calendarZoom <= 0.75 ? '#475569' : '#cbd5e1', border: 'none', borderRadius: '6px', cursor: calendarZoom <= 0.75 ? 'default' : 'pointer', fontSize: '18px' }}
+                  className="jsx-style-e2ffcd666c" style={{ color: calendarZoom <= 0.75 ? '#475569' : '#cbd5e1', cursor: calendarZoom <= 0.75 ? 'default' : 'pointer' }}
                 >
                   −
                 </button>
-                <span aria-live="polite" style={{ minWidth: '38px', textAlign: 'center', color: '#cbd5e1', fontSize: '11px' }}>
+                <span aria-live="polite" className="jsx-style-6f0368e050" >
                   {Math.round(calendarZoom * 100)}%
                 </span>
                 <button
@@ -1408,11 +1396,11 @@ function BauzeitenplanModal({
                   title="Tage vergrößern"
                   disabled={calendarZoom >= 2.5}
                   onClick={() => setCalendarZoom((zoom) => Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100))}
-                  style={{ width: '30px', height: '32px', display: 'grid', placeItems: 'center', background: 'transparent', color: calendarZoom >= 2.5 ? '#475569' : '#cbd5e1', border: 'none', borderRadius: '6px', cursor: calendarZoom >= 2.5 ? 'default' : 'pointer', fontSize: '18px' }}
+                  className="jsx-style-e2ffcd666c" style={{ color: calendarZoom >= 2.5 ? '#475569' : '#cbd5e1', cursor: calendarZoom >= 2.5 ? 'default' : 'pointer' }}
                 >
                   +
                 </button>
-                <span aria-hidden="true" style={{ width: '1px', height: '22px', margin: '0 4px', background: '#334155' }} />
+                <span aria-hidden="true" className="jsx-style-f22a602cab"  />
                 {[
                   { value: 'week', label: 'Woche' },
                   { value: 'month', label: 'Monat' },
@@ -1424,13 +1412,7 @@ function BauzeitenplanModal({
                     aria-label={`Ansicht: ${option.label}`}
                     aria-pressed={viewMode === option.value}
                     onClick={() => setViewMode(option.value)}
-                    style={{
-                      padding: '7px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
-                      color: viewMode === option.value ? '#f8fafc' : '#94a3b8',
-                      background: viewMode === option.value ? '#2563eb' : 'transparent',
-                      fontSize: '12px', fontWeight: viewMode === option.value ? 700 : 500,
-                      transition: 'background 120ms ease, color 120ms ease'
-                    }}
+                    className="jsx-style-7a07ca67ae" style={{ color: viewMode === option.value ? '#f8fafc' : '#94a3b8', background: viewMode === option.value ? '#2563eb' : 'transparent', fontWeight: viewMode === option.value ? 700 : 500 }}
                   >
                     {option.label}
                   </button>
@@ -1438,12 +1420,12 @@ function BauzeitenplanModal({
               </div>
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto', border: '1px solid #334155', borderRadius: '8px', background: '#111827', display: 'flex' }}>
+            <div className="jsx-style-31272445c4" >
               {/* Sticky Trupp-Namen links */}
-              <div style={{ width: BZP_LABEL_WIDTH, flexShrink: 0, position: 'sticky', left: 0, background: '#111827', zIndex: 2, borderRight: '1px solid #334155' }}>
-                <div style={{ height: BZP_WEEK_ROW_HEIGHT + BZP_HEADER_HEIGHT, borderBottom: '1px solid #334155' }} />
+              <div className="jsx-style-2e13899d1a" style={{ width: BZP_LABEL_WIDTH }}>
+                <div className="jsx-style-5717c1580c" style={{ height: BZP_WEEK_ROW_HEIGHT + BZP_HEADER_HEIGHT }} />
                 {crews.length === 0 && (
-                  <div style={{ padding: '10px', color: '#94a3b8', fontSize: '12px' }}>Noch keine Truppen angelegt.</div>
+                  <div className="jsx-style-b70893f604" >Noch keine Truppen angelegt.</div>
                 )}
                 {crews.map((crew) => (
                   <div
@@ -1470,52 +1452,38 @@ function BauzeitenplanModal({
                       newOrder.splice(toIndex, 0, draggedId);
                       onReorderCrews(newOrder);
                     }}
-                    style={{
-                      height: crewRowLayouts.get(crew.id).height, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '0 8px', borderBottom: '1px solid #1f2937', cursor: 'grab', position: 'relative',
-                      opacity: draggingCrewId === crew.id ? 0.4 : 1
-                    }}
+                    className="jsx-style-7e312569c0" style={{ height: crewRowLayouts.get(crew.id).height, opacity: draggingCrewId === crew.id ? 0.4 : 1 }}
                     title="Zum Umsortieren ziehen"
                   >
-                    <span style={{ fontSize: '13px', fontWeight: 600 }}>{crew.name}</span>
+                    <span className="jsx-style-87ddcaed19" >{crew.name}</span>
                     <button
                       onClick={() => onDeleteCrew(crew.id)}
                       title="Truppe löschen"
-                      style={{ background: 'transparent', color: '#f87171', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                      className="jsx-style-92b46b761d"
                     >
                       ✕
                     </button>
                     <div
                       onPointerDown={(e) => beginRowResize(e, crew.id, crewRowLayouts.get(crew.id).height)}
                       title="Ziehen, um die Zeilenhöhe anzupassen"
-                      style={{
-                        position: 'absolute', right: 12, bottom: 1, width: 32, height: 6,
-                        borderRadius: 4, background: '#475569', cursor: 'ns-resize', zIndex: 3
-                      }}
+                      className="jsx-style-60893a32c5"
                     />
                   </div>
                 ))}
               </div>
 
               {/* Kalender-Bereich */}
-              <div ref={calendarViewportRef} data-bzp-calendar-viewport style={{ overflowX: 'auto', flex: 1, minWidth: 0 }}>
-                <div style={{ width: visibleDayCount * dayWidth, position: 'relative' }}>
-                  <div style={{ height: BZP_WEEK_ROW_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: 0, background: '#111827', zIndex: 1 }}>
+              <div ref={calendarViewportRef} data-bzp-calendar-viewport className="jsx-style-9b3bc7d0bc" >
+                <div className="jsx-style-314cecaee4" style={{ width: visibleDayCount * dayWidth }}>
+                  <div className="jsx-style-f1df10ed62" style={{ height: BZP_WEEK_ROW_HEIGHT }}>
                     <div
-                      style={{
-                        width: visibleDayCount * dayWidth, flexShrink: 0, textAlign: 'center', fontSize: '10px',
-                        fontWeight: 600, color: '#93c5fd', borderLeft: '1px solid #334155',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                      }}
+                      className="jsx-style-1f4ddff800" style={{ width: visibleDayCount * dayWidth }}
                     >
                       {viewMode === "overview"
                         ? Array.from({ length: BZP_OVERVIEW_WEEKS }, (_, weekIndex) => addDays(rangeStart, weekIndex * 7)).map((monday, weekIndex) => (
                           <div
                             key={weekIndex}
-                            style={{
-                              width: dayWidth * 7, flexShrink: 0, borderLeft: '1px solid #334155',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}
+                            className="jsx-style-610218721b" style={{ width: dayWidth * 7 }}
                           >
                             KW {getISOWeekNumber(monday)}
                           </div>
@@ -1525,20 +1493,14 @@ function BauzeitenplanModal({
                           : rangeStart.toLocaleDateString("de-DE", { month: "long", year: "numeric" })}
                     </div>
                   </div>
-                  <div style={{ height: BZP_HEADER_HEIGHT, display: 'flex', borderBottom: '1px solid #334155', position: 'sticky', top: BZP_WEEK_ROW_HEIGHT, background: '#111827', zIndex: 1 }}>
+                  <div className="jsx-style-199453fac8" style={{ height: BZP_HEADER_HEIGHT, top: BZP_WEEK_ROW_HEIGHT }}>
                     {days.map((day, i) => {
                       const isMonday = day.getDay() === 1;
                       const isToday = startOfDay(day).getTime() === todayISO;
                       return (
                         <div
                           key={i}
-                          style={{
-                            width: dayWidth, flexShrink: 0, textAlign: 'center', fontSize: '10px',
-                            color: isWeekendDay(day) ? '#64748b' : '#cbd5e1',
-                            borderLeft: isMonday ? '1px solid #334155' : 'none',
-                            background: isToday ? 'rgba(2,132,199,0.25)' : 'transparent',
-                            display: 'flex', flexDirection: 'column', justifyContent: 'center'
-                          }}
+                          className="jsx-style-65846afb8a" style={{ width: dayWidth, color: isWeekendDay(day) ? '#64748b' : '#cbd5e1', borderLeft: isMonday ? '1px solid #334155' : 'none', background: isToday ? 'rgba(2,132,199,0.25)' : 'transparent' }}
                         >
                           {viewMode === "week" && <div>{day.toLocaleDateString("de-DE", { weekday: "short" })}</div>}
                           <div>{String(day.getDate()).padStart(2, '0')}.{String(day.getMonth() + 1).padStart(2, '0')}</div>
@@ -1554,23 +1516,14 @@ function BauzeitenplanModal({
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, crew.id)}
                       onPointerDown={(e) => beginRowSelection(e, crew.id)}
-                      style={{ height: crewRowLayouts.get(crew.id).height, position: 'relative', borderBottom: '1px solid #1f2937', display: 'flex', cursor: 'crosshair' }}
+                      className="jsx-style-1262d880cf" style={{ height: crewRowLayouts.get(crew.id).height }}
                     >
                       {days.map((day, i) => (
-                        <div key={i} style={{
-                          width: dayWidth, flexShrink: 0, height: '100%',
-                          background: isWeekendDay(day) ? 'rgba(148,163,184,0.06)' : 'transparent',
-                          borderLeft: day.getDay() === 1 ? '1px solid #1f2937' : 'none'
-                        }} />
+                        <div key={i} className="jsx-style-61d1374601" style={{ width: dayWidth, background: isWeekendDay(day) ? 'rgba(148,163,184,0.06)' : 'transparent', borderLeft: day.getDay() === 1 ? '1px solid #1f2937' : 'none' }} />
                       ))}
 
                       {selection && selection.crewId === crew.id && (
-                        <div style={{
-                          position: 'absolute', left: selection.from * dayWidth,
-                          width: (selection.to - selection.from + 1) * dayWidth,
-                          top: 5, bottom: 5, background: 'rgba(226,232,240,0.25)',
-                          border: '1px dashed #e2e8f0', borderRadius: '6px', pointerEvents: 'none'
-                        }} />
+                        <div className="jsx-style-d1e4a05b61" style={{ left: selection.from * dayWidth, width: (selection.to - selection.from + 1) * dayWidth }} />
                       )}
 
                       {crewRowLayouts.get(crew.id).entries.map((item) => {
@@ -1581,24 +1534,14 @@ function BauzeitenplanModal({
                             <div
                               key={entry.id}
                               title={label}
-                              style={{
-                                position: 'absolute', left, width: displayWidth,
-                                height: BZP_ENTRY_HEIGHT + captionHeight,
-                                top,
-                                overflow: 'visible', background: barColor, borderRadius: '6px',
-                                boxShadow: isPreview ? '0 0 0 2px #e2e8f0' : 'none'
-                              }}
+                              className="jsx-style-38d6d935e6" style={{ left, width: displayWidth, height: BZP_ENTRY_HEIGHT + captionHeight, top, background: barColor, boxShadow: isPreview ? '0 0 0 2px #e2e8f0' : 'none' }}
                             >
                               <div
-                                style={{
-                                  position: 'absolute', left: 0, top: 0, width, height: BZP_ENTRY_HEIGHT,
-                                  background: barColor, borderRadius: '6px 6px 0 0',
-                                  pointerEvents: 'none'
-                                }}
+                                className="jsx-style-54af66fb40" style={{ width, height: BZP_ENTRY_HEIGHT, background: barColor }}
                               />
                               <div
                                 onPointerDown={(e) => beginEntryDrag(e, entry, 'resize-left')}
-                                style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: BZP_HANDLE_WIDTH, cursor: 'ew-resize' }}
+                                className="jsx-style-549396a876" style={{ width: BZP_HANDLE_WIDTH }}
                               />
                               <div
                                 onPointerDown={(e) => beginEntryDrag(e, entry, 'move')}
@@ -1606,19 +1549,10 @@ function BauzeitenplanModal({
                                   if (!dragMovedRef.current && hasProject) onOpenProject(entry.expand.project.id);
                                 }}
                                 title={hasProject ? `${label} (klicken zum Öffnen)` : label}
-                                style={{
-                                  position: 'absolute', left: BZP_HANDLE_WIDTH, right: BZP_HANDLE_WIDTH, top: 0, bottom: 0,
-                                  cursor: hasProject ? 'pointer' : 'grab', display: 'flex', alignItems: 'center', overflow: 'visible'
-                                }}
+                                className="jsx-style-3be5850369" style={{ left: BZP_HANDLE_WIDTH, right: BZP_HANDLE_WIDTH, cursor: hasProject ? 'pointer' : 'grab' }}
                               >
                                 {viewMode !== "week" && (
-                                  <span style={{
-                                    position: 'absolute', left: 0, right: 0,
-                                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                                    fontSize: '10px', padding: '0 2px',
-                                    color: '#f8fafc', textShadow: '0 1px 2px rgba(15,23,42,0.9)',
-                                    pointerEvents: 'none'
-                                  }}>{label}</span>
+                                  <span className="jsx-style-f705f671c1" >{label}</span>
                                 )}
                               </div>
                               {showCaption && (
@@ -1628,38 +1562,20 @@ function BauzeitenplanModal({
                                     if (!dragMovedRef.current && hasProject) onOpenProject(entry.expand.project.id);
                                   }}
                                   title={hasProject ? `${label} (klicken zum Öffnen)` : label}
-                                  style={{
-                                    position: 'absolute', left: 0, top: BZP_ENTRY_HEIGHT,
-                                    width: displayWidth, minHeight: captionHeight, boxSizing: 'border-box',
-                                    display: 'block', padding: '2px 6px',
-                                    color: '#f8fafc', textShadow: '0 1px 2px rgba(15,23,42,0.9)',
-                                    cursor: hasProject ? 'pointer' : 'grab',
-                                    fontSize: '11px', lineHeight: '14px', whiteSpace: 'normal',
-                                    overflowWrap: 'anywhere', zIndex: 1,
-                                    background: 'transparent', boxShadow: 'none'
-                                  }}
+                                  className="jsx-style-78bade7248" style={{ top: BZP_ENTRY_HEIGHT, width: displayWidth, minHeight: captionHeight, cursor: hasProject ? 'pointer' : 'grab' }}
                                 >{label}</span>
                               )}
                               <button
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onClick={(e) => { e.stopPropagation(); onDeleteEntry(entry.id); }}
                                 title="Einplanung entfernen"
-                                style={{
-                                  position: 'absolute', left: Math.max(BZP_HANDLE_WIDTH, width - BZP_HANDLE_WIDTH - 16),
-                                  top: 0, bottom: showCaption ? 'auto' : 0, height: showCaption ? BZP_ENTRY_HEIGHT : undefined, width: '16px', padding: 0,
-                                  background: 'transparent', border: 'none', color: '#fecaca', cursor: 'pointer', fontSize: '11px',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2
-                                }}
+                                className="jsx-style-a03ee88638" style={{ left: Math.max(BZP_HANDLE_WIDTH, width - BZP_HANDLE_WIDTH - 16), bottom: showCaption ? 'auto' : 0, height: showCaption ? BZP_ENTRY_HEIGHT : undefined }}
                               >
                                 ✕
                               </button>
                               <div
                                 onPointerDown={(e) => beginEntryDrag(e, entry, 'resize-right')}
-                                style={{
-                                  position: 'absolute', left: Math.max(0, width - BZP_HANDLE_WIDTH),
-                                  top: 0, bottom: showCaption ? 'auto' : 0, height: showCaption ? BZP_ENTRY_HEIGHT : undefined,
-                                  width: BZP_HANDLE_WIDTH, cursor: 'ew-resize'
-                                }}
+                                className="jsx-style-bad3609447" style={{ left: Math.max(0, width - BZP_HANDLE_WIDTH), bottom: showCaption ? 'auto' : 0, height: showCaption ? BZP_ENTRY_HEIGHT : undefined, width: BZP_HANDLE_WIDTH }}
                               />
                             </div>
                           );
@@ -1675,13 +1591,13 @@ function BauzeitenplanModal({
         {freetextPrompt && (
           <div
             onClick={() => setFreetextPrompt(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', zIndex: 12100, display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+            className="jsx-style-9b6964673b"
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '16px', width: '320px' }}
+              className="jsx-style-bd549449ac"
             >
-              <h4 style={{ margin: '0 0 10px 0' }}>Freitext-Eintrag</h4>
+              <h4 className="jsx-style-117664d8d4" >Freitext-Eintrag</h4>
               <input
                 type="text"
                 autoFocus
@@ -1689,12 +1605,12 @@ function BauzeitenplanModal({
                 value={freetextPrompt.text}
                 onChange={(e) => setFreetextPrompt((prev) => ({ ...prev, text: e.target.value }))}
                 onKeyDown={(e) => { if (e.key === 'Enter') submitFreetextPrompt(); if (e.key === 'Escape') setFreetextPrompt(null); }}
-                className="mast-input-base"
-                style={{ width: '100%', marginBottom: '12px' }}
+                className="mast-input-base jsx-style-0794b0f669"
+
               />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                <button onClick={() => setFreetextPrompt(null)} style={{ backgroundColor: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Abbrechen</button>
-                <button onClick={submitFreetextPrompt} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>Anlegen</button>
+              <div className="jsx-style-1db654392e" >
+                <button onClick={() => setFreetextPrompt(null)} className="jsx-style-6a944b7054" >Abbrechen</button>
+                <button onClick={submitFreetextPrompt} className="jsx-style-84b41be2cc" >Anlegen</button>
               </div>
             </div>
           </div>
@@ -2349,15 +2265,15 @@ const generiereAufmassDaten = (masten) => {
   return normalizeMastLabels(masten).map((m) => {
     return {
       ...m, // Kopiert alle vorhandenen Felder (wie aktion, leuchten etc.)
-      
+
       // MAPPING DER HÖHEN
       // Wenn lphNeu vorhanden ist, nimm das, sonst lphAlt
       lichtpunkthoehe: m.lphNeu || m.lphAlt || "",
       lichtpunkthoeheNeu: m.lphNeu || "",
-      
+
       // MAPPING DER TYPEN (Falls du die auch im Aufmaß brauchst)
       mastTyp: m.mastTypNeu || m.mastTypAlt || "",
-      
+
       // Restliche Felder
       aktion: m.aktion || "Montage",
       aufmassKabel: m.aufmassKabel || "",
@@ -2429,7 +2345,7 @@ const resetAufmassVonMasten = async () => {
     aufmass: {
       ...prev.aufmass,
       // Hier nutzen wir EXAKT die gleiche Funktion wie im useEffect
-      masten: generiereAufmassDaten(prev.masten) 
+      masten: generiereAufmassDaten(prev.masten)
     }
   }));
 
@@ -2967,9 +2883,9 @@ const handleLogout = () => {
 
 const createLogEntry = (message) => {
   return {
-    date: new Date().toLocaleString('de-DE', { 
-      day: '2-digit', month: '2-digit', year: 'numeric', 
-      hour: '2-digit', minute: '2-digit' 
+    date: new Date().toLocaleString('de-DE', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     }),
     // Holt den User aus dem AuthStore (E-Mail oder 'Unbekannt')
     user: pb.authStore.model?.email || "Unbekannter User",
@@ -3592,7 +3508,7 @@ const updateAufmass = (index, field, value) => {
     } else {
       neueMasten[index] = { ...aktuellerMast, [field]: safeValue };
     }
-    
+
     return {
       ...prev,
       aufmass: {
@@ -3773,38 +3689,38 @@ const removeGrabenOberflaeche = (index, listField, entryIndex) => {
 };
 
 const renderGrabenOberflaechenEditor = (originalIndex, m, listField) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
+  <div className="jsx-style-cb61ff5731" >
     {normalizeGrabenSurfaces(m[listField]).map((entry, gIdx) => (
-      <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <select className="mast-input-base" style={{ width: '84px', padding: '1px', height: '20px', borderRadius: '4px' }} value={entry.typ} onChange={(e) => updateGrabenOberflaeche(originalIndex, listField, gIdx, 'typ', e.target.value)}>
+      <div key={entry.id} className="jsx-style-07a9863df0" >
+        <select className="mast-input-base jsx-style-9093435a6b"  value={entry.typ} onChange={(e) => updateGrabenOberflaeche(originalIndex, listField, gIdx, 'typ', e.target.value)}>
           {SURFACE_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
         </select>
-        <input type="text" inputMode="decimal" placeholder="Länge" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={entry.laenge} onChange={(e) => updateGrabenOberflaeche(originalIndex, listField, gIdx, 'laenge', e.target.value)} />
-        <span style={{ fontSize: '9px', color: '#94a3b8' }}>m</span>
-        <button type="button" onClick={() => removeGrabenOberflaeche(originalIndex, listField, gIdx)} title="Oberfläche entfernen" style={{ width: '16px', height: '16px', padding: 0, borderRadius: '4px', border: '1px solid #7f1d1d', background: '#7f1d1d', color: '#fff', cursor: 'pointer', lineHeight: '1', fontSize: '10px' }}>-</button>
+        <input type="text" inputMode="decimal" placeholder="Länge" className="mast-input-base jsx-style-28e0141638"  value={entry.laenge} onChange={(e) => updateGrabenOberflaeche(originalIndex, listField, gIdx, 'laenge', e.target.value)} />
+        <span className="jsx-style-ce4e2e3fde" >m</span>
+        <button type="button" onClick={() => removeGrabenOberflaeche(originalIndex, listField, gIdx)} title="Oberfläche entfernen" className="jsx-style-915b2ec15c" >-</button>
       </div>
     ))}
-    <button type="button" onClick={() => addGrabenOberflaeche(originalIndex, listField)} title="Weitere Graben-Oberfläche hinzufügen" style={{ alignSelf: 'flex-start', width: '18px', height: '18px', padding: 0, borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontWeight: 'bold', fontSize: '10px', lineHeight: '1' }}>+</button>
+    <button type="button" onClick={() => addGrabenOberflaeche(originalIndex, listField)} title="Weitere Graben-Oberfläche hinzufügen" className="jsx-style-e6e98df82c" >+</button>
   </div>
 );
 
 const renderMontagegrubeOberflaechenEditor = (originalIndex, m, listField, visibleCount) => {
   if (!(Number(visibleCount) > 0)) return null;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
-      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Oberfläche Montagegrube:</span>
+    <div className="jsx-style-cb61ff5731" >
+      <span className="jsx-style-ce4e2e3fde" >Oberfläche Montagegrube:</span>
       {normalizeExtraSurfaces(m[listField]).map((entry, eIdx) => (
-        <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <select className="mast-input-base" style={{ width: '84px', padding: '1px', height: '20px', borderRadius: '4px' }} value={entry.typ} onChange={(e) => updateMontagegrubeOberflaeche(originalIndex, listField, eIdx, 'typ', e.target.value)}>
+        <div key={entry.id} className="jsx-style-07a9863df0" >
+          <select className="mast-input-base jsx-style-9093435a6b"  value={entry.typ} onChange={(e) => updateMontagegrubeOberflaeche(originalIndex, listField, eIdx, 'typ', e.target.value)}>
             {SURFACE_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
           </select>
-          <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ width: '32px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={entry.x} onChange={(e) => updateMontagegrubeOberflaeche(originalIndex, listField, eIdx, 'x', e.target.value)} />
-          <span style={{ fontSize: '9px', color: '#94a3b8' }}>×</span>
-          <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ width: '32px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={entry.y} onChange={(e) => updateMontagegrubeOberflaeche(originalIndex, listField, eIdx, 'y', e.target.value)} />
-          <button type="button" onClick={() => removeMontagegrubeOberflaeche(originalIndex, listField, eIdx)} title="Oberfläche entfernen" style={{ width: '16px', height: '16px', padding: 0, borderRadius: '4px', border: '1px solid #7f1d1d', background: '#7f1d1d', color: '#fff', cursor: 'pointer', lineHeight: '1', fontSize: '10px' }}>-</button>
+          <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base jsx-style-2a6e883ba3"  value={entry.x} onChange={(e) => updateMontagegrubeOberflaeche(originalIndex, listField, eIdx, 'x', e.target.value)} />
+          <span className="jsx-style-ce4e2e3fde" >×</span>
+          <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base jsx-style-2a6e883ba3"  value={entry.y} onChange={(e) => updateMontagegrubeOberflaeche(originalIndex, listField, eIdx, 'y', e.target.value)} />
+          <button type="button" onClick={() => removeMontagegrubeOberflaeche(originalIndex, listField, eIdx)} title="Oberfläche entfernen" className="jsx-style-915b2ec15c" >-</button>
         </div>
       ))}
-      <button type="button" onClick={() => addMontagegrubeOberflaeche(originalIndex, listField)} title="Weitere Oberfläche hinzufügen" style={{ alignSelf: 'flex-start', width: '18px', height: '18px', padding: 0, borderRadius: '4px', border: '1px solid #334155', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontWeight: 'bold', fontSize: '10px', lineHeight: '1' }}>+</button>
+      <button type="button" onClick={() => addMontagegrubeOberflaeche(originalIndex, listField)} title="Weitere Oberfläche hinzufügen" className="jsx-style-e6e98df82c" >+</button>
     </div>
   );
 };
@@ -3916,13 +3832,13 @@ const handleInitialisiereAufmass = () => {
     showAppMessage("Bitte erstelle zuerst Masten im Masten-Tab!");
     return;
   }
-  
+
   const kopieMasten = form.masten.map(m => ({
     ...m, // Kopiert alle bestehenden Daten (inkl. lichtpunkthoehe, typ, etc.)
     aktion: m.aktion || "Montage",
     // Sicherstellen, dass die Felder existieren und befüllt sind
     lichtpunkthoehe: m.lichtpunkthoehe || "",
-    lichtpunkthoeheNeu: m.lichtpunkthoehe || "", 
+    lichtpunkthoeheNeu: m.lichtpunkthoehe || "",
     aufmassKabel: "",
     aufmassMuffen: "",
     kabelanschlussAend: "",
@@ -3992,16 +3908,16 @@ const handleInitialisiereAufmass = () => {
 const openProject = (p) => {
   const parseSafe = (data, fallback) => {
     if (!data) return fallback;
-    if (typeof data === 'object') return data; 
+    if (typeof data === 'object') return data;
     try { return JSON.parse(data); } catch (e) { return fallback; }
   };
 
   const parsedPosition = parseSafe(p.position, null);
   const parsedMasten = normalizeMastLabels(parseSafe(p.masten, []));
   const parsedLeuchten = parseSafe(p.leuchten, []);
-  
+
   // Das Aufmaß-Objekt sicher parsen
-  const rawAufmass = parseSafe(p.aufmass, null); 
+  const rawAufmass = parseSafe(p.aufmass, null);
 
   // Sicherheitsnetz für alte vs. neue Struktur:
   let aufmassMasten = [];
@@ -4121,12 +4037,12 @@ const openProject = (p) => {
   // States setzen
   setSelectedProject(p);
   setShowAnfahrschadenPositionen(true);
-  setSelectedPosition(parsedPosition); 
-  
+  setSelectedPosition(parsedPosition);
+
   // 🔥 WICHTIG: originalProject und form MÜSSEN exakt dasselbe aufbereitete Objekt bekommen!
   setOriginalProject(vollständigVorbereitetesProjekt);
   setForm(vollständigVorbereitetesProjekt);
-  
+
   setSidebarOpen(true);
   setMode("detail");
   setActiveTab("Allgemein");
@@ -4153,14 +4069,14 @@ const openProject = (p) => {
     text += `Datum:  ${entry.date}\n`;
     text += `Nutzer: ${entry.user || "Unbekannt"}\n`;
     text += `Aktion: ${entry.action}\n`;
-    
+
     // Falls du doch noch das alte "changes" Array in manchen Einträgen hast:
     if (entry.changes && Array.isArray(entry.changes)) {
       entry.changes.forEach((c) => {
         text += `        - ${c.field}: ${c.old} → ${c.new}\n`;
       });
     }
-    
+
     text += `----------------------------------------------------\n`;
   });
 
@@ -4189,7 +4105,7 @@ const checkForUpdates = () => {
   // Prüfen, ob wir in der Exe sind
   if (window.electron || window.api) {
     console.log("Triggere Update-Check in der Exe...");
-    
+
     // Wir sagen dem Hauptprozess, er soll prüfen
     if (window.electron) window.electron.checkUpdates();
     else if (window.api) window.api.checkUpdates();
@@ -4208,16 +4124,16 @@ useEffect(() => {
     });
 
     const unsubscribeAvailable = window.desktopAPI.onUpdateAvailable(() => {
-      setUpdateStatus('available'); 
+      setUpdateStatus('available');
     });
 
     const unsubscribeProgress = window.desktopAPI.onDownloadProgress?.((percent) => {
-      setUpdateStatus('downloading'); 
+      setUpdateStatus('downloading');
       setDownloadPercent(percent);
     }) || null;
 
     const unsubscribeDownloaded = window.desktopAPI.onUpdateDownloaded(() => {
-      setUpdateStatus('ready'); 
+      setUpdateStatus('ready');
     });
 
     // HIER DIE ANPASSUNG: Wenn aktuell, nach 3 Sekunden ausblenden
@@ -4227,10 +4143,10 @@ useEffect(() => {
       // Timer starten, der das Banner nach 3 Sekunden verschwinden lässt
       setTimeout(() => {
         setUpdateStatus('hidden');
-      }, 3000); 
+      }, 3000);
     });
 
-    window.desktopAPI.send('check-updates'); 
+    window.desktopAPI.send('check-updates');
 
     return () => {
       if (unsubscribeAvailable) unsubscribeAvailable();
@@ -4254,14 +4170,14 @@ useEffect(() => {
       // 1. Priorität: Wenn im Suchfeld etwas steht, leere es zuerst
       if (search !== "") {
         setSearch("");
-      } 
+      }
       // 2. Priorität: Wenn die Suche leer ist, aber ein Projekt offen, schließe das Projekt
       else if (selectedProject) {
         setSelectedProject(null);
         // Falls du eine 'mode' Variable nutzt, um zwischen Liste und Details zu switchen:
         if (typeof setMode === "function") setMode("list");
       }
-      
+
       // Optional: Filter zurücksetzen, falls gewünscht
       // setSelectedStatusFilters(["Alle"]);
       // setSelectedTypeFilters(["Alle"]);
@@ -4269,7 +4185,7 @@ useEffect(() => {
   };
 
   window.addEventListener("keydown", handleKeyDown);
-  
+
   // Aufräumen, wenn die Komponente geschlossen wird
   return () => {
     window.removeEventListener("keydown", handleKeyDown);
@@ -4283,20 +4199,20 @@ useEffect(() => {
   // Logik: Wann soll die Karte ALLE Marker zeigen?
   // Wenn KEIN Projekt ausgewählt ist UND wir nicht im Erstellen-Modus sind
   if (!selectedProject && mode !== "create") {
-    
+
     const validPoints = filteredProjects
       .filter(p => p.position?.lat && p.position?.lng)
       .map(p => [p.position.lat, p.position.lng]);
 
     if (validPoints.length > 0) {
       const bounds = L.latLngBounds(validPoints);
-      
+
       // Wir erzwingen den Zoom
       map.invalidateSize();
-      map.flyToBounds(bounds, { 
-        padding: [50, 50], 
-        maxZoom: 15, 
-        duration: 0.5 
+      map.flyToBounds(bounds, {
+        padding: [50, 50],
+        maxZoom: 15,
+        duration: 0.5
       });
     }
   }
@@ -4311,7 +4227,7 @@ useEffect(() => {
       if (!prev.masten || prev.masten.length === 0) return prev;
 
       console.log("🔄 Initialisiere Aufmaß beim ersten Tab-Wechsel...");
-      
+
       return {
         ...prev,
         aufmass: {
@@ -4576,11 +4492,11 @@ const saveAction = async () => {
     if (mode === "detail") {
       await saveAction();
     }
-    
+
     setMode("list");
-    // WICHTIG: Hier muss das Projekt auf null gesetzt werden, 
+    // WICHTIG: Hier muss das Projekt auf null gesetzt werden,
     // damit deine Layout-Logik weiß, dass wir nicht mehr im Projekt-Detail sind.
-    setSelectedProject(null); 
+    setSelectedProject(null);
   };
 
 const deleteProject = async (id) => {
@@ -4601,7 +4517,7 @@ const deleteProject = async (id) => {
 
     // 4. UI-Update: Aus dem lokalen Array entfernen
     setProjects(prev => prev.filter(p => p.id !== id));
-    
+
     // 5. Ansicht zurücksetzen
     setMode("list");
     setSelectedProject(null);
@@ -4683,10 +4599,10 @@ const createProject = async () => {
     setForm(emptyForm);
     setSelectedPosition(null);
     setMode("list");
-    
+
     // Liste neu laden
     await loadProjects();
-    
+
     setProjectToast("Baustelle gespeichert!", record.id);
     scheduleToastDismiss(3500);
   } catch (err) {
@@ -5958,13 +5874,13 @@ const createProject = async () => {
 
   return (
   <div className="app-layout">
-    
+
     {/* Das Banner ist JETZT IMMER SICHTBAR (außer bei 'hidden') */}
     {updateStatus !== 'hidden' && (
   <div className="update-banner-container">
     {/* Die CSS-Klasse ändert sich dynamisch, z. B. zu "update-banner downloading" */}
     <div className={`update-banner ${updateStatus}`}>
-      
+
       <div className="update-content">
         <span>
           {updateStatus === 'checking' && `🔍 App-Version: v${version || '1.0.2'} (Prüfe auf Updates...)`}
@@ -5974,7 +5890,7 @@ const createProject = async () => {
         </span>
 
         {updateStatus === 'ready' && (
-          <button 
+          <button
             className="update-btn"
             onClick={() => {
               if (window.desktopAPI && window.desktopAPI.send) {
@@ -5986,10 +5902,10 @@ const createProject = async () => {
           </button>
         )}
       </div>
-      
+
       {/* Das Schließen-Kreuz */}
-      <button 
-        className="update-close" 
+      <button
+        className="update-close"
         onClick={() => setUpdateStatus('hidden')}
       >
         ✕
@@ -6001,10 +5917,7 @@ const createProject = async () => {
 
       {!user ? (
       /* --- LOGIN BEREICH --- */
-      <div className="login-overlay" style={{
-  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-  width: '100%', height: '100vh', backgroundColor: '#2c3e50', color: 'white'
-}}>
+      <div className="login-overlay jsx-style-2a9f120870" >
   <form onSubmit={(e) => {
     e.preventDefault();
     setLoginNotice(null);
@@ -6023,36 +5936,29 @@ const createProject = async () => {
       localStorage.removeItem("baustellen_remembered_email");
     }
     handleLogin(e); // Deine eigentliche Login-Funktion aufrufen
-  }} style={{
-    backgroundColor: 'white', padding: '30px', borderRadius: '8px', 
-    display: 'flex', flexDirection: 'column', width: '300px', gap: '15px'
-  }}>
-    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>
+  }} className="jsx-style-abbc77aaba" >
+    <h2 className="jsx-style-ce50fd2f7f" >
       {registerMode ? "Registrieren" : passwordResetMode ? "Passwort zurücksetzen" : "Baustellen Login"}
     </h2>
 
     {loginNotice && (
-      <div role="alert" style={{
-        padding: '10px', borderRadius: '4px', fontSize: '13px', lineHeight: 1.4,
-        background: loginNotice.type === "success" ? '#dcfce7' : loginNotice.type === "warning" ? '#fef3c7' : '#fee2e2',
-        color: loginNotice.type === "success" ? '#166534' : loginNotice.type === "warning" ? '#92400e' : '#991b1b'
-      }}>
+      <div role="alert" className="jsx-style-1130764473" style={{ background: loginNotice.type === "success" ? '#dcfce7' : loginNotice.type === "warning" ? '#fef3c7' : '#fee2e2', color: loginNotice.type === "success" ? '#166534' : loginNotice.type === "warning" ? '#92400e' : '#991b1b' }}>
         {loginNotice.text}
       </div>
     )}
-    
-    <input 
-      type="email" placeholder="E-Mail" value={loginEmail} 
+
+    <input
+      type="email" placeholder="E-Mail" value={loginEmail}
       onChange={(e) => setLoginEmail(e.target.value)}
-      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
-      required 
+      className="jsx-style-20387a1183"
+      required
     />
-    
+
     {!passwordResetMode && (
       <input
         type="password" placeholder="Passwort" value={loginPass}
         onChange={(e) => setLoginPass(e.target.value)}
-        style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+        className="jsx-style-20387a1183"
         required
       />
     )}
@@ -6062,43 +5968,29 @@ const createProject = async () => {
         type="password" placeholder="Passwort wiederholen" value={loginPass2}
         onChange={(e) => setLoginPass2(e.target.value)}
         minLength={8}
-        style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+        className="jsx-style-20387a1183"
         required
       />
     )}
 
     {/* --- NEU: "Merken" Checkbox --- */}
     {!registerMode && !passwordResetMode && (
-    <label style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      gap: '8px', 
-      color: '#2c3e50', 
-      fontSize: '14px', 
-      cursor: 'pointer',
-      userSelect: 'none'
-    }}>
-      <input 
-        type="checkbox" 
-        checked={rememberMe} 
+    <label className="jsx-style-811aceda51" >
+      <input
+        type="checkbox"
+        checked={rememberMe}
         onChange={(e) => setRememberMe(e.target.checked)}
-        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+        className="jsx-style-9a49832d50"
       />
       E-Mail Adresse merken
     </label>
     )}
 
-    <button type="submit" style={{
-      padding: '10px', backgroundColor: '#3498db', color: 'white', 
-      border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold',
-      marginTop: '5px'
-    }}>
+    <button type="submit" className="jsx-style-44fa3d6354" >
       {registerMode ? "Registrieren" : passwordResetMode ? "Reset-E-Mail anfordern" : "Anmelden"}
     </button>
     {!registerMode && !passwordResetMode && (
-      <button type="button" onClick={() => { setPasswordResetMode(true); setLoginPass(""); setLoginNotice(null); }} style={{
-        background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', textDecoration: 'underline'
-      }}>
+      <button type="button" onClick={() => { setPasswordResetMode(true); setLoginPass(""); setLoginNotice(null); }} className="jsx-style-2a062fbdd5" >
         Passwort vergessen?
       </button>
     )}
@@ -6111,9 +6003,7 @@ const createProject = async () => {
       setLoginPass("");
       setLoginPass2("");
       setLoginNotice(null);
-    }} style={{
-      background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', textDecoration: 'underline'
-    }}>
+    }} className="jsx-style-2a062fbdd5" >
       {registerMode || passwordResetMode ? "Zurück zum Login" : "Noch kein Konto? Registrieren"}
     </button>
   </form>
@@ -6121,47 +6011,23 @@ const createProject = async () => {
     ) : (
       /* --- DEINE EIGENTLICHE APP --- */
       <>
-      <button 
-        className={`sidebar-toggle ${sidebarOpen ? "shifted" : ""}`} 
+      <button
+        className={["jsx-style-1cd0661405", (`sidebar-toggle ${sidebarOpen ? "shifted" : ""}`)].filter(Boolean).join(" ")}
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        style={{
-          left: sidebarOpen && isWideLayout ? "min(85vw, 1225px)" : undefined,
-          transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          zIndex: isWideLayout ? 51 : undefined
-        }}
+        style={{ left: sidebarOpen && isWideLayout ? "min(85vw, 1225px)" : undefined, zIndex: isWideLayout ? 51 : undefined }}
       >
         {sidebarOpen ? "◀" : "☰"}
       </button>
-    
+
     {/* HIER WIRD DIE BREITE LIVE ERWEITERT, WENN DER TAB "Aufmaß" AKTIV IST */}
-    <div 
-      className={`sidebar ${sidebarOpen ? "open" : "closed"}`}
-      style={{
-        width: isWideLayout && sidebarOpen ? "85vw" : undefined,
-        maxWidth: isWideLayout && sidebarOpen ? "1200px" : undefined,
-        zIndex: isWideLayout ? 50 : undefined,
-        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease",
-      }}
+    <div
+      className={["jsx-style-176d39d20b", (`sidebar ${sidebarOpen ? "open" : "closed"}`)].filter(Boolean).join(" ")}
+      style={{ width: isWideLayout && sidebarOpen ? "85vw" : undefined, maxWidth: isWideLayout && sidebarOpen ? "1200px" : undefined, zIndex: isWideLayout ? 50 : undefined }}
     >
-      <div className="sidebar-content" style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100%', 
-        minHeight: 0,
-        overflow: 'visible',
-        position: 'relative'
-      }}>
-        
+      <div className="sidebar-content jsx-style-37dbad8346" >
+
         {/* --- 1. STATISCHER HEADER (Bleibt immer oben) --- */}
-        <div className="sidebar-header-static" style={{ 
-          padding: '5px', 
-          flexShrink: 0, 
-          borderBottom: '1px solid #eee',
-          backgroundColor: '#fff',
-          zIndex: 100,
-          position: 'relative',
-          overflow: 'visible'
-        }}>
+        <div className={`sidebar-header-static${mode === "list" ? " project-list-mode" : ""}`}>
       <div className="header-bar">
         {can("createProject") && (
         <button onClick={() => {
@@ -6179,50 +6045,34 @@ const createProject = async () => {
         )}
         <button onClick={handleBack}>← Zurück </button>
         {can("bauzeitenplan") && (
-        <button onClick={() => setBauzeitenplanOpen(true)} style={{ backgroundColor: '#0f766e' }}>
+        <button onClick={() => setBauzeitenplanOpen(true)} className="jsx-style-e86bd4cf66" >
           Bauzeitenplan
         </button>
         )}
         <button onClick={() => {
           setSettingsModalTab("Einstellungen");
           setSettingsOpen(true);
-        }} style={{ backgroundColor: '#2c3e50' }}>
+        }} className="jsx-style-e91129e1af" >
           Einstellungen
         </button>
       </div>
 
       {/* SUCHE UND FILTER: Jetzt HIER im statischen Header */}
       {mode === "list" && (
-        <div style={{ marginTop: "5px" }}>
+        <div className="project-list-filters">
           {/* Suche */}
-          <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
+          <div className="project-search">
             <input
               type="text"
               placeholder="Suchen..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 35px 8px 10px",
-                borderRadius: "4px",
-                border: "1px solid #ffa500",
-                boxSizing: "border-box"
-              }}
+              className="project-search-input"
             />
             {search && (
               <span
                 onClick={() => setSearch("")}
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  cursor: "pointer",
-                  color: "#999",
-                  fontSize: "20px",
-                  lineHeight: "1",
-                  zIndex: 10
-                }}
+                className="project-search-clear"
               >✕</span>
             )}
           </div>
@@ -6321,7 +6171,7 @@ const createProject = async () => {
           </div>
         </div>
       )}
-      <h3>Baustellen</h3>
+      <h3 className="project-list-heading">Baustellen</h3>
               {mode === "detail" && (
                 <div className="project-status-list project-status-header">
                   {getProjectStatuses(form).map((status) => (
@@ -6337,30 +6187,16 @@ const createProject = async () => {
               )}
 
               {mode === "detail" && (
-                <div className="tabs" style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "repeat(3, 1fr)", // Erzwingt immer genau 3 Spalten
-                  gap: "8px",                            // Abstand zwischen den Feldern
-                  marginBottom: "16px" 
-                }}>
+                <div className="tabs jsx-style-d581945519" >
                   {visibleTabs.map((t) => (
-                    <div 
-                      key={t} 
-                      className={`tab ${activeTab === t ? "active" : ""}`} 
+                    <div
+                      key={t}
+                      className={["jsx-style-74d2ecbf90", (`tab ${activeTab === t ? "active" : ""}`)].filter(Boolean).join(" ")}
                       onClick={() => {
                         if (t === "Vorlage") copyTemplate();
                         else setActiveTab(t);
                       }}
-                      style={{
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        padding: "10px",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        // Hier stellst du sicher, dass sie nicht "aufgebläht" werden
-                        whiteSpace: "nowrap" 
-                      }}
+
                     >
                       {t}
                     </div>
@@ -6370,23 +6206,17 @@ const createProject = async () => {
               {/* Hier einfügen wenn nicht scrollbar sein soll */}
 
     </div>
-          
-    <div ref={sidebarScrollAreaRef} className="sidebar-scroll-area" style={{
-          flexGrow: 1, 
-          overflowY: 'auto', // Nur hier wird gescrollt
-          padding: '5px',
-          minHeight: 0,
-          position: 'relative',
-          zIndex: 1
-        }}>
+
+    <div
+      ref={sidebarScrollAreaRef}
+      className={`sidebar-scroll-area${mode === "list" ? " project-list-view" : ""}`}
+    >
               {mode === "list" && (
                 <>
-                  <div style={{ position: "relative", width: "100%", marginBottom: "10px" }}>
-      </div>
       {filteredProjects.map((p) => (
-        <div 
-          key={p.id} 
-          className="project-card" 
+        <div
+          key={p.id}
+          className="project-card"
           onClick={() => openProject(p)}
           // --- DRAG & DROP LOGIK START ---
           onDragOver={(e) => {
@@ -6403,7 +6233,7 @@ const createProject = async () => {
         // Styles zurücksetzen
         e.currentTarget.style.border = "none";
         e.currentTarget.style.backgroundColor = "transparent";
-        
+
         const rawFiles = Array.from(e.dataTransfer.files);
         if (rawFiles.length === 0) return;
 
@@ -6440,10 +6270,10 @@ const createProject = async () => {
       }}
           // --- DRAG & DROP LOGIK ENDE ---
         >
-          <div style={{ display: "flex", gap: 8 }}>
-            <strong style={{ wordBreak: "break-word", wordWrap: "break-word", overflow: "hidden" }}>{p.name}</strong>
+          <div className="project-card-title">
+            <strong className="project-card-name">{p.name}</strong>
           </div>
-          <div className="project-status-list">
+          <div className="project-status-list project-card-statuses">
             {getProjectStatuses(p).map((status) => (
               <span
                 key={status}
@@ -6454,14 +6284,14 @@ const createProject = async () => {
               />
             ))}
           </div>
-          <div style={{ fontSize: 12 }}>{p.type}</div>
-          {p.ab_hsw && <div style={{ fontSize: 12 }}>AB HSW: {p.ab_hsw}</div>}
-          {p.ab_mueller && <div style={{ fontSize: 12 }}>AB Müller: {p.ab_mueller}</div>}
+          <div className="project-card-meta">{p.type}</div>
+          {p.ab_hsw && <div className="project-card-meta">AB HSW: {p.ab_hsw}</div>}
+          {p.ab_mueller && <div className="project-card-meta">AB Müller: {p.ab_mueller}</div>}
           {p.westnetz && (
-            <div style={{ fontSize: 12 }}>
+            <div className="project-card-meta">
               <strong>WN:</strong>
               {p.westnetz.split("\n").map((w, i) => (
-                <div key={i} style={{ marginLeft: 6 }}>• {w}</div>
+                <div key={i} className="project-card-westnetz-line">• {w}</div>
               ))}
             </div>
           )}
@@ -6479,10 +6309,10 @@ const createProject = async () => {
         {(mode === "detail" || mode === "create") && (
           <fieldset
             disabled={activeTabLocked}
-            style={{ border: 0, margin: 0, padding: 0, minWidth: 0, opacity: activeTabLocked ? 0.85 : 1 }}
+            className="jsx-style-7af606e37d" style={{ opacity: activeTabLocked ? 0.85 : 1 }}
           >
             {activeTabLocked && (
-              <div style={{ background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "6px 10px", fontSize: 12, marginBottom: 8 }}>
+              <div className="jsx-style-29d7179f2d" >
                 Nur Ansicht – keine Berechtigung zum Bearbeiten.
               </div>
             )}
@@ -6492,7 +6322,7 @@ const createProject = async () => {
                 {mode === "create" && (
                   <>
                     <label>Adresse suchen</label>
-                    <div style={{ position: "relative", zIndex: 1000 }}>
+                    <div className="jsx-style-244885b95b" >
                       <input value={searchAddress} onChange={(e) => {
                           const value = e.target.value;
                           setSearchAddress(value);
@@ -6500,14 +6330,14 @@ const createProject = async () => {
                           setSearchTimeout(setTimeout(() => searchLocation(value), 500));
                         }} placeholder="Straße + Ort" />
                       {searchResults.length > 0 && (
-                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ccc", borderRadius: "6px", marginTop: "4px", maxHeight: "200px", overflowY: "auto", zIndex: 99999 }}>
+                        <div className="jsx-style-3f2c750448" >
                           {searchResults.map((r, i) => (
                             <div key={i} onClick={() => {
                                 setSelectedPosition({ lat: Number(r.lat), lng: Number(r.lon) });
                                 setForm(prev => ({ ...prev, address: r.display_name }));
                                 setSearchAddress(r.display_name);
                                 setSearchResults([]);
-                              }} style={{ padding: "8px", cursor: "pointer", borderBottom: "1px solid #eee" }}>
+                              }} className="jsx-style-599001743b" >
                               {r.display_name}
                             </div>
                           ))}
@@ -6521,7 +6351,7 @@ const createProject = async () => {
                 <label>Adresse</label>
                 <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
                 <label>Westnetznummer</label>
-                <textarea value={form.westnetz || ""} onChange={(e) => setForm({ ...form, westnetz: e.target.value })} rows={2} style={{ resize: "vertical", minHeight: "60px" }} />
+                <textarea value={form.westnetz || ""} onChange={(e) => setForm({ ...form, westnetz: e.target.value })} rows={2} className="jsx-style-e50c8e2caf"  />
                 <label>AB-Nummer HSW</label>
                 <input value={form.ab_hsw || ""} onChange={(e) => setForm({ ...form, ab_hsw: e.target.value })} />
                 <label>AB-Nummer Müller</label>
@@ -6575,16 +6405,16 @@ const createProject = async () => {
                         .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
                       if (projectSchedule.length === 0) {
                         return (
-                          <div style={{ color: "#888", fontSize: "13px", marginBottom: "10px" }}>
+                          <div className="jsx-style-bc6955b34c" >
                             Noch nicht im Bauzeitenplan eingeplant.
                           </div>
                         );
                       }
                       return (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+                        <div className="jsx-style-d5914edd84" >
                           {projectSchedule.map((entry) => (
-                            <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", background: "#f4f6f8", border: "1px solid #e0e0e0", borderRadius: "6px", padding: "6px 10px" }}>
-                              <span style={{ width: 10, height: 10, borderRadius: "50%", background: entry.color || "#0284c7", flexShrink: 0 }} />
+                            <div key={entry.id} className="jsx-style-a437ff4d1d" >
+                              <span className="jsx-style-8924604041" style={{ background: entry.color || "#0284c7" }} />
                               <strong>{entry.expand?.crew?.name || "Unbekannte Truppe"}</strong>
                               <span>{formatDateToDDMMYYYY(new Date(entry.start_date))} – {formatDateToDDMMYYYY(new Date(entry.end_date))}</span>
                             </div>
@@ -6595,28 +6425,19 @@ const createProject = async () => {
                   </>
                 )}
                 <label>Notizen</label>
-                <textarea ref={notesRef} value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} style={{ resize: "vertical", overflow: "hidden", minHeight: "60px" }} />
+                <textarea ref={notesRef} value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} className="jsx-style-18c57dd905"  />
                 {mode === "create" ? (
-    <button 
-      onClick={createProject} 
-      style={{ 
-        background: "#27ae60", 
-        color: "white", 
-        padding: "12px", 
-        borderRadius: "4px", 
-        cursor: "pointer", 
-        fontWeight: "bold",
-        marginTop: "10px",
-        border: "none" 
-      }}
+    <button
+      onClick={createProject}
+      className="jsx-style-5a6491b7f9"
     >
       ✔ Baustelle speichern
     </button>
   ) : can("deleteProject") && (
-    <button 
-      className="delete-btn" 
+    <button
+      className="delete-btn jsx-style-355f4ad668"
       onClick={() => deleteProject(selectedProject.id)}
-      style={{ background: "#e74c3c", color: "white", padding: "8px", borderRadius: "4px", cursor: "pointer", marginTop: "10px" }}
+
     >
       Baustelle löschen
     </button>
@@ -6658,39 +6479,39 @@ const createProject = async () => {
               <span className="stat-label">Gesamt</span>
             </div>
             <div className="stat-card stat-tausch">
-              <span className="stat-value" style={{color: '#3b82f6'}}>{countTausch}</span>
+              <span className="stat-value jsx-style-b40384491d" >{countTausch}</span>
               <span className="stat-label">Tausch</span>
             </div>
             <div className="stat-card stat-montage">
-              <span className="stat-value" style={{color: '#22c55e'}}>{countMontage}</span>
+              <span className="stat-value jsx-style-d99b7b35a9" >{countMontage}</span>
               <span className="stat-label">Montage</span>
             </div>
             <div className="stat-card stat-demontage">
-              <span className="stat-value" style={{color: '#ef4444'}}>{countDemontage}</span>
+              <span className="stat-value jsx-style-e216027010" >{countDemontage}</span>
               <span className="stat-label">Demontage</span>
             </div>
             {isCurrentProjectKonzept && (
               <div className="stat-card stat-time" title="Berechnet aus Montage 1,8/Tag, Tausch 1,2/Tag, Demontage 3,7/Tag und mit Ist-Werktagen vergangener Konzept-Baustellen dynamisch korrigiert">
-                <span className="stat-value" style={{color: '#fbbf24'}}>{estimatedDurationLabel}</span>
+                <span className="stat-value jsx-style-71556c24ba" >{estimatedDurationLabel}</span>
                 <span className="stat-label">Zeitbedarf</span>
               </div>
             )}
           </div>
 
           {isCurrentProjectKonzept && (
-            <div style={{ marginTop: '10px', marginBottom: '14px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '10px', color: '#cbd5e1' }}>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>Tatsächlich gebraucht (Werktage)</label>
+            <div className="jsx-style-5930ee4998" >
+              <div className="jsx-style-987bf308d7" >
+                <label className="jsx-style-f490c467fe" >Tatsächlich gebraucht (Werktage)</label>
                 <input
                   type="text"
                   inputMode="decimal"
-                  className="mast-input-base"
-                  style={{ width: '180px' }}
+                  className="mast-input-base jsx-style-e9234fca55"
+
                   placeholder="z.B. 8"
                   value={actualWorkDaysValue}
                   onChange={(e) => updateAufmassAllgemein('tatsaechlicheWerktage', e.target.value)}
                 />
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                <div className="jsx-style-fba9fd3e71" >
                   {`Basis: ${baseEstimatedDurationLabel} | Korrekturfaktor: ${dynamicTimeFactor.toFixed(2)} (${calibrationSampleCount} Konzept-Baustellen mit Ist-Wert)`}
                 </div>
               </div>
@@ -6698,16 +6519,16 @@ const createProject = async () => {
           )}
 
           {/* --- MASSENANLAGE TOOLBAR --- */}
-          <div className="batch-bar" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap', background: '#1e293b', padding: '15px', borderRadius: '8px' }}>
-  
+          <div className="batch-bar jsx-style-c7cc6121bb" >
+
   <div className="field-group">
-    <span className="field-label" style={{color: '#cbd5e1'}}>Mast Nr. (z.B. 1, 2, 5-8)</span>
-    <input type="text" id="batch-ids" defaultValue="" placeholder="1, 2, 5-8" className="mast-input-base" style={{width: '120px'}} />
+    <span className="field-label jsx-style-c38c2c413d" >Mast Nr. (z.B. 1, 2, 5-8)</span>
+    <input type="text" id="batch-ids" defaultValue="" placeholder="1, 2, 5-8" className="mast-input-base jsx-style-9c4ffdcd37"  />
   </div>
 
   <div className="field-group">
-    <span className="field-label" style={{color: '#cbd5e1'}}>Aktion</span>
-    <select id="batch-aktion" className="mast-input-base" style={{width: '110px'}} value={batchAktion} onChange={(e) => setBatchAktion(e.target.value)}>
+    <span className="field-label jsx-style-c38c2c413d" >Aktion</span>
+    <select id="batch-aktion" className="mast-input-base jsx-style-a7fd078f69"  value={batchAktion} onChange={(e) => setBatchAktion(e.target.value)}>
       <option value="Tausch">Tausch</option>
       <option value="Montage">Montage</option>
       <option value="Demontage">Demontage</option>
@@ -6717,43 +6538,43 @@ const createProject = async () => {
 
   {/* ALT-FELDER */}
   {(batchAktion === "Tausch" || batchAktion === "Demontage") && (
-    <div id="batch-alt-fields" style={{display: 'flex', gap: '10px'}}>
+    <div id="batch-alt-fields" className="jsx-style-f58a09f497" >
       <div className="field-group">
-        <span className="field-label" style={{color: '#fc8181'}}>Mast Art Alt</span>
-        <select id="batch-masttyp-alt" className="mast-input-base" style={{width: '100px'}}>
+        <span className="field-label jsx-style-5347e5807e" >Mast Art Alt</span>
+        <select id="batch-masttyp-alt" className="mast-input-base jsx-style-fccc6ec716" >
           <option value="Gerade">Gerade</option>
           <option value="Gebogen">Gebogen</option>
         </select>
       </div>
       <div className="field-group">
-        <span className="field-label" style={{color: '#fc8181'}}>LPH Alt</span>
-        <input id="batch-lph-alt" defaultValue="4,5" className="mast-input-base" style={{width: '50px'}} />
+        <span className="field-label jsx-style-5347e5807e" >LPH Alt</span>
+        <input id="batch-lph-alt" defaultValue="4,5" className="mast-input-base jsx-style-10af4b774b"  />
       </div>
     </div>
   )}
 
   {/* NEU-FELDER */}
   {(batchAktion === "Tausch" || batchAktion === "Montage" || batchAktion === LK_SIKA_TAUSCH_ACTION) && (
-    <div id="batch-neu-fields" style={{display: 'flex', gap: '10px', flex: 1, minWidth: '200px', flexWrap: 'wrap'}}>
+    <div id="batch-neu-fields" className="jsx-style-636aff0c26" >
       {batchAktion !== LK_SIKA_TAUSCH_ACTION && (
         <div className="field-group">
-          <span className="field-label" style={{color: '#3b82f6'}}>Mast Art Neu</span>
-          <select id="batch-masttyp-neu" className="mast-input-base" style={{width: '100px'}}>
+          <span className="field-label jsx-style-b40384491d" >Mast Art Neu</span>
+          <select id="batch-masttyp-neu" className="mast-input-base jsx-style-fccc6ec716" >
             <option value="Gerade">Gerade</option>
             <option value="Gebogen">Gebogen</option>
           </select>
         </div>
       )}
-      <div className="field-group" style={{flex: 1, minWidth: '180px'}}>
-        <span className="field-label" style={{color: '#3b82f6'}}>Leuchte *</span>
-        <select id="batch-neu" className="mast-input-base" style={{width: '100%'}} onChange={(e) => {
+      <div className="field-group jsx-style-dd2eaf0167" >
+        <span className="field-label jsx-style-b40384491d" >Leuchte *</span>
+        <select id="batch-neu" className="mast-input-base jsx-style-7d98474860"  onChange={(e) => {
           const val = e.target.value;
           const lm = LEUCHTEN_DATA[val];
           const customInput = document.getElementById('batch-neu-custom');
           const lumenInput = document.getElementById('batch-lumen-neu');
           if (val === "CUSTOM") {
             customInput.style.display = 'block';
-            lumenInput.value = ""; 
+            lumenInput.value = "";
           } else {
             customInput.style.display = 'none';
             if(lm) lumenInput.value = lm;
@@ -6761,25 +6582,25 @@ const createProject = async () => {
         }}>
           <option value="">Wählen...</option>
           {Object.keys(LEUCHTEN_DATA).map(t => <option key={t} value={t}>{t}</option>)}
-          <option value="CUSTOM" style={{fontWeight: 'bold', color: '#3b82f6'}}>— Sonstiges (Freitext) —</option>
+          <option value="CUSTOM" className="jsx-style-22f7267e1e" >— Sonstiges (Freitext) —</option>
         </select>
-        <input type="text" id="batch-neu-custom" placeholder="Eigene Leuchte..." className="mast-input-base" style={{width: '100%', marginTop: '5px', display: 'none'}} />
+        <input type="text" id="batch-neu-custom" placeholder="Eigene Leuchte..." className="mast-input-base jsx-style-5c77d2fa15"  />
       </div>
       {batchAktion !== LK_SIKA_TAUSCH_ACTION && (
         <div className="field-group">
-          <span className="field-label" style={{color: '#3b82f6'}}>LPH Neu</span>
-          <input id="batch-lph-neu" defaultValue="6" className="mast-input-base" style={{width: '50px'}} />
+          <span className="field-label jsx-style-b40384491d" >LPH Neu</span>
+          <input id="batch-lph-neu" defaultValue="6" className="mast-input-base jsx-style-10af4b774b"  />
         </div>
       )}
       <div className="field-group">
-        <span className="field-label" style={{color: '#3b82f6'}}>Lumen</span>
-        <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base" style={{width: '70px'}} />
+        <span className="field-label jsx-style-b40384491d" >Lumen</span>
+        <input type="number" id="batch-lumen-neu" defaultValue="2600" className="mast-input-base jsx-style-a774bc6da1"  />
       </div>
     </div>
   )}
 
-  <button 
-    style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', height: '32px', padding: '0 15px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-end', marginLeft: 'auto' }}
+  <button
+    className="jsx-style-66706459a6"
     onClick={async () => {
       const batchIdsInput = document.getElementById('batch-ids');
       const rawInput = batchIdsInput?.value || "";
@@ -6788,7 +6609,7 @@ const createProject = async () => {
         setAlertToast({ show: true, message: "Bitte Mastnummern eingeben!" });
         return;
       }
-      
+
       // Parser-Funktion für Nummern und Bereiche
       const parseMastInput = (str) => {
         const nums = [];
@@ -6825,7 +6646,7 @@ const createProject = async () => {
           return;
         }
       }
-      
+
       let selectedLeuchte = "";
       if (batchAktion !== "Demontage") {
         const dropDownValue = document.getElementById('batch-neu').value;
@@ -6847,7 +6668,7 @@ const createProject = async () => {
         lphNeu: (batchAktion === "Tausch" || batchAktion === "Montage") ? document.getElementById('batch-lph-neu').value : "",
         leuchten: batchAktion !== "Demontage" ? [{ typ: selectedLeuchte, lumen: document.getElementById('batch-lumen-neu').value }] : []
       }));
-      
+
       setForm(prev => ({ ...prev, masten: normalizeMastLabels([...(prev.masten || []), ...neueMasten]) }));
       setToast(`✅ ${neueMasten.length} ${neueMasten.length === 1 ? "Mast" : "Masten"} hinzugefügt`);
       scheduleToastDismiss(2500);
@@ -6859,10 +6680,10 @@ const createProject = async () => {
   >
     + Hinzufügen
   </button>
-</div> 
+</div>
 
           {/* --- MASTEN LISTE --- */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div className="jsx-style-89e7d1f47b" >
             {/* Wir sortieren hier das Array für die Anzeige */}
             {[...form.masten]
               .sort((a, b) => {
@@ -6873,10 +6694,10 @@ const createProject = async () => {
                 return sortA.suffixIndex - sortB.suffixIndex;
               })
               .map((m, index) => {
-                // WICHTIG: Wir suchen den echten Index im Original-Array, 
+                // WICHTIG: Wir suchen den echten Index im Original-Array,
                 // damit updateMast den richtigen Datensatz ändert!
                 const originalIndex = findOriginalIndexByMast(form.masten, m);
-                
+
                 const displayNum = (() => {
                   const parsed = parseMastLabel(m.mastLabel);
                   if (parsed.number) return `${parsed.number}${parsed.suffix || ""}`;
@@ -6896,10 +6717,10 @@ const createProject = async () => {
 
                       <div className="field-group">
                         <span className="field-label">Aktion</span>
-                        <select 
-                          className="mast-input-base" 
-                          style={{ width: '110px' }} 
-                          value={m.aktion} 
+                        <select
+                          className="mast-input-base jsx-style-a7fd078f69"
+
+                          value={m.aktion}
                           onChange={(e) => updateMast(originalIndex, 'aktion', e.target.value)}
                         >
                           <option value="Tausch">Tausch</option>
@@ -6909,8 +6730,8 @@ const createProject = async () => {
                         </select>
                       </div>
 
-                      <div className="header-actions" style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
-                        <button style={{ background: '#ef4444' }} onClick={() => {
+                      <div className="header-actions jsx-style-9863aa714c" >
+                        <button className="jsx-style-3c3439eaf6"  onClick={() => {
                           const n = [...form.masten];
                           n.splice(originalIndex, 1);
                           setForm(prev => ({ ...prev, masten: n }));
@@ -6923,18 +6744,18 @@ const createProject = async () => {
                 {/* BESTAND (ALT) */}
                 {(m.aktion === "Tausch" || m.aktion === "Demontage") && (
                   <div className="alt-section">
-                    <span style={{fontSize: '10px', fontWeight: '800', color: '#c53030', display: 'block', marginBottom: '8px'}}>BESTAND AM MAST (ALT)</span>
-                    <div style={{display: 'flex', gap: '15px'}}>
-                      <div className="field-group" style={{flex: 1}}>
+                    <span className="jsx-style-cfc5f2cdf1" >BESTAND AM MAST (ALT)</span>
+                    <div className="jsx-style-d1462ddc75" >
+                      <div className="field-group jsx-style-8b190fcdbc" >
                         <span className="field-label">Alter Masttyp</span>
-                        <select className="mast-input-base" style={{width: '100%'}} value={m.mastTypAlt} onChange={(e) => updateMast(originalIndex, 'mastTypAlt', e.target.value)}>
+                        <select className="mast-input-base jsx-style-7d98474860"  value={m.mastTypAlt} onChange={(e) => updateMast(originalIndex, 'mastTypAlt', e.target.value)}>
                           <option value="Gerade">Gerade</option>
                           <option value="Gebogen">Gebogen</option>
                         </select>
                       </div>
                       <div className="field-group">
                         <span className="field-label">LPH Alt</span>
-                        <input className="mast-input-base" style={{width: '70px'}} value={m.lphAlt} onChange={(e) => updateMast(originalIndex, 'lphAlt', e.target.value)} />
+                        <input className="mast-input-base jsx-style-a774bc6da1"  value={m.lphAlt} onChange={(e) => updateMast(originalIndex, 'lphAlt', e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -6943,14 +6764,14 @@ const createProject = async () => {
                 {/* PLANUNG (NEU) */}
                 {(m.aktion === "Tausch" || m.aktion === "Montage" || m.aktion === LK_SIKA_TAUSCH_ACTION) && (
                   <div className="neu-section">
-                    <span style={{fontSize: '10px', fontWeight: '800', color: '#2b6cb0', display: 'block', marginBottom: '8px'}}>NEUE INSTALLATION (NEU)</span>
-                    <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
+                    <span className="jsx-style-c07913b3d2" >NEUE INSTALLATION (NEU)</span>
+                    <div className="jsx-style-0b6eb6d416" >
                       {m.aktion !== LK_SIKA_TAUSCH_ACTION && (
-                       <div className="field-group" style={{width: '120px'}}>
+                       <div className="field-group jsx-style-9c4ffdcd37" >
                 <span className="field-label">Neuer Masttyp</span>
-                <select 
-                  className="mast-input-base" 
-                  value={m.mastTypNeu} 
+                <select
+                  className="mast-input-base"
+                  value={m.mastTypNeu}
                   onChange={(e) => updateMast(originalIndex, 'mastTypNeu', e.target.value)}
                 >
                   <option value="Gerade">Gerade</option>
@@ -6958,17 +6779,17 @@ const createProject = async () => {
                 </select>
               </div>
                       )}
-                      <div className="field-group" style={{flex: 1, minWidth: '150px'}}>
+                      <div className="field-group jsx-style-1a09413d37" >
                 <span className="field-label">Leuchte</span>
-                <select 
-                  className="mast-input-base" 
-                  style={{width: '100%'}} 
-                  value={isCustomLeuchte ? "CUSTOM" : currentTyp} 
+                <select
+                  className="mast-input-base jsx-style-7d98474860"
+
+                  value={isCustomLeuchte ? "CUSTOM" : currentTyp}
                   onChange={(e) => {
                     const val = e.target.value;
                     const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
                     if (val === "CUSTOM") {
-                      nl[0].typ = ""; 
+                      nl[0].typ = "";
                     } else {
                       nl[0].typ = val;
                       if (LEUCHTEN_DATA[val]) nl[0].lumen = LEUCHTEN_DATA[val];
@@ -6982,10 +6803,10 @@ const createProject = async () => {
                 </select>
 
                 {(isCustomLeuchte || currentTyp === "") && (
-                  <input 
+                  <input
                     type="text"
-                    className="mast-input-base"
-                    style={{width: '100%', marginTop: '5px'}}
+                    className="mast-input-base jsx-style-eccb16da43"
+
                     placeholder="Eigene Leuchte bearbeiten..."
                     value={currentTyp}
                     onChange={(e) => {
@@ -6998,24 +6819,24 @@ const createProject = async () => {
               </div>
                       {m.aktion !== LK_SIKA_TAUSCH_ACTION && <div className="field-group">
                 <span className="field-label">LPH Neu</span>
-                <input 
-                  className="mast-input-base" 
-                  style={{width: '60px'}} 
-                  value={m.lphNeu} 
-                  onChange={(e) => updateMast(originalIndex, 'lphNeu', e.target.value)} 
+                <input
+                  className="mast-input-base jsx-style-73c84a2d4b"
+
+                  value={m.lphNeu}
+                  onChange={(e) => updateMast(originalIndex, 'lphNeu', e.target.value)}
                 />
               </div>}
                       <div className="field-group">
                 <span className="field-label">Lumen</span>
-                <input 
-                  className="mast-input-base" 
-                  style={{ width: '80px' }} 
-                  value={m.leuchten && m.leuchten[0] ? m.leuchten[0].lumen : ""} 
+                <input
+                  className="mast-input-base jsx-style-4706e1bb67"
+
+                  value={m.leuchten && m.leuchten[0] ? m.leuchten[0].lumen : ""}
                   onChange={(e) => {
-                    const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }]; 
-                    nl[0].lumen = e.target.value; 
+                    const nl = m.leuchten ? [...m.leuchten] : [{ typ: "", lumen: "" }];
+                    nl[0].lumen = e.target.value;
                     updateMast(originalIndex, 'leuchten', nl);
-                  }} 
+                  }}
                 />
               </div>
                     </div>
@@ -7032,17 +6853,17 @@ const createProject = async () => {
 
 {activeTab === "Aufmaß" && (
   <div className="masten-container aufmass-pane">
-    
+
     {/* 1. ALLGEMEIN SEKTION */}
     <div className="aufmass-allgemein-row">
       <div className="aufmass-inline-field aufmass-inline-field-transport">
         <span className="aufmass-section-title">🚛 Transport:</span>
-        <input 
-          type="text" 
+        <input
+          type="text"
           inputMode="decimal"
           className="mast-input-base aufmass-input aufmass-input-transport"
-          value={form.aufmass?.allgemein?.transport || ""} 
-          onChange={(e) => updateAufmassAllgemein('transport', e.target.value)} 
+          value={form.aufmass?.allgemein?.transport || ""}
+          onChange={(e) => updateAufmassAllgemein('transport', e.target.value)}
         />
         <span className="aufmass-unit">Std</span>
       </div>
@@ -7053,12 +6874,12 @@ const createProject = async () => {
           rows={1}
           className="mast-input-base aufmass-input aufmass-autogrow"
           placeholder="Anmerkungen zur Baustelle..."
-          value={form.aufmass?.allgemein?.extraInfos || ""} 
+          value={form.aufmass?.allgemein?.extraInfos || ""}
           onInput={autoResizeTextarea}
           onChange={(e) => {
             autoResizeTextarea(e);
             updateAufmassAllgemein('extraInfos', e.target.value);
-          }} 
+          }}
         />
       </div>
 
@@ -7145,7 +6966,7 @@ const createProject = async () => {
       </div>
 
       <div className="aufmass-head-actions">
-      <button 
+      <button
         className="aufmass-danger-btn"
         onClick={resetAufmassVonMasten}
       >
@@ -7155,59 +6976,59 @@ const createProject = async () => {
       <details className="aufmass-summen-details">
         <summary className="aufmass-summen-summary">📦 Summen</summary>
         <div className="aufmass-summen-content">
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '12px' }}>
+          <table className="jsx-style-f64e235f9e" >
             <thead>
-              <tr style={{ borderBottom: '2px solid #64748b' }}>
-                <th style={{ textAlign: 'left', padding: '8px', fontWeight: '600', color: '#e2e8f0' }}>Material</th>
-                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#22c55e' }}>ANS</th>
-                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#a855f7' }}>ÄND</th>
-                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#f43f5e' }}>ABR</th>
-                <th style={{ textAlign: 'center', padding: '8px', fontWeight: '600', color: '#94a3b8' }}>Gesamt</th>
+              <tr className="jsx-style-7df23b2b9a" >
+                <th className="jsx-style-4b31170ae8" >Material</th>
+                <th className="jsx-style-dd65ba4af1" >ANS</th>
+                <th className="jsx-style-431fbe98ce" >ÄND</th>
+                <th className="jsx-style-83ce6ffe12" >ABR</th>
+                <th className="jsx-style-7957a29b1a" >Gesamt</th>
               </tr>
             </thead>
             <tbody>
-              <tr style={{ borderBottom: '1px solid #334155' }}>
-                <td style={{ padding: '8px', color: '#cbd5e1' }}>Kabel (m)</td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#22c55e', fontWeight: '600' }}>
+              <tr className="jsx-style-5717c1580c" >
+                <td className="jsx-style-9e5016c726" >Kabel (m)</td>
+                <td className="jsx-style-4a19539f1a" >
                   {kabelSummen.ans}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#a855f7', fontWeight: '600' }}>
+                <td className="jsx-style-793662516e" >
                   {kabelSummen.aend}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#f43f5e', fontWeight: '600' }}>
+                <td className="jsx-style-3e8db55f00" >
                   {kabelSummen.abr}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#94a3b8', fontWeight: '600' }}>
+                <td className="jsx-style-b0e47dd93c" >
                   {kabelSummen.gesamt}
                 </td>
               </tr>
-              <tr style={{ borderBottom: '1px solid #334155' }}>
-                <td style={{ padding: '8px', color: '#cbd5e1' }}>Muffen (Stk)</td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#22c55e', fontWeight: '600' }}>
+              <tr className="jsx-style-5717c1580c" >
+                <td className="jsx-style-9e5016c726" >Muffen (Stk)</td>
+                <td className="jsx-style-4a19539f1a" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0), 0) : 0}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#a855f7', fontWeight: '600' }}>
+                <td className="jsx-style-793662516e" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenTausch) || 0), 0) : 0}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#f43f5e', fontWeight: '600' }}>
+                <td className="jsx-style-3e8db55f00" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenDemo) || 0), 0) : 0}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#94a3b8', fontWeight: '600' }}>
+                <td className="jsx-style-b0e47dd93c" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.muffenMontierenBis1m) || 0) + (Number(m.muffenMontierenUeber1m) || 0) + (Number(m.muffenMontierenDemo) || 0) + (Number(m.muffenMontierenTausch) || 0), 0) : 0}
                 </td>
               </tr>
               <tr>
-                <td style={{ padding: '8px', color: '#cbd5e1' }}>Endmuffen (Stk)</td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#22c55e', fontWeight: '600' }}>
+                <td className="jsx-style-9e5016c726" >Endmuffen (Stk)</td>
+                <td className="jsx-style-4a19539f1a" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenAns) || 0), 0) : 0}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#a855f7', fontWeight: '600' }}>
+                <td className="jsx-style-793662516e" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenTausch) || 0), 0) : 0}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#f43f5e', fontWeight: '600' }}>
+                <td className="jsx-style-3e8db55f00" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenDemo) || 0), 0) : 0}
                 </td>
-                <td style={{ textAlign: 'center', padding: '8px', color: '#94a3b8', fontWeight: '600' }}>
+                <td className="jsx-style-b0e47dd93c" >
                   {Array.isArray(form.aufmass?.masten) ? form.aufmass.masten.reduce((sum, m) => sum + (Number(m.endmuffenAns) || 0) + (Number(m.endmuffenTausch) || 0) + (Number(m.endmuffenDemo) || 0), 0) : 0}
                 </td>
               </tr>
@@ -7241,18 +7062,18 @@ const createProject = async () => {
 
           return (
             <div key={m.id || `aufmass-mast-${index + 1}`} className="aufmass-mast-card">
-              <div className="aufmass-card-header" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
-                
-                <div className="aufmass-badge-container" style={{ flexShrink: 0 }}>
+              <div className="aufmass-card-header jsx-style-1878ea9f32" >
+
+                <div className="aufmass-badge-container jsx-style-50a4752d45" >
                   <span className="aufmass-badge-label">MAST</span>
                   <div className="aufmass-badge-num">{displayNum || String(index + 1)}</div>
                 </div>
 
-                <div style={{ width: '110px', minWidth: '110px', flexShrink: 0 }}>
-                  <select 
-                    className="mast-input-base" 
-                    style={{ padding: '0 6px', height: '26px', width: '100%', borderRadius: '4px' }} 
-                    value={m.aktion || "Montage"} 
+                <div className="jsx-style-f7e49a7003" >
+                  <select
+                    className="mast-input-base jsx-style-500e41f06d"
+
+                    value={m.aktion || "Montage"}
                     onChange={(e) => updateAufmass(originalIndex, 'aktion', e.target.value)}
                   >
                     <option value="Montage">Montage</option>
@@ -7264,18 +7085,18 @@ const createProject = async () => {
 
                 {/* --- REGULÄR: MONTAGE / DEMONTAGE --- */}
                 {m.aktion !== "Tausch" && m.aktion !== LK_SIKA_TAUSCH_ACTION && (
-                  <div className="aufmass-flex-center" style={{ gap: '6px' }}>
-                    <input 
-                      type="text" 
-                      className="mast-input-base" 
-                      style={{ width: '45px', height: '26px', borderRadius: '4px', textAlign: 'center' }} 
-                      value={m.lichtpunkthoehe || ""} 
-                      onChange={(e) => updateAufmass(originalIndex, 'lichtpunkthoehe', e.target.value)} 
+                  <div className="aufmass-flex-center jsx-style-abaad5ec62" >
+                    <input
+                      type="text"
+                      className="mast-input-base jsx-style-dee6993130"
+
+                      value={m.lichtpunkthoehe || ""}
+                      onChange={(e) => updateAufmass(originalIndex, 'lichtpunkthoehe', e.target.value)}
                     />
-                    
-                    <select 
-                        className="mast-input-base" 
-                        style={{ height: '26px', width: '90px', borderRadius: '4px' }} 
+
+                    <select
+                        className="mast-input-base jsx-style-0b688c1f45"
+
                         value={m.aktion === "Demontage" ? (m.mastTypAlt || "Gerade") : (m.mastTypNeu || "Gerade")}
                         onChange={(e) => updateAufmass(originalIndex, m.aktion === "Demontage" ? 'mastTypAlt' : 'mastTypNeu', e.target.value)}
                     >
@@ -7283,10 +7104,10 @@ const createProject = async () => {
                         <option value="Gebogen">Gebogen</option>
                     </select>
 
-                    <select 
-                        className="mast-input-base" 
-                        style={{ height: '26px', width: '110px', borderRadius: '4px' }} 
-                        value={m.aktion === "Demontage" ? (m.demontageTyp || "Fundament") : (m.montageTyp || "Fundament")} 
+                    <select
+                        className="mast-input-base jsx-style-1501f27acc"
+
+                        value={m.aktion === "Demontage" ? (m.demontageTyp || "Fundament") : (m.montageTyp || "Fundament")}
                         onChange={(e) => updateAufmass(originalIndex, m.aktion === "Demontage" ? 'demontageTyp' : 'montageTyp', e.target.value)}
                     >
                       <option value="Fundament">Fundament</option>
@@ -7298,34 +7119,34 @@ const createProject = async () => {
 
                 {/* --- SPEZIALFALL: TAUSCH --- */}
                 {m.aktion === "Tausch" && (
-                  <div className="aufmass-flex-center" style={{ gap: '8px', borderLeft: '1px solid #334155', paddingLeft: '12px', flexShrink: 0 }}>
-                    
-                    <div className="aufmass-flex-center" style={{ gap: '2px' }}>
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Alt:</span>
-                      <input type="text" className="mast-input-base" style={{ width: '35px', height: '26px', textAlign: 'center' }} value={m.lphAlt || ""} onChange={(e) => updateAufmass(originalIndex, 'lphAlt', e.target.value)} />
-                      <select className="mast-input-base" style={{ height: '26px', width: '75px' }} value={m.mastTypAlt || "Gerade"} onChange={(e) => updateAufmass(originalIndex, 'mastTypAlt', e.target.value)}>
-                        <option value="Gerade">Gerade</option>
-                        <option value="Gebogen">Gebogen</option>
-                      </select>
-                    </div>
-                    
-                    <div className="aufmass-flex-center" style={{ gap: '2px' }}>
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Neu:</span>
-                      <input type="text" className="mast-input-base" style={{ width: '35px', height: '26px', textAlign: 'center' }} value={m.lphNeu || ""} onChange={(e) => updateAufmass(originalIndex, 'lphNeu', e.target.value)} />
-                      <select className="mast-input-base" style={{ height: '26px', width: '75px' }} value={m.mastTypNeu || "Gerade"} onChange={(e) => updateAufmass(originalIndex, 'mastTypNeu', e.target.value)}>
+                  <div className="aufmass-flex-center jsx-style-14273ac809" >
+
+                    <div className="aufmass-flex-center jsx-style-31c6d8dda0" >
+                      <span className="jsx-style-ce4e2e3fde" >Alt:</span>
+                      <input type="text" className="mast-input-base jsx-style-00208b2145"  value={m.lphAlt || ""} onChange={(e) => updateAufmass(originalIndex, 'lphAlt', e.target.value)} />
+                      <select className="mast-input-base jsx-style-a82a801ed0"  value={m.mastTypAlt || "Gerade"} onChange={(e) => updateAufmass(originalIndex, 'mastTypAlt', e.target.value)}>
                         <option value="Gerade">Gerade</option>
                         <option value="Gebogen">Gebogen</option>
                       </select>
                     </div>
 
-                    <div className="aufmass-flex-center" style={{ gap: '4px', borderLeft: '1px solid #334155', paddingLeft: '8px' }}>
-                      <select className="mast-input-base" style={{ height: '26px', width: '90px', borderRadius: '4px' }} value={m.tauschDemoTyp || "Fundament"} onChange={(e) => updateAufmass(originalIndex, 'tauschDemoTyp', e.target.value)}>
+                    <div className="aufmass-flex-center jsx-style-31c6d8dda0" >
+                      <span className="jsx-style-ce4e2e3fde" >Neu:</span>
+                      <input type="text" className="mast-input-base jsx-style-00208b2145"  value={m.lphNeu || ""} onChange={(e) => updateAufmass(originalIndex, 'lphNeu', e.target.value)} />
+                      <select className="mast-input-base jsx-style-a82a801ed0"  value={m.mastTypNeu || "Gerade"} onChange={(e) => updateAufmass(originalIndex, 'mastTypNeu', e.target.value)}>
+                        <option value="Gerade">Gerade</option>
+                        <option value="Gebogen">Gebogen</option>
+                      </select>
+                    </div>
+
+                    <div className="aufmass-flex-center jsx-style-8d0530164b" >
+                      <select className="mast-input-base jsx-style-0b688c1f45"  value={m.tauschDemoTyp || "Fundament"} onChange={(e) => updateAufmass(originalIndex, 'tauschDemoTyp', e.target.value)}>
                         <option value="Fundament">Fund. (Alt)</option>
                         <option value="PVC-Rohr">PVC (Alt)</option>
                         <option value="Flanschplatte">Flansch (Alt)</option>
                       </select>
-                      
-                      <select className="mast-input-base" style={{ height: '26px', width: '90px', borderRadius: '4px' }} value={m.tauschMontageTyp || "Fundament"} onChange={(e) => updateAufmass(originalIndex, 'tauschMontageTyp', e.target.value)}>
+
+                      <select className="mast-input-base jsx-style-0b688c1f45"  value={m.tauschMontageTyp || "Fundament"} onChange={(e) => updateAufmass(originalIndex, 'tauschMontageTyp', e.target.value)}>
                         <option value="Fundament">Fund. (Neu)</option>
                         <option value="PVC-Rohr">PVC (Neu)</option>
                         <option value="Flanschplatte">Flansch (Neu)</option>
@@ -7339,11 +7160,11 @@ const createProject = async () => {
               <div className="aufmass-grid-2col">
                 <div className="aufmass-inner-block">
                   <div className="aufmass-row-justify">
-                    <div className="aufmass-flex-center" style={{ alignItems: 'flex-start', gap: '6px' }}>
-                      <span style={{ color: '#38bdf8', fontWeight: '500' }}>🪵 Oberfläche:</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div className="aufmass-flex-center" style={{ gap: '4px' }}>
-                          <select className="mast-input-base" style={{ padding: '2px 4px', height: '24px', width: '130px', borderRadius: '4px' }} value={normalizeSurfaceType(m.oberflaeche || "Grass")} onChange={(e) => updateAufmass(originalIndex, 'oberflaeche', normalizeSurfaceType(e.target.value))}>
+                    <div className="aufmass-flex-center jsx-style-5173ba0022" >
+                      <span className="jsx-style-6658e3873f" >🪵 Oberfläche:</span>
+                      <div className="jsx-style-7da84b59f4" >
+                        <div className="aufmass-flex-center jsx-style-8778cad17d" >
+                          <select className="mast-input-base jsx-style-a21b1ebfcf"  value={normalizeSurfaceType(m.oberflaeche || "Grass")} onChange={(e) => updateAufmass(originalIndex, 'oberflaeche', normalizeSurfaceType(e.target.value))}>
                             {SURFACE_OPTIONS.map((opt) => (
                               <option key={opt.value} value={opt.value}>{opt.label}</option>
                             ))}
@@ -7351,9 +7172,9 @@ const createProject = async () => {
 
                           {normalizeSurfaceType(m.oberflaeche || "Grass") !== "Grass" && (
                             <>
-                              <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={m.oberflaecheX || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheX', e.target.value)} />
+                              <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base jsx-style-4db5932d34"  value={m.oberflaecheX || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheX', e.target.value)} />
                               <span className="aufmass-text-subtle">×</span>
-                              <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={m.oberflaecheY || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheY', e.target.value)} />
+                              <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base jsx-style-4db5932d34"  value={m.oberflaecheY || ""} onChange={(e) => updateAufmass(originalIndex, 'oberflaecheY', e.target.value)} />
                             </>
                           )}
 
@@ -7368,17 +7189,17 @@ const createProject = async () => {
                         </div>
 
                         {normalizeExtraSurfaces(m.oberflaechenExtra).map((extra, extraIndex) => (
-                          <div key={extra.id || `${originalIndex}-${extraIndex}`} className="aufmass-flex-center" style={{ gap: '4px' }}>
-                            <select className="mast-input-base" style={{ padding: '2px 4px', height: '22px', width: '130px', borderRadius: '4px' }} value={normalizeSurfaceType(extra.typ || "Platten")} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'typ', e.target.value)}>
+                          <div key={extra.id || `${originalIndex}-${extraIndex}`} className="aufmass-flex-center jsx-style-8778cad17d" >
+                            <select className="mast-input-base jsx-style-165e17e52f"  value={normalizeSurfaceType(extra.typ || "Platten")} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'typ', e.target.value)}>
                               {SURFACE_OPTIONS.map((opt) => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
                               ))}
                             </select>
                             {normalizeSurfaceType(extra.typ || "Platten") !== "Grass" && (
                               <>
-                                <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={extra.x || ""} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'x', e.target.value)} />
+                                <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base jsx-style-4db5932d34"  value={extra.x || ""} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'x', e.target.value)} />
                                 <span className="aufmass-text-subtle">×</span>
-                                <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ padding: '1px 3px', width: '40px', height: '22px', textAlign: 'center', borderRadius: '4px' }} value={extra.y || ""} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'y', e.target.value)} />
+                                <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base jsx-style-4db5932d34"  value={extra.y || ""} onChange={(e) => updateExtraOberflaeche(originalIndex, extraIndex, 'y', e.target.value)} />
                               </>
                             )}
                             <button
@@ -7392,7 +7213,7 @@ const createProject = async () => {
                           </div>
                         ))}
 
-                        <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '11px' }}>
+                        <span className="jsx-style-704e32ff91" >
                           Gesamtfläche: {(() => {
                             const base = normalizeSurfaceType(m.oberflaeche || "Grass") !== "Grass"
                               ? calculateArea(m.oberflaecheX, m.oberflaecheY)
@@ -7410,9 +7231,9 @@ const createProject = async () => {
 
                   <div className="aufmass-kabel-zone">
                     <div className="aufmass-kabel-field">
-                      <div className="aufmass-flex-center" style={{ gap: '4px' }}>
+                      <div className="aufmass-flex-center jsx-style-8778cad17d" >
                         <span>🔗 Kabel:</span>
-                        <input type="text" inputMode="decimal" className="mast-input-base" style={{ padding: '2px 4px', height: '24px', width: '55px', borderRadius: '4px', textAlign: 'center' }} placeholder="0" value={m.aufmassKabel || ""} onChange={(e) => updateAufmass(originalIndex, 'aufmassKabel', e.target.value)} />
+                        <input type="text" inputMode="decimal" className="mast-input-base jsx-style-ff78494265"  placeholder="0" value={m.aufmassKabel || ""} onChange={(e) => updateAufmass(originalIndex, 'aufmassKabel', e.target.value)} />
                         <span className="aufmass-text-subtle">m</span>
                       </div>
                     </div>
@@ -7421,29 +7242,29 @@ const createProject = async () => {
                         <summary className="aufmass-sondersachen-summary">🛠️ Sondersachen HSW</summary>
                         <div className="aufmass-sondersachen-content">
                           <div className="aufmass-row-justify">
-                            <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rasenkanten:</span>
-                            <div className="aufmass-flex-center" style={{ gap: '3px' }}>
-                              <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheRasenkante || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRasenkante', e.target.value)} />
-                              <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>Stk</span>
+                            <span className="jsx-style-53e65376d8" >Rasenkanten:</span>
+                            <div className="aufmass-flex-center jsx-style-d95c4f57ba" >
+                              <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base jsx-style-63f2c646a7"  value={m.sondersacheRasenkante || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRasenkante', e.target.value)} />
+                              <span className="aufmass-text-subtle jsx-style-71ccd93488" >Stk</span>
                             </div>
                           </div>
                           <div className="aufmass-row-justify">
-                            <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Bordsteine:</span>
-                            <div className="aufmass-flex-center" style={{ gap: '3px' }}>
-                              <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheBordstein || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheBordstein', e.target.value)} />
-                              <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>Stk</span>
+                            <span className="jsx-style-53e65376d8" >Bordsteine:</span>
+                            <div className="aufmass-flex-center jsx-style-d95c4f57ba" >
+                              <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base jsx-style-63f2c646a7"  value={m.sondersacheBordstein || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheBordstein', e.target.value)} />
+                              <span className="aufmass-text-subtle jsx-style-71ccd93488" >Stk</span>
                             </div>
                           </div>
                           <div className="aufmass-row-justify">
-                            <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rinnenfluss:</span>
-                            <div className="aufmass-flex-center" style={{ gap: '1px', flexWrap: 'nowrap', justifyContent: 'flex-end', flexShrink: 1, minWidth: 0 }}>
-                              <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheRinnenflussX || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenflussX', e.target.value)} />
-                              <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>×</span>
-                              <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheRinnenflussY || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenflussY', e.target.value)} />
-                              <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>m²</span>
+                            <span className="jsx-style-53e65376d8" >Rinnenfluss:</span>
+                            <div className="aufmass-flex-center jsx-style-e373425dee" >
+                              <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base jsx-style-faa04428f8"  value={m.sondersacheRinnenflussX || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenflussX', e.target.value)} />
+                              <span className="aufmass-text-subtle jsx-style-71ccd93488" >×</span>
+                              <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base jsx-style-faa04428f8"  value={m.sondersacheRinnenflussY || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheRinnenflussY', e.target.value)} />
+                              <span className="aufmass-text-subtle jsx-style-71ccd93488" >m²</span>
                             </div>
                           </div>
-                          <div style={{ marginTop: '2px', textAlign: 'right', fontSize: '10px', color: '#22c55e', fontWeight: 'bold' }}>
+                          <div className="jsx-style-72b6ea2afb" >
                             Gesamtfläche: {calculateArea(m.sondersacheRinnenflussX, m.sondersacheRinnenflussY).toFixed(2)} m²
                           </div>
                         </div>
@@ -7452,29 +7273,29 @@ const createProject = async () => {
                       <summary className="aufmass-sondersachen-summary">🛠️ Sondersachen Müller</summary>
                       <div className="aufmass-sondersachen-content">
                         <div className="aufmass-row-justify">
-                          <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rasenkanten:</span>
-                          <div className="aufmass-flex-center" style={{ gap: '3px' }}>
-                            <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerRasenkante || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRasenkante', e.target.value)} />
-                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>Stk</span>
+                          <span className="jsx-style-53e65376d8" >Rasenkanten:</span>
+                          <div className="aufmass-flex-center jsx-style-d95c4f57ba" >
+                            <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base jsx-style-63f2c646a7"  value={m.sondersacheMuellerRasenkante || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRasenkante', e.target.value)} />
+                            <span className="aufmass-text-subtle jsx-style-71ccd93488" >Stk</span>
                           </div>
                         </div>
                         <div className="aufmass-row-justify">
-                          <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Bordsteine:</span>
-                          <div className="aufmass-flex-center" style={{ gap: '3px' }}>
-                            <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base" style={{ width: '40px', padding: '1px 3px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerBordstein || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerBordstein', e.target.value)} />
-                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>Stk</span>
+                          <span className="jsx-style-53e65376d8" >Bordsteine:</span>
+                          <div className="aufmass-flex-center jsx-style-d95c4f57ba" >
+                            <input type="text" inputMode="decimal" placeholder="0" className="mast-input-base jsx-style-63f2c646a7"  value={m.sondersacheMuellerBordstein || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerBordstein', e.target.value)} />
+                            <span className="aufmass-text-subtle jsx-style-71ccd93488" >Stk</span>
                           </div>
                         </div>
                         <div className="aufmass-row-justify">
-                          <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Rinnenfluss:</span>
-                          <div className="aufmass-flex-center" style={{ gap: '1px', flexWrap: 'nowrap', justifyContent: 'flex-end', flexShrink: 1, minWidth: 0 }}>
-                            <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerRinnenflussX || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRinnenflussX', e.target.value)} />
-                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>×</span>
-                            <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base" style={{ width: '26px', minWidth: '26px', padding: '1px', height: '20px', textAlign: 'center', borderRadius: '4px' }} value={m.sondersacheMuellerRinnenflussY || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRinnenflussY', e.target.value)} />
-                            <span className="aufmass-text-subtle" style={{ fontSize: '10px' }}>m²</span>
+                          <span className="jsx-style-53e65376d8" >Rinnenfluss:</span>
+                          <div className="aufmass-flex-center jsx-style-e373425dee" >
+                            <input type="text" inputMode="decimal" placeholder="X" className="mast-input-base jsx-style-faa04428f8"  value={m.sondersacheMuellerRinnenflussX || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRinnenflussX', e.target.value)} />
+                            <span className="aufmass-text-subtle jsx-style-71ccd93488" >×</span>
+                            <input type="text" inputMode="decimal" placeholder="Y" className="mast-input-base jsx-style-faa04428f8"  value={m.sondersacheMuellerRinnenflussY || ""} onChange={(e) => updateAufmass(originalIndex, 'sondersacheMuellerRinnenflussY', e.target.value)} />
+                            <span className="aufmass-text-subtle jsx-style-71ccd93488" >m²</span>
                           </div>
                         </div>
-                        <div style={{ marginTop: '2px', textAlign: 'right', fontSize: '10px', color: '#22c55e', fontWeight: 'bold' }}>
+                        <div className="jsx-style-72b6ea2afb" >
                           Gesamtfläche: {calculateArea(m.sondersacheMuellerRinnenflussX, m.sondersacheMuellerRinnenflussY).toFixed(2)} m²
                         </div>
                       </div>
@@ -7483,49 +7304,49 @@ const createProject = async () => {
                   </div>
                 </div>
 
-                <div className="aufmass-inner-block" style={{ padding: '6px 10px' }}>
+                <div className="aufmass-inner-block jsx-style-c2eb4821f7" >
                   {m.aktion === "Montage" && (
-                    <div className="aufmass-grid-2col" style={{ gap: '15px' }}>
+                    <div className="aufmass-grid-2col jsx-style-082afe2af6" >
                       <div className="aufmass-anschluss-col">
                         <div className="aufmass-row-justify">
-                          <span style={{ fontSize: '11px' }}>Anschluss bis 1m (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '40px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.netzanschlussBis1m || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussBis1m', e.target.value)} />
+                          <span className="jsx-style-0f992c60b6" >Anschluss bis 1m (Stk):</span>
+                          <input type="number" className="mast-input-base jsx-style-6cda3880f9"  placeholder="0" value={m.netzanschlussBis1m || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussBis1m', e.target.value)} />
                         </div>
                         {Number(m.netzanschlussBis1m) > 0 && (
                           <div className="aufmass-sub-muffen-montage">
-                            <span style={{ color: '#cbd5e1' }}>Muffen mont.:</span>
-                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} placeholder="0" value={m.muffenMontierenBis1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenBis1m', e.target.value)} />
+                            <span className="jsx-style-c38c2c413d" >Muffen mont.:</span>
+                            <input type="number" className="mast-input-base jsx-style-b1c02c9be1"  placeholder="0" value={m.muffenMontierenBis1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenBis1m', e.target.value)} />
                           </div>
                         )}
                       </div>
 
                       <div className="aufmass-anschluss-col-right">
                         <div className="aufmass-row-justify">
-                          <span style={{ fontSize: '11px' }}>Netzanschluss &gt;1m (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '40px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.netzanschlussUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussUeber1m', e.target.value)} />
+                          <span className="jsx-style-0f992c60b6" >Netzanschluss &gt;1m (Stk):</span>
+                          <input type="number" className="mast-input-base jsx-style-6cda3880f9"  placeholder="0" value={m.netzanschlussUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussUeber1m', e.target.value)} />
                         </div>
                         {Number(m.netzanschlussUeber1m) > 0 && (
                           <div className="aufmass-sub-graben-details">
                             <span>Muffen mont. ANS (Stk):</span>
-                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenUeber1m', e.target.value)} />
+                            <input type="number" className="mast-input-base jsx-style-b1c02c9be1"  value={m.muffenMontierenUeber1m || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenUeber1m', e.target.value)} />
                             <span>Graben ANS (m):</span>
-                            <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreite || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreite', e.target.value)} />
+                            <input type="text" inputMode="decimal" className="mast-input-base jsx-style-b1c02c9be1"  value={m.grabenTiefeBreite || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreite', e.target.value)} />
                             <span>Kabelverlegen ANS (m):</span>
-                            <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegen || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegen', e.target.value)} />
+                            <input type="text" inputMode="decimal" className="mast-input-base jsx-style-b1c02c9be1"  value={m.grabenKabelverlegen || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegen', e.target.value)} />
                             <span>Montagegrube ANS (Stk):</span>
-                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrube || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrube', e.target.value)} />
+                            <input type="number" className="mast-input-base jsx-style-b1c02c9be1"  value={m.montagegrube || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrube', e.target.value)} />
                             <span>Endmuffen ANS (Stk):</span>
-                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenAns || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenAns', e.target.value)} />
+                            <input type="number" className="mast-input-base jsx-style-b1c02c9be1"  value={m.endmuffenAns || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenAns', e.target.value)} />
                             <span>Muffen demont. ANS (Stk):</span>
-                            <input type="number" className="mast-input-base" style={{ width: '40px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemoMontage || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoMontage', e.target.value)} />
-                            <span style={{ gridColumn: '1 / -1', marginTop: '4px' }}>Graben-Oberflächen ANS (m je Typ):</span>
-                            <div style={{ gridColumn: '1 / -1' }}>{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAns')}</div>
+                            <input type="number" className="mast-input-base jsx-style-b1c02c9be1"  value={m.muffenDemoMontage || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoMontage', e.target.value)} />
+                            <span className="jsx-style-eb62451034" >Graben-Oberflächen ANS (m je Typ):</span>
+                            <div className="jsx-style-72c3e2f9a7" >{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAns')}</div>
                             {Number(m.montagegrube) > 0 && (
-                              <div style={{ gridColumn: '1 / -1' }}>{renderMontagegrubeOberflaechenEditor(originalIndex, m, 'montagegrubeOberflaechenAns', m.montagegrube)}</div>
+                              <div className="jsx-style-72c3e2f9a7" >{renderMontagegrubeOberflaechenEditor(originalIndex, m, 'montagegrubeOberflaechenAns', m.montagegrube)}</div>
                             )}
                           </div>
                         )}
-                        <div style={{ marginTop: '4px', fontSize: '10px', color: '#94a3b8' }}>
+                        <div className="jsx-style-f0642b9134" >
                           Für ANS zählt nur die zugeordnete Graben-Oberfläche sowie die Oberfläche der Montagegrube.
                         </div>
                       </div>
@@ -7535,38 +7356,38 @@ const createProject = async () => {
                   {m.aktion === "Demontage" && (
                     <>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#f43f5e' }}>Netzanschluss demontieren (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.netzanschlussDemoAnzahl || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussDemoAnzahl', e.target.value)} />
+                        <span className="jsx-style-6c7f14a2c7" >Netzanschluss demontieren (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.netzanschlussDemoAnzahl || ""} onChange={(e) => updateAufmass(originalIndex, 'netzanschlussDemoAnzahl', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#f43f5e' }}>Kabelanschluss ABR (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.kabelanschlussAbr || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelanschlussAbr', e.target.value)} />
+                        <span className="jsx-style-6c7f14a2c7" >Kabelanschluss ABR (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.kabelanschlussAbr || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelanschlussAbr', e.target.value)} />
                       </div>
                       {(Number(m.netzanschlussDemoAnzahl) > 0 || Number(m.kabelanschlussAbr) > 0) && (
                         <div className="aufmass-demo-block">
                           <span>Muffen montieren (Neu-Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenDemo', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.muffenMontierenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenDemo', e.target.value)} />
                           <span>Endmuffen ABR (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenDemo', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.endmuffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenDemo', e.target.value)} />
                         </div>
                       )}
 
                       {(Number(m.netzanschlussDemoAnzahl) > 0 || Number(m.kabelanschlussAbr) > 0) && (
-                      <details className="aufmass-position-details aufmass-position-details-demo" style={{ marginTop: '6px' }}>
-                        <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#fda4af' }}>📦 Positionen ABR</summary>
-                        <div className="aufmass-demo-block" style={{ marginTop: '4px' }}>
+                      <details className="aufmass-position-details aufmass-position-details-demo jsx-style-9a703b5cf2" >
+                        <summary className="jsx-style-a410d9fcc5" >📦 Positionen ABR</summary>
+                        <div className="aufmass-demo-block jsx-style-980fcfa42c" >
                           <span>Graben ABR (m):</span>
-                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreiteDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteDemo', e.target.value)} />
+                          <input type="text" inputMode="decimal" className="mast-input-base jsx-style-678fbde929"  value={m.grabenTiefeBreiteDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteDemo', e.target.value)} />
                           <span>Kabelverlegen ABR (m):</span>
-                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenDemo', e.target.value)} />
+                          <input type="text" inputMode="decimal" className="mast-input-base jsx-style-678fbde929"  value={m.grabenKabelverlegenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenDemo', e.target.value)} />
                           <span>Montagegrube ABR (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeDemo', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.montagegrubeDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeDemo', e.target.value)} />
                           <span>Muffen demontieren (Alt-Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemo', e.target.value)} />
-                          <span style={{ gridColumn: '1 / -1', marginTop: '4px' }}>Graben-Oberflächen ABR (m je Typ):</span>
-                          <div style={{ gridColumn: '1 / -1' }}>{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAbr')}</div>
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.muffenDemo || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemo', e.target.value)} />
+                          <span className="jsx-style-eb62451034" >Graben-Oberflächen ABR (m je Typ):</span>
+                          <div className="jsx-style-72c3e2f9a7" >{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAbr')}</div>
                           {Number(m.montagegrubeDemo) > 0 && (
-                            <div style={{ gridColumn: '1 / -1' }}>{renderMontagegrubeOberflaechenEditor(originalIndex, m, 'montagegrubeOberflaechenAbr', m.montagegrubeDemo)}</div>
+                            <div className="jsx-style-72c3e2f9a7" >{renderMontagegrubeOberflaechenEditor(originalIndex, m, 'montagegrubeOberflaechenAbr', m.montagegrubeDemo)}</div>
                           )}
                         </div>
                       </details>
@@ -7577,38 +7398,38 @@ const createProject = async () => {
                   {m.aktion === "Tausch" && (
                     <>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#a855f7' }}>Kabel an-/abklemmen (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.kabelAnAbklemmenAnzahl || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelAnAbklemmenAnzahl', e.target.value)} />
+                        <span className="jsx-style-5581f7a85c" >Kabel an-/abklemmen (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.kabelAnAbklemmenAnzahl || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelAnAbklemmenAnzahl', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#a855f7' }}>Kabelanschluss ÄND (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.kabelanschlussAend || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelanschlussAend', e.target.value)} />
+                        <span className="jsx-style-5581f7a85c" >Kabelanschluss ÄND (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.kabelanschlussAend || ""} onChange={(e) => updateAufmass(originalIndex, 'kabelanschlussAend', e.target.value)} />
                       </div>
                       {(Number(m.kabelAnAbklemmenAnzahl) > 0 || Number(m.kabelanschlussAend) > 0) && (
                         <div className="aufmass-tausch-block">
                           <span>Muffen montieren (Neu-Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenMontierenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenTausch', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.muffenMontierenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenMontierenTausch', e.target.value)} />
                           <span>Muffen demontieren (Alt-Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.muffenDemoTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoTausch', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.muffenDemoTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'muffenDemoTausch', e.target.value)} />
                         </div>
                       )}
 
                       {(Number(m.kabelAnAbklemmenAnzahl) > 0 || Number(m.kabelanschlussAend) > 0) && (
-                      <details className="aufmass-position-details aufmass-position-details-tausch" style={{ marginTop: '6px' }}>
-                        <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#d8b4fe' }}>📦 Positionen ÄND</summary>
-                        <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
+                      <details className="aufmass-position-details aufmass-position-details-tausch jsx-style-9a703b5cf2" >
+                        <summary className="jsx-style-8770820093" >📦 Positionen ÄND</summary>
+                        <div className="aufmass-tausch-block jsx-style-980fcfa42c" >
                           <span>Graben ÄND (m):</span>
-                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenTiefeBreiteTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteTausch', e.target.value)} />
+                          <input type="text" inputMode="decimal" className="mast-input-base jsx-style-678fbde929"  value={m.grabenTiefeBreiteTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenTiefeBreiteTausch', e.target.value)} />
                           <span>Kabelverlegen ÄND (m):</span>
-                          <input type="text" inputMode="decimal" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.grabenKabelverlegenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenTausch', e.target.value)} />
+                          <input type="text" inputMode="decimal" className="mast-input-base jsx-style-678fbde929"  value={m.grabenKabelverlegenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'grabenKabelverlegenTausch', e.target.value)} />
                           <span>Montagegrube ÄND (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.montagegrubeTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeTausch', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.montagegrubeTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'montagegrubeTausch', e.target.value)} />
                           <span>Endmuffen ÄND (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.endmuffenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenTausch', e.target.value)} />
-                          <span style={{ gridColumn: '1 / -1', marginTop: '4px' }}>Graben-Oberflächen ÄND (m je Typ):</span>
-                          <div style={{ gridColumn: '1 / -1' }}>{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAend')}</div>
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.endmuffenTausch || ""} onChange={(e) => updateAufmass(originalIndex, 'endmuffenTausch', e.target.value)} />
+                          <span className="jsx-style-eb62451034" >Graben-Oberflächen ÄND (m je Typ):</span>
+                          <div className="jsx-style-72c3e2f9a7" >{renderGrabenOberflaechenEditor(originalIndex, m, 'grabenOberflaechenAend')}</div>
                           {Number(m.montagegrubeTausch) > 0 && (
-                            <div style={{ gridColumn: '1 / -1' }}>{renderMontagegrubeOberflaechenEditor(originalIndex, m, 'montagegrubeOberflaechenAend', m.montagegrubeTausch)}</div>
+                            <div className="jsx-style-72c3e2f9a7" >{renderMontagegrubeOberflaechenEditor(originalIndex, m, 'montagegrubeOberflaechenAend', m.montagegrubeTausch)}</div>
                           )}
                         </div>
                       </details>
@@ -7617,51 +7438,51 @@ const createProject = async () => {
                   )}
 
                   {m.aktion === LK_SIKA_TAUSCH_ACTION && (
-                    <div className="aufmass-flex-center" style={{ gap: '8px', borderLeft: '1px solid #334155', paddingLeft: '12px', flexShrink: 0 }}>
-                      <span style={{ fontSize: '11px', color: '#93c5fd', fontWeight: 700 }}>LK / SiKa Tausch</span>
+                    <div className="aufmass-flex-center jsx-style-14273ac809" >
+                      <span className="jsx-style-295bb603bd" >LK / SiKa Tausch</span>
                     </div>
                   )}
 
                   {m.aktion === LK_SIKA_TAUSCH_ACTION && (
                     <>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#38bdf8' }}>LK montieren (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.lkMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'lkMontieren', e.target.value)} />
+                        <span className="jsx-style-0c096866c7" >LK montieren (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.lkMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'lkMontieren', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#38bdf8' }}>LK demontieren (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.lkDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'lkDemontieren', e.target.value)} />
+                        <span className="jsx-style-0c096866c7" >LK demontieren (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.lkDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'lkDemontieren', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#38bdf8' }}>LK tauschen (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.lkTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'lkTauschen', e.target.value)} />
+                        <span className="jsx-style-0c096866c7" >LK tauschen (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.lkTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'lkTauschen', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#38bdf8' }}>SiKa montieren (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.sikaMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaMontieren', e.target.value)} />
+                        <span className="jsx-style-0c096866c7" >SiKa montieren (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.sikaMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaMontieren', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#38bdf8' }}>SiKa demontieren (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.sikaDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaDemontieren', e.target.value)} />
+                        <span className="jsx-style-0c096866c7" >SiKa demontieren (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.sikaDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaDemontieren', e.target.value)} />
                       </div>
                       <div className="aufmass-row-justify">
-                        <span style={{ color: '#38bdf8' }}>SiKa tauschen (Stk):</span>
-                        <input type="number" className="mast-input-base" style={{ width: '45px', padding: '2px', height: '22px', borderRadius: '4px' }} placeholder="0" value={m.sikaTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaTauschen', e.target.value)} />
+                        <span className="jsx-style-0c096866c7" >SiKa tauschen (Stk):</span>
+                        <input type="number" className="mast-input-base jsx-style-a014a6fe58"  placeholder="0" value={m.sikaTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'sikaTauschen', e.target.value)} />
                       </div>
 
-                      <details className="aufmass-tausch-block" style={{ marginTop: '6px' }}>
-                        <summary style={{ cursor: 'pointer', fontSize: '11px', color: '#93c5fd' }}>📦 Untermenü</summary>
-                        <div className="aufmass-tausch-block" style={{ marginTop: '4px' }}>
+                      <details className="aufmass-tausch-block jsx-style-9a703b5cf2" >
+                        <summary className="jsx-style-295c5d3811" >📦 Untermenü</summary>
+                        <div className="aufmass-tausch-block jsx-style-980fcfa42c" >
                           <span>Ausleger montieren (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.auslegerMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerMontieren', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.auslegerMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerMontieren', e.target.value)} />
                           <span>Ausleger demontieren (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.auslegerDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerDemontieren', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.auslegerDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerDemontieren', e.target.value)} />
                           <span>Ausleger tauschen (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.auslegerTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerTauschen', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.auslegerTauschen || ""} onChange={(e) => updateAufmass(originalIndex, 'auslegerTauschen', e.target.value)} />
                           <span>Steckdosenanschluss montieren (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.steckdosenanschlussMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'steckdosenanschlussMontieren', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.steckdosenanschlussMontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'steckdosenanschlussMontieren', e.target.value)} />
                           <span>Steckdosenanschluss demontieren (Stk):</span>
-                          <input type="number" className="mast-input-base" style={{ width: '45px', padding: '1px', height: '20px', borderRadius: '4px' }} value={m.steckdosenanschlussDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'steckdosenanschlussDemontieren', e.target.value)} />
+                          <input type="number" className="mast-input-base jsx-style-678fbde929"  value={m.steckdosenanschlussDemontieren || ""} onChange={(e) => updateAufmass(originalIndex, 'steckdosenanschlussDemontieren', e.target.value)} />
                         </div>
                       </details>
                     </>
@@ -7672,32 +7493,32 @@ const createProject = async () => {
               {/* ZEILE 3: COMPACT FOOTER */}
               <div className="aufmass-card-footer">
                 <div className="aufmass-handarbeit-badge">
-                  <div className="aufmass-flex-center" style={{ gap: '4px' }}>
+                  <div className="aufmass-flex-center jsx-style-8778cad17d" >
                     <span>🖐️ Handarbeit:</span>
-                    <input type="text" inputMode="decimal" className="mast-input-base" placeholder="0" value={m.handarbeitStd || ""} onChange={(e) => updateAufmass(originalIndex, 'handarbeitStd', e.target.value)} style={{ width: '45px', padding: '1px 3px', height: '22px', borderRadius: '4px' }} />
-                    <span className="aufmass-text-muted" style={{ fontSize: '11px' }}>Std</span>
+                    <input type="text" inputMode="decimal" className="mast-input-base jsx-style-d486666084" placeholder="0" value={m.handarbeitStd || ""} onChange={(e) => updateAufmass(originalIndex, 'handarbeitStd', e.target.value)}  />
+                    <span className="aufmass-text-muted jsx-style-0f992c60b6" >Std</span>
                   </div>
-                  
+
                   <label className="aufmass-btn-upload">
                     📸 Bilder {m.handarbeitBilder?.length > 0 && `(${m.handarbeitBilder.length})`}
-                    <input type="file" multiple accept="image/*" style={{ display: 'none' }} 
+                    <input type="file" multiple accept="image/*" className="jsx-style-d6a2f871e1"
                       onChange={(e) => {
                         const files = Array.from(e.target.files).map(f => f.name);
                         updateAufmass(originalIndex, 'handarbeitBilder', [...(m.handarbeitBilder || []), ...files]);
-                      }} 
+                      }}
                     />
                   </label>
                 </div>
 
-                <div className="aufmass-flex-center" style={{ flex: 1 }}>
-                  <span style={{ color: '#cbd5e1', whiteSpace: 'nowrap' }}>Notiz:</span>
+                <div className="aufmass-flex-center jsx-style-8b190fcdbc" >
+                  <span className="jsx-style-f9413532db" >Notiz:</span>
                   <textarea
                     rows={1}
-                    className="mast-input-base aufmass-autogrow"
-                    style={{ padding: '2px 6px', borderRadius: '4px', width: '100%' }}
+                    className="mast-input-base aufmass-autogrow jsx-style-25c4e73d2d"
+
                     placeholder="Besonderheiten eintragen..."
                     onInput={autoResizeTextarea}
-                    value={m.aufmassNotiz || ""} 
+                    value={m.aufmassNotiz || ""}
                     onChange={(e) => {
                       autoResizeTextarea(e);
                       updateAufmass(originalIndex, 'aufmassNotiz', e.target.value);
@@ -7710,91 +7531,91 @@ const createProject = async () => {
           )
         })
     ) : (
-      <div style={{ textAlign: 'center', padding: '20px', background: '#334155', borderRadius: '6px' }}>
-        <p style={{ color: '#cbd5e1' }}>Warte auf Masten...</p>
+      <div className="jsx-style-8b82af4b56" >
+        <p className="jsx-style-c38c2c413d" >Warte auf Masten...</p>
       </div>
     )}
 
-    <div style={{ marginTop: '14px', background: '#0f172a', borderRadius: '8px', padding: '12px', border: '1px solid #334155' }}>
-      <h4 style={{ margin: 0, color: '#67e8f9' }}>Nachkalkulation</h4>
+    <div className="jsx-style-c5a03beee0" >
+      <h4 className="jsx-style-1e17854cb8" >Nachkalkulation</h4>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px', marginTop: '10px' }}>
+      <div className="jsx-style-441a2fb9a6" >
         <div>
-          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Stunden</span>
+          <span className="jsx-style-8753e559e8" >Stunden</span>
           <input
             type="text"
             inputMode="decimal"
-            className="mast-input-base"
+            className="mast-input-base jsx-style-7d98474860"
             value={nachkalkulation.stunden || ''}
             onChange={(e) => updateNachkalkulation('stunden', e.target.value)}
             placeholder="z. B. 42"
-            style={{ width: '100%' }}
+
           />
         </div>
         <div>
-          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Gesamtsumme HSW</span>
+          <span className="jsx-style-8753e559e8" >Gesamtsumme HSW</span>
           <input
             type="text"
             inputMode="decimal"
-            className="mast-input-base"
+            className="mast-input-base jsx-style-7d98474860"
             value={nachkalkulation.gesamtHsw || ''}
             onChange={(e) => updateNachkalkulation('gesamtHsw', e.target.value)}
             placeholder="z. B. 4200"
-            style={{ width: '100%' }}
+
           />
         </div>
         <div>
-          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Gesamtsumme Müller</span>
+          <span className="jsx-style-8753e559e8" >Gesamtsumme Müller</span>
           <input
             type="text"
             inputMode="decimal"
-            className="mast-input-base"
+            className="mast-input-base jsx-style-7d98474860"
             value={nachkalkulation.gesamtMueller || ''}
             onChange={(e) => updateNachkalkulation('gesamtMueller', e.target.value)}
             placeholder="z. B. 3100"
-            style={{ width: '100%' }}
+
           />
         </div>
         <div>
-          <span style={{ color: '#cbd5e1', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Sub-/Fremdkosten</span>
+          <span className="jsx-style-8753e559e8" >Sub-/Fremdkosten</span>
           <input
             type="text"
             inputMode="decimal"
-            className="mast-input-base"
+            className="mast-input-base jsx-style-7d98474860"
             value={nachkalkulation.subKosten || ''}
             onChange={(e) => updateNachkalkulation('subKosten', e.target.value)}
             placeholder="z. B. 1800"
-            style={{ width: '100%' }}
+
           />
         </div>
       </div>
 
-      <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Kombinierte Gesamtsumme (brutto)</div>
-          <strong style={{ color: '#e2e8f0', fontSize: '14px' }}>{formatEuro(nachkalkGesamtBrutto)}</strong>
+      <div className="jsx-style-181fb5ab92" >
+        <div className="jsx-style-cbf4c4017b" >
+          <div className="jsx-style-24206981e1" >Kombinierte Gesamtsumme (brutto)</div>
+          <strong className="jsx-style-ab70b53473" >{formatEuro(nachkalkGesamtBrutto)}</strong>
         </div>
-        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gesamtsumme nach Subkosten (netto)</div>
-          <strong style={{ color: '#e2e8f0', fontSize: '14px' }}>{formatEuro(nachkalkGesamt)}</strong>
+        <div className="jsx-style-cbf4c4017b" >
+          <div className="jsx-style-24206981e1" >Gesamtsumme nach Subkosten (netto)</div>
+          <strong className="jsx-style-ab70b53473" >{formatEuro(nachkalkGesamt)}</strong>
         </div>
-        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Dein Stundenlohn (netto / Stunden)</div>
-          <strong style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{stundenlohnKombiniert.toFixed(2)} EUR/h</strong>
+        <div className="jsx-style-cbf4c4017b" >
+          <div className="jsx-style-24206981e1" >Dein Stundenlohn (netto / Stunden)</div>
+          <strong className="jsx-style-f61f4b2d9b" style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}>{stundenlohnKombiniert.toFixed(2)} EUR/h</strong>
         </div>
-        <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '11px' }}>Bewertung</div>
-          <strong style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{stundenlohnStatus}</strong>
+        <div className="jsx-style-cbf4c4017b" >
+          <div className="jsx-style-24206981e1" >Bewertung</div>
+          <strong className="jsx-style-f61f4b2d9b" style={{ color: getProfitabilityColor(stundenlohnKombiniert, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}>{stundenlohnStatus}</strong>
         </div>
       </div>
 
-      <div style={{ marginTop: '6px', display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#cbd5e1', fontSize: '11px' }}>
+      <div className="jsx-style-1bdbeb568e" >
         <span>Differenz zu 56,00 EUR/h: <strong style={{ color: stundenlohnDiffMin >= 0 ? '#4ade80' : '#f87171' }}>{stundenlohnDiffMin >= 0 ? '+' : ''}{stundenlohnDiffMin.toFixed(2)} EUR/h</strong></span>
         <span>Differenz zu 59,00 EUR/h: <strong style={{ color: stundenlohnDiffNormal >= 0 ? '#4ade80' : '#f87171' }}>{stundenlohnDiffNormal >= 0 ? '+' : ''}{stundenlohnDiffNormal.toFixed(2)} EUR/h</strong></span>
         <span>Differenz zu 68,90 EUR/h: <strong style={{ color: stundenlohnDiffVeryGood >= 0 ? '#4ade80' : '#f87171' }}>{stundenlohnDiffVeryGood >= 0 ? '+' : ''}{stundenlohnDiffVeryGood.toFixed(2)} EUR/h</strong></span>
       </div>
 
-      <div style={{ marginTop: '4px', display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#cbd5e1', fontSize: '11px' }}>
+      <div className="jsx-style-f87fde4379" >
         <span>Differenz Netto-Gesamtsumme zu Minimum: <strong style={{ color: gesamtDiffToMin >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMin >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMin)}</strong></span>
         <span>Differenz Netto-Gesamtsumme zu Maximum: <strong style={{ color: gesamtDiffToMax >= 0 ? '#4ade80' : '#f87171' }}>{gesamtDiffToMax >= 0 ? '+' : ''}{formatEuro(gesamtDiffToMax)}</strong></span>
       </div>
@@ -7804,8 +7625,8 @@ const createProject = async () => {
 )}
 
 {activeTab === 'Abrechnung' && (
-  <div style={{ color: '#e2e8f0', padding: '15px', fontSize: '14px' }}>
-    <h2 style={{ marginBottom: '15px', color: '#38bdf8' }}>Abrechnungs-Details</h2>
+  <div className="jsx-style-8111c76a07" >
+    <h2 className="jsx-style-341b50c681" >Abrechnungs-Details</h2>
 
     {/* ABRECHNUNGSPOSITIONEN */}
     {(() => {
@@ -8278,7 +8099,7 @@ const createProject = async () => {
         list.sort((a, b) => getAbrechnungGroupRank(a) - getAbrechnungGroupRank(b) || getAbrechnungOrderIndex(a) - getAbrechnungOrderIndex(b));
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="jsx-style-f3a5b6ec58" >
             <h3 className="abrechnung-col-title">{title}</h3>
             {list.map((cat, idx) => {
               const rank = getAbrechnungGroupRank(cat);
@@ -8287,14 +8108,14 @@ const createProject = async () => {
               const showDivider = idx > 0 && getAbrechnungGroupRank(list[idx - 1]) !== rank;
               return (
               <React.Fragment key={`${title}-${idx}`}>
-              {showDivider && <hr style={{ border: 0, borderTop: '1px solid #475569', margin: '8px 0 2px' }} />}
+              {showDivider && <hr className="jsx-style-1a04a748b4"  />}
               {showHeader && (
-                <div style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', color: '#38bdf8' }}>{groupLabels[rank]}</div>
+                <div className="jsx-style-6e9d2ca348" >{groupLabels[rank]}</div>
               )}
-              <details style={{ background: '#1e293b', padding: '10px', borderRadius: '6px' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', color: '#f8fafc' }}>
+              <details className="jsx-style-5b8f1f2659" >
+                <summary className="jsx-style-f50c5171c0" >
                   <span>{cat.title}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="jsx-style-360a834936" >
                     <button
                       type="button"
                       onClick={(e) => {
@@ -8302,32 +8123,18 @@ const createProject = async () => {
                         e.stopPropagation();
                         copyCategory(cat);
                       }}
-                      style={{
-                        border: '1px solid #334155',
-                        background: '#0f172a',
-                        color: '#cbd5e1',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        padding: '2px 6px'
-                      }}
+                      className="jsx-style-4e8ebd0074"
                     >
                       Kopieren
                     </button>
-                    <span style={{ color: '#38bdf8' }}>{cat.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                    <span className="jsx-style-0c096866c7" >{cat.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                   </span>
                 </summary>
-                <div style={{ marginTop: '10px', paddingLeft: '10px', borderLeft: '2px solid #38bdf8' }}>
+                <div className="jsx-style-88ade384ef" >
                   {cat.items?.map((item, i) => (
                     <div
                       key={`${title}-${cat.title}-${i}`}
-                      style={{
-                        padding: '2px 0',
-                        color: '#94a3b8',
-                        fontSize: '12px',
-                        lineHeight: '1.4',
-                        fontFamily: 'Consolas, "Courier New", monospace'
-                      }}
+                      className="jsx-style-ea9e8d6e0a"
                     >
                       {formatItemLine(item)}
                     </div>
@@ -8358,22 +8165,22 @@ const createProject = async () => {
       return (
         <>
           {(allgemeineInfos || mastNotizen.length > 0) && (
-            <div style={{ marginBottom: '12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '10px' }}>
-              <h3 style={{ margin: '0 0 8px 0', color: '#67e8f9', fontSize: '14px' }}>Allgemein</h3>
+            <div className="jsx-style-edcb52f3a0" >
+              <h3 className="jsx-style-05ffd27a5b" >Allgemein</h3>
 
               {allgemeineInfos && (
-                <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px', marginBottom: mastNotizen.length > 0 ? '8px' : 0 }}>
-                  <div style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>Infos zur Baustelle</div>
-                  <div style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{allgemeineInfos}</div>
+                <div className="jsx-style-f3f46cfc08" style={{ marginBottom: mastNotizen.length > 0 ? '8px' : 0 }}>
+                  <div className="jsx-style-5e15044e68" >Infos zur Baustelle</div>
+                  <div className="jsx-style-dbcaae2c1b" >{allgemeineInfos}</div>
                 </div>
               )}
 
               {mastNotizen.length > 0 && (
-                <div style={{ display: 'grid', gap: '6px' }}>
+                <div className="jsx-style-4b0534ee76" >
                   {mastNotizen.map((entry, idx) => (
-                    <div key={`${entry.label}-${idx}`} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-                      <div style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 700 }}>{entry.label}</div>
-                      <div style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{entry.note}</div>
+                    <div key={`${entry.label}-${idx}`} className="jsx-style-f3f46cfc08" >
+                      <div className="jsx-style-5e15044e68" >{entry.label}</div>
+                      <div className="jsx-style-dbcaae2c1b" >{entry.note}</div>
                     </div>
                   ))}
                 </div>
@@ -8381,7 +8188,7 @@ const createProject = async () => {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', width: '100%', padding: '10px' }}>
+          <div className="jsx-style-9a547693cf" >
             {renderCol("HSW", dataHsw)}
             {renderCol("Müller", dataMueller)}
           </div>
@@ -8392,62 +8199,43 @@ const createProject = async () => {
 )}
 
 {activeTab === "Protokoll" && (
-  <div style={{ maxHeight: "400px", overflowY: "auto", padding: "10px" }}>
-    <button 
-      onClick={exportLog} 
-      style={{ 
-        marginBottom: 15, 
-        width: "100%", 
-        padding: "8px", 
-        backgroundColor: "#2c3e50", 
-        color: "white", 
-        border: "none", 
-        borderRadius: "4px",
-        cursor: "pointer"
-      }}
+  <div className="jsx-style-f253a8d9bc" >
+    <button
+      onClick={exportLog}
+      className="jsx-style-adf52b6159"
     >
       📄 Protokoll als .txt exportieren
     </button>
 
     {(form.log || []).length === 0 && (
-      <div style={{ textAlign: "center", color: "#999", marginTop: "20px" }}>
+      <div className="jsx-style-af7dd11266" >
         Keine Änderungen vorhanden
       </div>
     )}
 
     {/* Wir drehen das Array mit .slice().reverse() um, damit das Neueste oben steht */}
     {(form.log || []).slice().reverse().map((entry, i) => (
-      <div key={i} style={{ 
-        borderBottom: "1px solid #eee", 
-        padding: "10px 0", 
-        marginBottom: "5px" 
-      }}>
+      <div key={i} className="jsx-style-5b3948334b" >
         {/* Kopfzeile: Datum und Benutzer */}
-        <div style={{ 
-          display: "flex", 
-          justifyContent: "space-between", 
-          fontSize: "11px", 
-          color: "#888",
-          marginBottom: "4px"
-        }}>
+        <div className="jsx-style-598972e07c" >
           <span>{entry.date}</span>
-          <span style={{ fontWeight: "bold", color: "#3498db" }}>{entry.user || "System"}</span>
+          <span className="jsx-style-5d90117e2b" >{entry.user || "System"}</span>
         </div>
 
         {/* NEU: Einfache Text-Aktion (unser neues Format) */}
         {entry.action && (
-          <div style={{ fontSize: "13px", color: "#333", lineHeight: "1.4" }}>
+          <div className="jsx-style-5efab93524" >
             {entry.action}
           </div>
         )}
 
         {/* ALT: Kompatibilität für das alte 'changes' Format */}
         {entry.changes && entry.changes.map((c, j) => (
-          <div key={j} style={{ fontSize: "13px", marginTop: "2px" }}>
-            <strong style={{ color: "#555" }}>{c.field}</strong>: 
-            <span style={{ color: "#e74c3c", textDecoration: "line-through", margin: "0 5px" }}>{String(c.old)}</span> 
-            ➔ 
-            <span style={{ color: "#27ae60", marginLeft: "5px" }}>{String(c.new)}</span>
+          <div key={j} className="jsx-style-dd79b6b884" >
+            <strong className="jsx-style-1b761bff55" >{c.field}</strong>:
+            <span className="jsx-style-baddd47286" >{String(c.old)}</span>
+            ➔
+            <span className="jsx-style-7dab2c78ff" >{String(c.new)}</span>
           </div>
         ))}
       </div>
@@ -8458,8 +8246,8 @@ const createProject = async () => {
               {activeTab === "Dateien" && (
   <>
     {/* Kopfzeile */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-      <h4 style={{ margin: 0 }}>Projektdateien</h4>
+    <div className="jsx-style-fb82bbb003" >
+      <h4 className="jsx-style-c45ee5e511" >Projektdateien</h4>
     </div>
 
     {/* Drag & Drop Zone */}
@@ -8476,7 +8264,7 @@ const createProject = async () => {
         </select>
       </label>
     <div
-  onDragOver={(e) => e.preventDefault()} 
+  onDragOver={(e) => e.preventDefault()}
   onDrop={async (e) => {
   e.preventDefault();
   const rawFiles = Array.from(e.dataTransfer.files);
@@ -8495,8 +8283,8 @@ const createProject = async () => {
       setToast("❌ Dateien konnten nicht vorbereitet werden");
       scheduleToastDismiss(6000);
     }
-  } 
-  
+  }
+
   // FALL B: Bestehendes Projekt aktualisieren (Online-Versuch + Offline-Rettung)
   else {
     if (!selectedProject?.id) return;
@@ -8530,7 +8318,7 @@ const createProject = async () => {
     }
   }
 }}
-  style={{ border: "2px dashed #aaa", padding: 10, borderRadius: "8px", textAlign: "center", marginBottom: "10px", backgroundColor: "#f9f9f9" }}
+  className="jsx-style-24233cf91c"
 >
   Dateien
 </div>
@@ -8774,17 +8562,17 @@ const createProject = async () => {
       </>
     )}
   </div>
-      
+
 {/* LÖSCH-KNOPF */}
       {(mode === "create" || canEditTab("Dateien")) && (
-      <button 
+      <button
         type="button"
         className="project-file-delete"
         title="Datei löschen"
         aria-label={`${displayName} löschen`}
         disabled={isEditingFileName || projectFileSavingRename}
         onClick={async (e) => {
-          e.stopPropagation(); 
+          e.stopPropagation();
 
           if (mode === "create") {
             setTempFiles(tempFiles.filter((_, idx) => idx !== i));
@@ -8837,133 +8625,114 @@ const createProject = async () => {
       </div>
     </div>
       <main className="map-view">
-        <MapContainer 
-  center={[51.15, 8.2]} 
-  zoom={10} 
+        <MapContainer
+  center={[51.15, 8.2]}
+  zoom={10}
   ref={mapRef}
-  style={{ height: "100%", width: "100%" }}
+  className="jsx-style-979f7e6264"
   >
-  <TileLayer 
+  <TileLayer
     key={isSatellite ? 'sat' : 'osm'}
     className={isSatellite ? 'tiles-satellite' : 'tiles-map'}
-    url={isSatellite ? satUrl : osmUrl} 
+    url={isSatellite ? satUrl : osmUrl}
     attribution={isSatellite ? 'Esri Satellite' : 'OpenStreetMap'}
   />
 
   {/* Der schicke Button oben rechts */}
-  <div className="leaflet-top leaflet-right" style={{ marginTop: '10px', marginRight: '10px', pointerEvents: 'none' }}>
-    
+  <div className="leaflet-top leaflet-right jsx-style-2c636a4e1e" >
+
     {/* TEIL 1: DER UMSCHALTER */}
-    <div style={{ pointerEvents: 'auto', marginBottom: '8px' }}>
-      <button 
+    <div className="jsx-style-02c61017de" >
+      <button
         onClick={() => setIsSatellite(!isSatellite)}
-        className="group relative transition-all active:scale-95"
-        style={{ 
-          width: '60px', height: '60px', padding: 0, cursor: 'pointer',
-          border: '2px solid white', borderRadius: '10px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.3)', backgroundColor: 'white',
-          display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-          alignItems: 'center', overflow: 'hidden', position: 'relative'
-        }}
+        className="group relative transition-all active:scale-95 jsx-style-0b02b1c755"
+
       >
-        <img 
-          src={isSatellite 
-            ? "https://a.tile.openstreetmap.org/15/17350/11030.png" 
+        <img
+          src={isSatellite
+            ? "https://a.tile.openstreetmap.org/15/17350/11030.png"
             : "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/11030/17350"
-          } 
+          }
           alt="Layer Toggle"
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          className="jsx-style-6097376665"
         />
-        <div style={{
-            width: '100%', background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)',
-            color: 'white', fontSize: '9px', fontWeight: 'bold', padding: '12px 0 4px 0',
-            textAlign: 'center', textTransform: 'uppercase', zIndex: 2, position: 'relative'
-        }}>
+        <div className="jsx-style-20ea683b46" >
           {isSatellite ? 'Karte' : 'Satellit'}
         </div>
       </button>
     </div>
 
-    <div style={{ pointerEvents: 'auto', marginBottom: '8px' }}>
+    <div className="jsx-style-02c61017de" >
       <button
         onClick={() => (notificationsOpen ? closeNotifications() : setNotificationsOpen(true))}
         title="Benachrichtigungen"
-        style={{
-          width: '60px', height: '36px', padding: 0, cursor: 'pointer', position: 'relative',
-          border: '2px solid white', borderRadius: '10px', backgroundColor: 'white',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.3)', fontSize: '18px'
-        }}
+        className="jsx-style-b235082320"
       >
         🔔
         {unreadNotificationCount > 0 && (
-          <span style={{
-            position: 'absolute', top: '-6px', right: '-6px', minWidth: '18px', height: '18px',
-            borderRadius: '9px', background: '#e11d48', color: 'white', fontSize: '11px',
-            fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px'
-          }}>{unreadNotificationCount}</span>
+          <span className="jsx-style-775fc319f8" >{unreadNotificationCount}</span>
         )}
       </button>
     </div>
   </div>
-  
+
   {/* Ab hier bleibt alles wie es war */}
-  <FitBounds 
-    projects={filteredProjects} 
-    enabled={mode === "list"} 
-    mode={mode} 
+  <FitBounds
+    projects={filteredProjects}
+    enabled={mode === "list"}
+    mode={mode}
   />
-  
+
   <MarkerCluster
     projects={filteredProjects}
     openProject={openProject}
     clusterEnabled={settingsClusterEnabled}
   />
-  
-  <MapClickHandler 
-    mode={mode} 
-    onPick={setSelectedPosition} 
-    setAddress={(addr) => setForm(f => ({ ...f, address: addr }))} 
+
+  <MapClickHandler
+    mode={mode}
+    onPick={setSelectedPosition}
+    setAddress={(addr) => setForm(f => ({ ...f, address: addr }))}
   />
-  
+
   <FlyToPosition position={selectedPosition} />
-  
+
   {selectedPosition && mode === "create" && (
-    <Marker 
-      position={[selectedPosition.lat, selectedPosition.lng]} 
+    <Marker
+      position={[selectedPosition.lat, selectedPosition.lng]}
     />
   )}
 </MapContainer>
         {notificationsOpen && typeof document !== "undefined" && createPortal(
-          <div className="app-dialog-backdrop" onClick={closeNotifications}>
+          <div className="app-dialog-backdrop notification-dialog-backdrop" onClick={closeNotifications}>
             <section
-              className="app-dialog"
+              className="app-dialog notification-dialog"
               role="dialog"
               aria-modal="true"
-              style={{ maxWidth: '560px', width: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0 }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <h2 style={{ margin: 0 }}>Benachrichtigungen</h2>
+              <div className="notification-dialog-header">
+                <h2 className="notification-dialog-title">Benachrichtigungen</h2>
                 <button
                   type="button"
                   aria-label="Schließen"
                   title="Schließen"
                   onClick={closeNotifications}
-                  style={{ margin: 0, padding: 0, width: '28px', height: '28px', minWidth: 0, borderRadius: '6px', background: 'transparent', color: '#6b7280', fontSize: '18px', lineHeight: 1 }}
+                  className="notification-dialog-close"
                 >✕</button>
               </div>
-              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {visibleNotifications.length === 0 && <p style={{ margin: 0 }}>Keine offenen Benachrichtigungen.</p>}
+              <div className="notification-dialog-list">
+                {visibleNotifications.length === 0 && <p className="notification-dialog-empty">Keine offenen Benachrichtigungen.</p>}
                 {visibleNotifications.map((n) => {
                   const unread = true;
                   return (
-                    <div key={n.key} style={{ border: '1px solid #cbd5e1', borderLeft: `4px solid ${unread ? '#e11d48' : '#cbd5e1'}`, borderRadius: '8px', padding: '10px' }}>
-                      <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {unread && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48', display: 'inline-block' }} />}
+                    <div key={n.key} className="notification-card">
+                      <div className="notification-card-title">
+                        {unread && <span className="notification-unread-dot" />}
                         {n.project.name || "Unbenannt"}
                       </div>
-                      <div style={{ margin: '4px 0 8px', fontSize: '13px' }}>{n.text}</div>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <div className="notification-card-message">{n.text}</div>
+                      <div className="notification-card-actions">
                         {n.newStatus && (
                           <button type="button" className="app-dialog-button app-dialog-button-primary" onClick={() => confirmNotificationStatus(n)}>Bestätigen</button>
                         )}
@@ -9090,69 +8859,51 @@ const createProject = async () => {
       {settingsOpen && (
         <div
           onClick={() => setSettingsOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(2,6,23,0.7)',
-            zIndex: 12000,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '16px'
-          }}
+          className="jsx-style-46d94f4ff4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 'min(1800px, 96vw)',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: '12px',
-              padding: '16px',
-              color: '#e2e8f0'
-            }}
+            className="jsx-style-81da730164"
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0 }}>Einstellungen</h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="jsx-style-bd34ad9072" >
+              <h3 className="jsx-style-c45ee5e511" >Einstellungen</h3>
+              <div className="jsx-style-fe667bdf0f settings-modal-actions" >
                 {can("nachkalkulation") && (<>
-                <button onClick={exportAnalyticsToExcel} style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                <button onClick={exportAnalyticsToExcel} className="jsx-style-3048d33321" >
                   Nachkalkulation Excel Export
                 </button>
-                <button onClick={openOrdersExportPopup} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                <button onClick={openOrdersExportPopup} className="jsx-style-84b41be2cc" >
                   Aufträge Excel Export
                 </button>
                 </>)}
-                <button onClick={handleLogout} style={{ backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                <button onClick={handleLogout} className="jsx-style-a71d2a571f" >
                   Logout
                 </button>
-                <button onClick={() => setSettingsOpen(false)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>
+                <button onClick={() => setSettingsOpen(false)} className="jsx-style-9b27dfe3fb" >
                   Schließen
                 </button>
               </div>
 
             {downloadFolderPopupOpen && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setDownloadFolderPopupOpen(false)}>
-              <section role="dialog" aria-label="Download-Speicherort" onClick={(e) => e.stopPropagation()} style={{ width: 'min(560px, 92vw)', padding: '16px', background: '#0f172a', border: '1px solid #38bdf8', borderRadius: '12px', color: '#e2e8f0' }}>
-              <h4 style={{ margin: '0 0 4px', color: '#e2e8f0', fontSize: '14px' }}>
+            <div className="jsx-style-55d7dc0514"  onClick={() => setDownloadFolderPopupOpen(false)}>
+              <section role="dialog" aria-label="Download-Speicherort" onClick={(e) => e.stopPropagation()} className="jsx-style-539193a1c2" >
+              <h4 className="jsx-style-e336a73bca" >
                 📁 Standard-Speicherort für Downloads
               </h4>
-              <p style={{ margin: '0 0 10px', color: '#94a3b8', fontSize: '12px' }}>
+              <p className="jsx-style-dd26800d69" >
                 {window.desktopAPI?.setDownloadFolder
                   ? 'Pfad eintragen oder Ordner auswählen. Downloads werden danach ohne Rückfrage in diesen Ordner gespeichert.'
                   : 'Nur in der Desktop-App (Electron) verfügbar. Im normalen Browser entscheidet der Browser über den Speicherort.'}
               </p>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div className="jsx-style-f1a39262d6" >
                 <input
                   type="text"
                   value={downloadFolder}
                   onChange={(e) => setDownloadFolder(e.target.value)}
                   placeholder={downloadFolderLoading ? 'Wird geladen …' : 'z. B. C:\\Baustellen\\Downloads'}
                   disabled={!window.desktopAPI?.setDownloadFolder}
-                  className="mast-input-base"
-                  style={{ flex: 1, minWidth: 0, color: '#e2e8f0' }}
+                  className="mast-input-base jsx-style-4714ac0ab6"
+
                 />
                 <button
                   type="button"
@@ -9168,7 +8919,7 @@ const createProject = async () => {
                     }
                     scheduleToastDismiss(2500);
                   }}
-                  style={{ backgroundColor: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', whiteSpace: 'nowrap', opacity: window.desktopAPI?.setDownloadFolder ? 1 : 0.5 }}
+                  className="jsx-style-adcf1188fb" style={{ opacity: window.desktopAPI?.setDownloadFolder ? 1 : 0.5 }}
                 >
                   Speichern
                 </button>
@@ -9188,21 +8939,21 @@ const createProject = async () => {
                       setDownloadFolderLoading(false);
                     }
                   }}
-                  style={{ backgroundColor: '#2c3e50', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', whiteSpace: 'nowrap', opacity: window.desktopAPI?.chooseDownloadFolder ? 1 : 0.5 }}
+                  className="jsx-style-7f837ca8a0" style={{ opacity: window.desktopAPI?.chooseDownloadFolder ? 1 : 0.5 }}
                 >
                   Ordner auswählen
                 </button>
               </div>
-              {downloadFolderError && <div role="alert" style={{ color: '#fca5a5', fontSize: '12px', marginTop: '6px' }}>{downloadFolderError}</div>}
-              <div style={{ textAlign: 'right', marginTop: '12px' }}>
-                <button type="button" onClick={() => setDownloadFolderPopupOpen(false)} style={{ backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer' }}>Schließen</button>
+              {downloadFolderError && <div role="alert" className="jsx-style-18702edca3" >{downloadFolderError}</div>}
+              <div className="jsx-style-d802746af3" >
+                <button type="button" onClick={() => setDownloadFolderPopupOpen(false)} className="jsx-style-9b27dfe3fb" >Schließen</button>
               </div>
               </section>
             </div>
             )}
             </div>
 
-            <div role="tablist" aria-label="Einstellungen" style={{ display: 'flex', gap: '8px', marginTop: '12px', borderBottom: '1px solid #334155' }}>
+            <div role="tablist" aria-label="Einstellungen" className="jsx-style-da7f997872" >
               {["Nachkalkulation", "Einstellungen", "Dateiordner", "Benutzer"].filter((tab) => (
                 tab === "Nachkalkulation" ? can("nachkalkulation")
                   : tab === "Benutzer" ? can("manageUsers")
@@ -9215,16 +8966,7 @@ const createProject = async () => {
                   role="tab"
                   aria-selected={settingsModalTab === tab}
                   onClick={() => setSettingsModalTab(tab)}
-                  style={{
-                    background: settingsModalTab === tab ? '#0284c7' : '#1e293b',
-                    color: 'white',
-                    border: '1px solid #334155',
-                    borderBottom: settingsModalTab === tab ? '1px solid #0284c7' : '1px solid #334155',
-                    borderRadius: '6px 6px 0 0',
-                    padding: '8px 14px',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
+                  className="jsx-style-ba3444158d" style={{ background: settingsModalTab === tab ? '#0284c7' : '#1e293b', borderBottom: settingsModalTab === tab ? '1px solid #0284c7' : '1px solid #334155' }}
                 >
                   {tab}
                 </button>
@@ -9233,7 +8975,7 @@ const createProject = async () => {
 
             {settingsModalTab === "Einstellungen" && (
               <div>
-                <div style={{ marginTop: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px' }}>
+                <div className="jsx-style-02f7dd128a" >
                   {[
                     {
                       key: 'file-security',
@@ -9243,8 +8985,8 @@ const createProject = async () => {
                           value={fileUploadSecurityLevel}
                           onChange={(event) => saveFileUploadSecurityLevel(event.target.value)}
                           aria-label="Standard-Sicherheitsstufe neuer Dateien"
-                          className="mast-input-base"
-                          style={{ margin: 0, minWidth: '120px', color: '#e2e8f0' }}
+                          className="mast-input-base jsx-style-0d6637f74a"
+
                         >
                           {allowedFileSecurityLevels.map((level) => (
                             <option key={level} value={level}>Stufe {level}</option>
@@ -9256,15 +8998,15 @@ const createProject = async () => {
                       key: 'download-folder',
                       label: 'Download-Speicherort',
                       control: (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                          <span title={downloadFolder || undefined} style={{ color: '#94a3b8', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div className="jsx-style-7c1c09f37d" >
+                          <span title={downloadFolder || undefined} className="jsx-style-a8f63338ee" >
                             {downloadFolder || (window.desktopAPI?.getDownloadFolder ? 'Standardordner' : 'Vom Browser verwaltet')}
                           </span>
                           <button
                             type="button"
                             title="Download-Speicherort"
                             onClick={() => setDownloadFolderPopupOpen(true)}
-                            style={{ margin: 0, backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}
+                            className="jsx-style-a3ba9936d4"
                           >
                             Ändern
                           </button>
@@ -9281,7 +9023,7 @@ const createProject = async () => {
                           aria-label="Dark Mode"
                           aria-checked={darkMode}
                           onClick={() => setDarkMode((previous) => !previous)}
-                          style={{ margin: 0, backgroundColor: darkMode ? '#0284c7' : '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '999px', padding: '4px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                          className="jsx-style-4c888108fb" style={{ backgroundColor: darkMode ? '#0284c7' : '#1e293b' }}
                         >
                           {darkMode ? '🌙 An' : '☀️ Aus'}
                         </button>
@@ -9290,62 +9032,55 @@ const createProject = async () => {
                   ].map((row, index) => (
                     <div
                       key={row.key}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', borderTop: index === 0 ? 'none' : '1px solid #334155' }}
+                      className="jsx-style-dffe7c4b2b" style={{ borderTop: index === 0 ? 'none' : '1px solid #334155' }}
                     >
-                      <span style={{ fontSize: '13px' }}>{row.label}</span>
+                      <span className="jsx-style-f61f4b2d9b" >{row.label}</span>
                       {row.control}
                     </div>
                   ))}
                   {passwordChangeNotice && (
-                    <div role="alert" style={{
-                      margin: '0 12px 10px',
-                      padding: '8px 10px',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: passwordChangeNotice.type === "success" ? '#166534' : '#991b1b',
-                      background: passwordChangeNotice.type === "success" ? '#dcfce7' : '#fee2e2'
-                    }}>
+                    <div role="alert" className="jsx-style-386a1d4df7" style={{ color: passwordChangeNotice.type === "success" ? '#166534' : '#991b1b', background: passwordChangeNotice.type === "success" ? '#dcfce7' : '#fee2e2' }}>
                       {passwordChangeNotice.text}
                     </div>
                   )}
-                  <form onSubmit={handlePasswordChange} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px', alignItems: 'end', padding: '10px 12px', borderTop: '1px solid #334155' }}>
+                  <form onSubmit={handlePasswordChange} className="jsx-style-f82c80a1a7" >
                     {[
                       { label: 'Aktuelles Passwort', value: currentPassword, setValue: setCurrentPassword, autoComplete: 'current-password', minLength: undefined },
                       { label: 'Neues Passwort', value: newPassword, setValue: setNewPassword, autoComplete: 'new-password', minLength: 8 },
                       { label: 'Neues Passwort wiederholen', value: newPasswordConfirm, setValue: setNewPasswordConfirm, autoComplete: 'new-password', minLength: 8 }
                     ].map((field) => (
-                      <label key={field.label} style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
-                        <span style={{ fontSize: '13px' }}>{field.label}</span>
+                      <label key={field.label} className="jsx-style-e76f1f8a76" >
+                        <span className="jsx-style-f61f4b2d9b" >{field.label}</span>
                         <input
                           type="password"
                           autoComplete={field.autoComplete}
                           aria-label={field.label}
                           value={field.value}
                           onChange={(event) => field.setValue(event.target.value)}
-                          className="mast-input-base"
-                          style={{ width: '100%', minWidth: 0, margin: 0 }}
+                          className="mast-input-base jsx-style-0aacc11018"
+
                           minLength={field.minLength}
                           required
                         />
                       </label>
                     ))}
-                    <button type="submit" style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', height: '33px', margin: 0, padding: '0 12px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                    <button type="submit" className="jsx-style-bd3b83403d" >
                       Passwort ändern
                     </button>
                   </form>
                 </div>
-            <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+            <div className="jsx-style-5cfef8f4ed" >
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
-                <select value={settingsTypeFilter} onChange={(e) => setSettingsTypeFilter(e.target.value)} className="mast-input-base" style={{ width: '100%', marginTop: '4px' }}>
+                <label className="jsx-style-fba9fd3e71" >Typ-Filter</label>
+                <select value={settingsTypeFilter} onChange={(e) => setSettingsTypeFilter(e.target.value)} className="mast-input-base jsx-style-f104274ab5" >
                   {analyticsTypeOptions.map((type) => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Sortierung</label>
-                <select value={settingsSortBy} onChange={(e) => setSettingsSortBy(e.target.value)} className="mast-input-base" style={{ width: '100%', marginTop: '4px' }}>
+                <label className="jsx-style-fba9fd3e71" >Sortierung</label>
+                <select value={settingsSortBy} onChange={(e) => setSettingsSortBy(e.target.value)} className="mast-input-base jsx-style-f104274ab5" >
                   <option value="date-desc">Datum (neu zuerst)</option>
                   <option value="date-asc">Datum (alt zuerst)</option>
                   <option value="hourly-desc">Stundenlohn (hoch zuerst)</option>
@@ -9353,7 +9088,7 @@ const createProject = async () => {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                <label className="jsx-style-fba9fd3e71" >Von Datum</label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -9362,12 +9097,12 @@ const createProject = async () => {
                   value={normalizeDateValue(settingsDateFrom)}
                   onChange={(e) => setSettingsDateFrom(e.target.value)}
                   onBlur={(e) => setSettingsDateFrom(normalizeDateValue(e.target.value))}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                <label className="jsx-style-fba9fd3e71" >Bis Datum</label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -9376,12 +9111,12 @@ const createProject = async () => {
                   value={normalizeDateValue(settingsDateTo)}
                   onChange={(e) => setSettingsDateTo(e.target.value)}
                   onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Proforma-Erinnerung (Tage)</label>
+                <label className="jsx-style-fba9fd3e71" >Proforma-Erinnerung (Tage)</label>
                 <input
                   type="number"
                   min={1}
@@ -9391,36 +9126,36 @@ const createProject = async () => {
                     const val = Number(e.target.value);
                     setProformaReminderDays(Number.isFinite(val) && val > 0 ? Math.round(val) : 1);
                   }}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Firma Lat</label>
+                <label className="jsx-style-fba9fd3e71" >Firma Lat</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder="z. B. 51.3515"
                   value={settingsCompanyLat}
                   onChange={(e) => setSettingsCompanyLat(e.target.value)}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Firma Lng</label>
+                <label className="jsx-style-fba9fd3e71" >Firma Lng</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   placeholder="z. B. 8.2839"
                   value={settingsCompanyLng}
                   onChange={(e) => setSettingsCompanyLng(e.target.value)}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Heatmap Radius</label>
+                <label className="jsx-style-fba9fd3e71" >Heatmap Radius</label>
                 <input
                   type="number"
                   min={18}
@@ -9432,12 +9167,12 @@ const createProject = async () => {
                     if (!Number.isFinite(nextValue)) return;
                     setSettingsHeatRadius(Math.min(180, Math.max(18, Math.round(nextValue))));
                   }}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Heatmap Blur</label>
+                <label className="jsx-style-fba9fd3e71" >Heatmap Blur</label>
                 <input
                   type="number"
                   min={10}
@@ -9449,8 +9184,8 @@ const createProject = async () => {
                     if (!Number.isFinite(nextValue)) return;
                     setSettingsHeatBlur(Math.min(60, Math.max(10, Math.round(nextValue))));
                   }}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
             </div>
@@ -9537,10 +9272,10 @@ const createProject = async () => {
 
             {settingsModalTab === "Nachkalkulation" && can("nachkalkulation") && (
               <div>
-            <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+            <div className="jsx-style-5cfef8f4ed" >
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Typ-Filter</label>
-                <div style={{ marginTop: '4px' }}>
+                <label className="jsx-style-fba9fd3e71" >Typ-Filter</label>
+                <div className="jsx-style-980fcfa42c" >
                   <MultiSelect
                     single
                     options={analyticsTypeOptions.map((type) => ({ id: type, label: type }))}
@@ -9552,7 +9287,7 @@ const createProject = async () => {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                <label className="jsx-style-fba9fd3e71" >Von Datum</label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -9561,12 +9296,12 @@ const createProject = async () => {
                   value={normalizeDateValue(settingsDateFrom)}
                   onChange={(e) => setSettingsDateFrom(e.target.value)}
                   onBlur={(e) => setSettingsDateFrom(normalizeDateValue(e.target.value))}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                <label className="jsx-style-fba9fd3e71" >Bis Datum</label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -9575,40 +9310,40 @@ const createProject = async () => {
                   value={normalizeDateValue(settingsDateTo)}
                   onChange={(e) => setSettingsDateTo(e.target.value)}
                   onBlur={(e) => setSettingsDateTo(normalizeDateValue(e.target.value))}
-                  className="mast-input-base"
-                  style={{ width: '100%', marginTop: '4px' }}
+                  className="mast-input-base jsx-style-f104274ab5"
+
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
-              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Gewichteter Stundenlohn (Filter)</div>
-                <strong style={{ color: getProfitabilityColor(overviewAverageRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontSize: '14px' }}>{overviewAverageRate.toFixed(2)} EUR/h</strong>
+            <div className="jsx-style-b6edb8d648" >
+              <div className="jsx-style-79b4bc9626" >
+                <div className="jsx-style-24206981e1" >Gewichteter Stundenlohn (Filter)</div>
+                <strong className="jsx-style-f61f4b2d9b" style={{ color: getProfitabilityColor(overviewAverageRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}>{overviewAverageRate.toFixed(2)} EUR/h</strong>
               </div>
-              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>&ge; {NORMAL_HOURLY_RATE.toFixed(1)} EUR/h (Gut+)</div>
-                <strong style={{ color: '#4ade80', fontSize: '14px' }}>{overviewProfitabelCount} / {analyticsRows.length}</strong>
+              <div className="jsx-style-79b4bc9626" >
+                <div className="jsx-style-24206981e1" >&ge; {NORMAL_HOURLY_RATE.toFixed(1)} EUR/h (Gut+)</div>
+                <strong className="jsx-style-8ab27a1bf9" >{overviewProfitabelCount} / {analyticsRows.length}</strong>
               </div>
-              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>&ge; {VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h (Sehr gut)</div>
-                <strong style={{ color: '#22c55e', fontSize: '14px' }}>{overviewVeryGoodCount}</strong>
+              <div className="jsx-style-79b4bc9626" >
+                <div className="jsx-style-24206981e1" >&ge; {VERY_GOOD_HOURLY_RATE.toFixed(1)} EUR/h (Sehr gut)</div>
+                <strong className="jsx-style-bc3ce14d5a" >{overviewVeryGoodCount}</strong>
               </div>
-              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>{'<'} {MIN_HOURLY_RATE.toFixed(0)} EUR/h</div>
-                <strong style={{ color: '#f87171', fontSize: '14px' }}>{analyticsRows.filter((item) => item.hourlyRate < MIN_HOURLY_RATE).length}</strong>
+              <div className="jsx-style-79b4bc9626" >
+                <div className="jsx-style-24206981e1" >{'<'} {MIN_HOURLY_RATE.toFixed(0)} EUR/h</div>
+                <strong className="jsx-style-131f507b81" >{analyticsRows.filter((item) => item.hourlyRate < MIN_HOURLY_RATE).length}</strong>
               </div>
-              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Masten Montage (Zeitraum)</div>
-                <strong style={{ color: '#22c55e', fontSize: '14px' }}>{totalMontageCount}</strong>
+              <div className="jsx-style-79b4bc9626" >
+                <div className="jsx-style-24206981e1" >Masten Montage (Zeitraum)</div>
+                <strong className="jsx-style-bc3ce14d5a" >{totalMontageCount}</strong>
               </div>
-              <div style={{ background: '#111827', padding: '8px', borderRadius: '6px', border: '1px solid #334155' }}>
-                <div style={{ color: '#94a3b8', fontSize: '11px' }}>Masten Demontage (Zeitraum)</div>
-                <strong style={{ color: '#f87171', fontSize: '14px' }}>{totalDemontageCount}</strong>
+              <div className="jsx-style-79b4bc9626" >
+                <div className="jsx-style-24206981e1" >Masten Demontage (Zeitraum)</div>
+                <strong className="jsx-style-131f507b81" >{totalDemontageCount}</strong>
               </div>
             </div>
 
-            <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div className="jsx-style-8b50789aa2" >
               {[
                 { id: 'timeline', label: 'Verlauf' },
                 { id: 'city', label: 'Städte' },
@@ -9620,59 +9355,47 @@ const createProject = async () => {
                 <button
                   key={chart.id}
                   onClick={() => setSettingsChartView(chart.id)}
-                  style={{
-                    background: settingsChartView === chart.id ? '#0284c7' : '#1e293b',
-                    color: 'white',
-                    border: '1px solid #334155',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
+                  className="jsx-style-b830914ba5" style={{ background: settingsChartView === chart.id ? '#0284c7' : '#1e293b' }}
                 >
                   {chart.label}
                 </button>
               ))}
             </div>
 
-            <div style={{ marginTop: '12px', background: '#111827', border: '1px solid #334155', borderRadius: '8px', padding: '12px' }}>
+            <div className="jsx-style-14810ebe41" >
               {settingsChartView === 'timeline' && (
                 <>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn-Verlauf nach Monat</h4>
+                  <h4 className="jsx-style-e919a4a93f" >Stundenlohn-Verlauf nach Monat</h4>
                   {timelineData.length > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', minHeight: '220px', overflowX: 'auto', paddingBottom: '8px' }}>
+                    <div className="jsx-style-6f7342715d" >
                       {timelineData.map((item) => (
                         <div
                           key={item.key}
-                          style={{ minWidth: '48px', textAlign: 'center', cursor: 'pointer' }}
+                          className="jsx-style-56989e3717"
                           title="Details anzeigen"
                           onClick={() => {
                             const detailRows = analyticsRows.filter((row) => row.createdDate && row.createdDate.startsWith(item.key));
                             openChartDetail(`Verlauf ${item.key} (${detailRows.length})`, detailRows);
                           }}
                         >
-                          <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{item.avgRate.toFixed(1)}</div>
-                          <div style={{
-                            height: `${Math.max(8, (item.avgRate / timelineMax) * 170)}px`,
-                            background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10),
-                            borderRadius: '6px 6px 0 0'
-                          }} />
-                          <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '4px' }}>{item.key.slice(2)}</div>
+                          <div className="jsx-style-8f8b875028" >{item.avgRate.toFixed(1)}</div>
+                          <div className="jsx-style-bac7519815" style={{ height: `${Math.max(8, (item.avgRate / timelineMax) * 170)}px`, background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
+                          <div className="jsx-style-e5ff04c028" >{item.key.slice(2)}</div>
                         </div>
                       ))}
                     </div>
-                  ) : <div style={{ color: '#94a3b8' }}>Keine Verlaufsdaten im aktuellen Filter.</div>}
+                  ) : <div className="jsx-style-26123368f0" >Keine Verlaufsdaten im aktuellen Filter.</div>}
                 </>
               )}
 
               {settingsChartView === 'city' && (
                 <>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn nach Stadt</h4>
-                  <div style={{ display: 'grid', gap: '8px' }}>
+                  <h4 className="jsx-style-e919a4a93f" >Stundenlohn nach Stadt</h4>
+                  <div className="jsx-style-987bf308d7" >
                     {cityData.map((item) => (
                       <div
                         key={item.city}
-                        style={{ display: 'grid', gridTemplateColumns: '120px 1fr 150px', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                        className="jsx-style-42d14a9048"
                         title="Details anzeigen"
                         onClick={() => {
                           const detailRows = analyticsRows.filter((row) => row.city === item.city);
@@ -9680,10 +9403,10 @@ const createProject = async () => {
                         }}
                       >
                         <span>{item.city}</span>
-                        <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(100, (item.avgRate / cityMax) * 100)}%`, height: '100%', background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
+                        <div className="jsx-style-0723c8c53a" >
+                          <div className="jsx-style-4a3fa853cd" style={{ width: `${Math.min(100, (item.avgRate / cityMax) * 100)}%`, background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
                         </div>
-                        <span style={{ textAlign: 'right', color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
+                        <span className="jsx-style-076bc5d23f" style={{ color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
                       </div>
                     ))}
                   </div>
@@ -9692,23 +9415,23 @@ const createProject = async () => {
 
               {settingsChartView === 'type' && (
                 <>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Stundenlohn nach Auftragstyp</h4>
-                  <div style={{ display: 'grid', gap: '8px' }}>
+                  <h4 className="jsx-style-e919a4a93f" >Stundenlohn nach Auftragstyp</h4>
+                  <div className="jsx-style-987bf308d7" >
                     {typeData.map((item) => (
                       <div
                         key={item.type}
-                        style={{ display: 'grid', gridTemplateColumns: '160px 1fr 150px', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                        className="jsx-style-8f51d9a60f"
                         title="Details anzeigen"
                         onClick={() => {
                           const detailRows = analyticsRowsByTypeChart.filter((row) => row.type === item.type);
                           openChartDetail(`Typ ${item.type} (${detailRows.length})`, detailRows);
                         }}
                       >
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</span>
-                        <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(100, (item.avgRate / typeMax) * 100)}%`, height: '100%', background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
+                        <span className="jsx-style-e0c2b281ed" >{item.type}</span>
+                        <div className="jsx-style-0723c8c53a" >
+                          <div className="jsx-style-4a3fa853cd" style={{ width: `${Math.min(100, (item.avgRate / typeMax) * 100)}%`, background: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }} />
                         </div>
-                        <span style={{ textAlign: 'right', color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
+                        <span className="jsx-style-076bc5d23f" style={{ color: getProfitabilityColor(item.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}>{item.avgRate.toFixed(2)} EUR/h ({item.count})</span>
                       </div>
                     ))}
                   </div>
@@ -9717,16 +9440,16 @@ const createProject = async () => {
 
               {settingsChartView === 'geo-heatmap' && (
                 <>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Karten-Heatmap: Stundenlohn und Entfernung zur Firma</h4>
+                  <h4 className="jsx-style-e919a4a93f" >Karten-Heatmap: Stundenlohn und Entfernung zur Firma</h4>
 
-                                    <div style={{ marginBottom: '10px', display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                    <div className="jsx-style-7eafbb508a" >
                                       <div>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8' }}>Darstellung</label>
+                                        <label className="jsx-style-fba9fd3e71" >Darstellung</label>
                                         <select
                                           value={settingsGeoOverlayMode}
                                           onChange={(e) => setSettingsGeoOverlayMode(e.target.value)}
-                                          className="mast-input-base"
-                                          style={{ display: 'block', marginTop: '4px', minWidth: '160px' }}
+                                          className="mast-input-base jsx-style-63021c9c5a"
+
                                         >
                                           <option value="heat">Wärmewolke</option>
                                           <option value="raster">Raster</option>
@@ -9735,7 +9458,7 @@ const createProject = async () => {
                                       </div>
                                       {settingsGeoOverlayMode === 'raster' && (
                                         <div>
-                                          <label style={{ fontSize: '11px', color: '#94a3b8' }}>Rastergröße (km)</label>
+                                          <label className="jsx-style-fba9fd3e71" >Rastergröße (km)</label>
                                           <input
                                             type="number"
                                             min={0.1}
@@ -9747,25 +9470,25 @@ const createProject = async () => {
                                               if (!Number.isFinite(nextValue)) return;
                                               setSettingsGeoCellSizeKm(Math.min(25, Math.max(0.1, Number(nextValue.toFixed(1)))));
                                             }}
-                                            className="mast-input-base"
-                                            style={{ display: 'block', marginTop: '4px', width: '100px' }}
+                                            className="mast-input-base jsx-style-64dd5645d6"
+
                                           />
                                         </div>
                                       )}
                                     </div>
 
                   {!hasCompanyCoordinates && (
-                    <div style={{ marginBottom: '8px', color: '#fda4af', fontSize: '12px' }}>
+                    <div className="jsx-style-deeae3f2e2" >
                       Bitte gültige Firmen-Koordinaten (Lat/Lng) eintragen, damit die Distanzanalyse berechnet werden kann.
                     </div>
                   )}
 
-                  <div style={{ border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
+                  <div className="jsx-style-9cc04acdfc" >
                     <MapContainer
                       key={geoMapBoundsKey}
                       center={geoMapCenter}
                       zoom={10}
-                      style={{ width: '100%', height: '420px', minHeight: '420px', background: '#0b1220' }}
+                      className="jsx-style-1201570a99"
                       scrollWheelZoom={true}
                     >
                       <TileLayer
@@ -9856,46 +9579,46 @@ const createProject = async () => {
                     </MapContainer>
 
                     {heatmapGeoPoints.length === 0 && (
-                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(2, 6, 23, 0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                        <div style={{ color: '#cbd5e1', fontSize: '13px', background: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155', borderRadius: '8px', padding: '8px 10px' }}>
+                      <div className="jsx-style-464cba36a4" >
+                        <div className="jsx-style-b5360e53d3" >
                           Keine geokodierten Datensätze im aktuellen Filter.
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px' }}>
-                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>Geokodierte Baustellen</div>
-                      <strong style={{ color: '#e2e8f0' }}>{heatmapGeoPoints.length}</strong>
+                  <div className="jsx-style-a75ced072b" >
+                    <div className="jsx-style-f3f46cfc08" >
+                      <div className="jsx-style-fba9fd3e71" >Geokodierte Baustellen</div>
+                      <strong className="jsx-style-7e4b64e65c" >{heatmapGeoPoints.length}</strong>
                     </div>
-                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>Ø Entfernung</div>
-                      <strong style={{ color: '#e2e8f0' }}>
+                    <div className="jsx-style-f3f46cfc08" >
+                      <div className="jsx-style-fba9fd3e71" >Ø Entfernung</div>
+                      <strong className="jsx-style-7e4b64e65c" >
                         {geoRowsWithDistance.length > 0
                           ? `${(geoRowsWithDistance.reduce((sum, row) => sum + row.distanceKm, 0) / geoRowsWithDistance.length).toFixed(2)} km`
                           : '-'}
                       </strong>
                     </div>
-                    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>Korrelation Entfernung ↔ Stundenlohn</div>
+                    <div className="jsx-style-f3f46cfc08" >
+                      <div className="jsx-style-fba9fd3e71" >Korrelation Entfernung ↔ Stundenlohn</div>
                       <strong style={{ color: distanceCorrelation === null ? '#e2e8f0' : (distanceCorrelation < 0 ? '#22c55e' : distanceCorrelation > 0 ? '#f87171' : '#e2e8f0') }}>
                         {distanceCorrelation === null ? 'zu wenig Daten' : distanceCorrelation.toFixed(3)}
                       </strong>
-                      <div style={{ marginTop: '4px', fontSize: '11px', color: distanceCorrelationInterpretation.toneColor, fontWeight: 700 }}>
+                      <div className="jsx-style-7ee0cadc74" style={{ color: distanceCorrelationInterpretation.toneColor }}>
                         {distanceCorrelationInterpretation.label}
                       </div>
-                      <div style={{ marginTop: '2px', fontSize: '10px', color: '#94a3b8', lineHeight: 1.35 }}>
+                      <div className="jsx-style-9df90ddb1e" >
                         {distanceCorrelationInterpretation.detail} (n={geoRowsWithDistance.length})
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '8px', display: 'grid', gap: '6px' }}>
+                  <div className="jsx-style-522c182bce" >
                     {distanceBands.map((band) => (
                       <div
                         key={band.key}
-                        style={{ display: 'grid', gridTemplateColumns: '180px 1fr 160px', gap: '8px', alignItems: 'center', cursor: band.count > 0 ? 'pointer' : 'default' }}
+                        className="jsx-style-5604d4ee89" style={{ cursor: band.count > 0 ? 'pointer' : 'default' }}
                         title={band.count > 0 ? 'Details anzeigen' : 'Keine Daten'}
                         onClick={() => {
                           if (band.count === 0) return;
@@ -9903,24 +9626,20 @@ const createProject = async () => {
                           openChartDetail(`Distanz ${band.label} (${detailRows.length})`, detailRows);
                         }}
                       >
-                        <span style={{ color: '#cbd5e1' }}>{band.label}</span>
-                        <div style={{ height: '10px', borderRadius: '999px', background: '#1f2937', overflow: 'hidden' }}>
+                        <span className="jsx-style-c38c2c413d" >{band.label}</span>
+                        <div className="jsx-style-c417510339" >
                           <div
-                            style={{
-                              height: '100%',
-                              width: `${Math.min(100, (band.count / Math.max(1, geoRowsWithDistance.length)) * 100)}%`,
-                              background: getProfitabilityColor(band.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10)
-                            }}
+                            className="jsx-style-4a3fa853cd" style={{ width: `${Math.min(100, (band.count / Math.max(1, geoRowsWithDistance.length)) * 100)}%`, background: getProfitabilityColor(band.avgRate, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}
                           />
                         </div>
-                        <span style={{ textAlign: 'right', color: '#e2e8f0' }}>
+                        <span className="jsx-style-2beabd5f88" >
                           {band.count} Baust. | {band.count > 0 ? `${band.avgRate.toFixed(2)} EUR/h` : '-'}
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#94a3b8' }}>
+                  <div className="jsx-style-3e8f940857" >
                     Hinweis: Du kannst zwischen Wärmewolke, Raster und Punkten wechseln. Im Wärmewolken-Modus richten sich die Farben nach Stundenlohn (rot = niedriger, gruen = hoeher), Punkte sind dabei bewusst transparent. Klick auf Rasterzelle, Punkt oder Distanzband oeffnet Details.
                   </div>
                 </>
@@ -9928,12 +9647,12 @@ const createProject = async () => {
 
               {settingsChartView === 'distribution' && (
                 <>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Rentabilitäts-Verteilung</h4>
-                  <div style={{ display: 'grid', gap: '8px' }}>
+                  <h4 className="jsx-style-e919a4a93f" >Rentabilitäts-Verteilung</h4>
+                  <div className="jsx-style-987bf308d7" >
                     {distributionData.map((item) => (
                       <div
                         key={item.label}
-                        style={{ display: 'grid', gridTemplateColumns: '170px 1fr 80px', gap: '8px', alignItems: 'center', cursor: 'pointer' }}
+                        className="jsx-style-9fcfced7f4"
                         title="Details anzeigen"
                         onClick={() => {
                           const detailRows = analyticsRows.filter((row) => {
@@ -9948,10 +9667,10 @@ const createProject = async () => {
                         }}
                       >
                         <span>{item.label}</span>
-                        <div style={{ height: '12px', background: '#1f2937', borderRadius: '999px', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(100, (item.count / distributionMax) * 100)}%`, height: '100%', background: item.color }} />
+                        <div className="jsx-style-0723c8c53a" >
+                          <div className="jsx-style-4a3fa853cd" style={{ width: `${Math.min(100, (item.count / distributionMax) * 100)}%`, background: item.color }} />
                         </div>
-                        <span style={{ textAlign: 'right', fontWeight: 700 }}>{item.count}</span>
+                        <span className="jsx-style-076bc5d23f" >{item.count}</span>
                       </div>
                     ))}
                   </div>
@@ -9960,35 +9679,31 @@ const createProject = async () => {
 
               {settingsChartView === 'monthly' && (
                 <>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#93c5fd' }}>Monatliche Stunden (Auslastung)</h4>
+                  <h4 className="jsx-style-e919a4a93f" >Monatliche Stunden (Auslastung)</h4>
                   {monthlyVolumeData.length > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', minHeight: '220px', overflowX: 'auto', paddingBottom: '8px' }}>
+                    <div className="jsx-style-6f7342715d" >
                       {monthlyVolumeData.map((item) => (
                         <div
                           key={item.key}
-                          style={{ minWidth: '48px', textAlign: 'center', cursor: 'pointer' }}
+                          className="jsx-style-56989e3717"
                           title="Details anzeigen"
                           onClick={() => {
                             const detailRows = analyticsRowsByTypeChart.filter((row) => row.createdDate && row.createdDate.startsWith(item.key));
                             openChartDetail(`Monat ${item.key} (${detailRows.length})`, detailRows);
                           }}
                         >
-                          <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{item.totalHours.toFixed(0)}h</div>
-                          <div style={{
-                            height: `${Math.max(8, (item.totalHours / monthlyHoursMax) * 170)}px`,
-                            background: '#38bdf8',
-                            borderRadius: '6px 6px 0 0'
-                          }} />
-                          <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '4px' }}>{item.key.slice(2)}</div>
+                          <div className="jsx-style-8f8b875028" >{item.totalHours.toFixed(0)}h</div>
+                          <div className="jsx-style-58bf7af198" style={{ height: `${Math.max(8, (item.totalHours / monthlyHoursMax) * 170)}px` }} />
+                          <div className="jsx-style-e5ff04c028" >{item.key.slice(2)}</div>
                         </div>
                       ))}
                     </div>
-                  ) : <div style={{ color: '#94a3b8' }}>Keine Stundendaten im aktuellen Filter.</div>}
+                  ) : <div className="jsx-style-26123368f0" >Keine Stundendaten im aktuellen Filter.</div>}
                 </>
               )}
 
               {analyticsRows.length === 0 && (
-                <div style={{ color: '#94a3b8', marginTop: '8px' }}>Keine Datensätze für die aktuelle Filter-/Sortierauswahl.</div>
+                <div className="jsx-style-01d5a6c673" >Keine Datensätze für die aktuelle Filter-/Sortierauswahl.</div>
               )}
             </div>
               </div>
@@ -9997,51 +9712,33 @@ const createProject = async () => {
             {settingsModalTab === "Nachkalkulation" && chartDetailOpen && (
               <div
                 onClick={() => setChartDetailOpen(false)}
-                style={{
-                  position: 'fixed',
-                  inset: 0,
-                  background: 'rgba(2,6,23,0.78)',
-                  zIndex: 13100,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '16px'
-                }}
+                className="jsx-style-03b50704e3"
               >
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  style={{
-                    width: 'min(1180px, 98vw)',
-                    maxHeight: '92vh',
-                    overflow: 'auto',
-                    background: '#0b1220',
-                    border: '1px solid #1f2a44',
-                    borderRadius: '10px',
-                    padding: '14px',
-                    color: '#e2e8f0'
-                  }}
+                  className="jsx-style-90c467e206"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <h4 style={{ margin: 0, color: '#7dd3fc' }}>{chartDetailTitle || 'Chart-Details'}</h4>
-                    <button onClick={() => setChartDetailOpen(false)} style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}>
+                  <div className="jsx-style-af2fc45b8e" >
+                    <h4 className="jsx-style-c288d4367d" >{chartDetailTitle || 'Chart-Details'}</h4>
+                    <button onClick={() => setChartDetailOpen(false)} className="jsx-style-00fe7effda" >
                       Schließen
                     </button>
                   </div>
 
-                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px' }}>
+                  <div className="jsx-style-29110f1af0" >
                     <input
                       type="text"
                       placeholder="Freitextsuche (Name, Status, Typ, Stadt, AB, Datum)"
                       value={chartDetailSearch}
                       onChange={(e) => setChartDetailSearch(e.target.value)}
-                      className="mast-input-base"
-                      style={{ marginTop: 0 }}
+                      className="mast-input-base jsx-style-4b95a4f686"
+
                     />
                     <select
                       value={chartDetailStatusFilter}
                       onChange={(e) => setChartDetailStatusFilter(e.target.value)}
-                      className="mast-input-base"
-                      style={{ marginTop: 0 }}
+                      className="mast-input-base jsx-style-4b95a4f686"
+
                     >
                       {chartDetailStatusOptions.map((status) => (
                         <option key={status} value={status}>{status}</option>
@@ -10050,8 +9747,8 @@ const createProject = async () => {
                     <select
                       value={chartDetailTypeFilter}
                       onChange={(e) => setChartDetailTypeFilter(e.target.value)}
-                      className="mast-input-base"
-                      style={{ marginTop: 0 }}
+                      className="mast-input-base jsx-style-4b95a4f686"
+
                     >
                       {chartDetailTypeOptions.map((type) => (
                         <option key={type} value={type}>{type}</option>
@@ -10065,8 +9762,8 @@ const createProject = async () => {
                       value={normalizeDateValue(chartDetailDateFrom)}
                       onChange={(e) => setChartDetailDateFrom(e.target.value)}
                       onBlur={(e) => setChartDetailDateFrom(normalizeDateValue(e.target.value))}
-                      className="mast-input-base"
-                      style={{ marginTop: 0 }}
+                      className="mast-input-base jsx-style-4b95a4f686"
+
                     />
                     <input
                       type="text"
@@ -10076,27 +9773,27 @@ const createProject = async () => {
                       value={normalizeDateValue(chartDetailDateTo)}
                       onChange={(e) => setChartDetailDateTo(e.target.value)}
                       onBlur={(e) => setChartDetailDateTo(normalizeDateValue(e.target.value))}
-                      className="mast-input-base"
-                      style={{ marginTop: 0 }}
+                      className="mast-input-base jsx-style-4b95a4f686"
+
                     />
                   </div>
 
-                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#93c5fd' }}>
+                  <div className="jsx-style-fcf03ddbfd" >
                     Treffer: {chartDetailFilteredRows.length} von {chartDetailRows.length}
                   </div>
 
-                  <div style={{ marginTop: '10px', border: '1px solid #334155', borderRadius: '8px', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="jsx-style-01570a5b66" >
+                    <table className="jsx-style-b0faef9453" >
                       <thead>
-                        <tr style={{ background: '#111827' }}>
-                          <th onClick={() => toggleChartDetailSort('name')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Name {chartDetailSortKey === 'name' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('status')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Status {chartDetailSortKey === 'status' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('type')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Typ {chartDetailSortKey === 'type' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('createdDate')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Datum {chartDetailSortKey === 'createdDate' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('abHsw')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>AB HSW {chartDetailSortKey === 'abHsw' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('abMueller')} style={{ textAlign: 'left', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>AB Müller {chartDetailSortKey === 'abMueller' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('stunden')} style={{ textAlign: 'right', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>Stunden {chartDetailSortKey === 'stunden' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
-                          <th onClick={() => toggleChartDetailSort('hourlyRate')} style={{ textAlign: 'right', padding: '8px', color: '#93c5fd', cursor: 'pointer', userSelect: 'none' }}>EUR/h {chartDetailSortKey === 'hourlyRate' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                        <tr className="jsx-style-58b8e2e02c" >
+                          <th onClick={() => toggleChartDetailSort('name')} className="jsx-style-76e2cba86d" >Name {chartDetailSortKey === 'name' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('status')} className="jsx-style-76e2cba86d" >Status {chartDetailSortKey === 'status' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('type')} className="jsx-style-76e2cba86d" >Typ {chartDetailSortKey === 'type' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('createdDate')} className="jsx-style-76e2cba86d" >Datum {chartDetailSortKey === 'createdDate' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('abHsw')} className="jsx-style-76e2cba86d" >AB HSW {chartDetailSortKey === 'abHsw' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('abMueller')} className="jsx-style-76e2cba86d" >AB Müller {chartDetailSortKey === 'abMueller' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('stunden')} className="jsx-style-cf1682084b" >Stunden {chartDetailSortKey === 'stunden' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
+                          <th onClick={() => toggleChartDetailSort('hourlyRate')} className="jsx-style-cf1682084b" >EUR/h {chartDetailSortKey === 'hourlyRate' ? (chartDetailSortDir === 'asc' ? '↑' : '↓') : ''}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -10104,26 +9801,22 @@ const createProject = async () => {
                           <tr
                             key={`${row.id || row.name}-${idx}`}
                             onClick={() => openProjectFromChartRow(row)}
-                            style={{
-                              borderTop: '1px solid #1f2a44',
-                              cursor: 'pointer',
-                              background: idx % 2 === 0 ? '#0b1220' : '#0f172a'
-                            }}
+                            className="jsx-style-8d553a01ce" style={{ background: idx % 2 === 0 ? '#0b1220' : '#0f172a' }}
                             title="Baustelle öffnen"
                           >
-                            <td style={{ padding: '8px', color: '#e2e8f0' }}>{row.name || '-'}</td>
-                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.status || '-'}</td>
-                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.type || '-'}</td>
-                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.createdDate ? `${row.createdDate.slice(8, 10)}.${row.createdDate.slice(5, 7)}.${row.createdDate.slice(0, 4)}` : '-'}</td>
-                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.abHsw || '-'}</td>
-                            <td style={{ padding: '8px', color: '#cbd5e1' }}>{row.abMueller || '-'}</td>
-                            <td style={{ padding: '8px', textAlign: 'right', color: '#cbd5e1' }}>{Number(row.stunden || 0).toFixed(2)}</td>
-                            <td style={{ padding: '8px', textAlign: 'right', color: getProfitabilityColor(row.hourlyRate || 0, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10), fontWeight: 700 }}>{Number(row.hourlyRate || 0).toFixed(2)}</td>
+                            <td className="jsx-style-1d9cb69a47" >{row.name || '-'}</td>
+                            <td className="jsx-style-9e5016c726" >{row.status || '-'}</td>
+                            <td className="jsx-style-9e5016c726" >{row.type || '-'}</td>
+                            <td className="jsx-style-9e5016c726" >{row.createdDate ? `${row.createdDate.slice(8, 10)}.${row.createdDate.slice(5, 7)}.${row.createdDate.slice(0, 4)}` : '-'}</td>
+                            <td className="jsx-style-9e5016c726" >{row.abHsw || '-'}</td>
+                            <td className="jsx-style-9e5016c726" >{row.abMueller || '-'}</td>
+                            <td className="jsx-style-40afcbb479" >{Number(row.stunden || 0).toFixed(2)}</td>
+                            <td className="jsx-style-76e43fcdf3" style={{ color: getProfitabilityColor(row.hourlyRate || 0, MIN_HOURLY_RATE, VERY_GOOD_HOURLY_RATE + 10) }}>{Number(row.hourlyRate || 0).toFixed(2)}</td>
                           </tr>
                         ))}
                         {chartDetailFilteredRows.length === 0 && (
                           <tr>
-                            <td colSpan={8} style={{ padding: '14px', color: '#94a3b8', textAlign: 'center' }}>
+                            <td colSpan={8} className="jsx-style-e1403052ca" >
                               Keine Baustellen für die aktuelle Filterauswahl.
                             </td>
                           </tr>
@@ -10138,44 +9831,26 @@ const createProject = async () => {
             {ordersExportPopupOpen && (
               <div
                 onClick={() => setOrdersExportPopupOpen(false)}
-                style={{
-                  position: 'fixed',
-                  inset: 0,
-                  background: 'rgba(2,6,23,0.75)',
-                  zIndex: 13000,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: '16px'
-                }}
+                className="jsx-style-7b927d7b8f"
               >
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  style={{
-                    width: 'min(900px, 97vw)',
-                    maxHeight: '90vh',
-                    overflow: 'auto',
-                    background: '#0b1220',
-                    border: '1px solid #1f2a44',
-                    borderRadius: '10px',
-                    padding: '14px',
-                    color: '#e2e8f0'
-                  }}
+                  className="jsx-style-dd9e9b8d84"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <h4 style={{ margin: 0, color: '#7dd3fc' }}>Aufträge Excel Export</h4>
-                    <button onClick={() => setOrdersExportPopupOpen(false)} style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}>
+                  <div className="jsx-style-af2fc45b8e" >
+                    <h4 className="jsx-style-c288d4367d" >Aufträge Excel Export</h4>
+                    <button onClick={() => setOrdersExportPopupOpen(false)} className="jsx-style-00fe7effda" >
                       Schließen
                     </button>
                   </div>
 
-                  <div style={{ marginTop: '10px', fontSize: '12px', color: '#93c5fd' }}>
+                  <div className="jsx-style-0f297a30d8" >
                     Filter nach Typ, Zeitraum (Erstellt am) und Status. Danach auswählbare Felder exportieren.
                   </div>
 
-                  <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+                  <div className="jsx-style-6297abcfeb" >
                     <div className="filter-multi" ref={ordersExportTypeFilterRef}>
-                      <label className="filter-multi-label" style={{ color: '#94a3b8' }}>Typ</label>
+                      <label className="filter-multi-label jsx-style-26123368f0" >Typ</label>
                       <button
                         type="button"
                         onClick={() => setOrdersExportTypeFilterOpen((prev) => !prev)}
@@ -10209,7 +9884,7 @@ const createProject = async () => {
                     </div>
 
                     <div className="filter-multi" ref={ordersExportStatusFilterRef}>
-                      <label className="filter-multi-label" style={{ color: '#94a3b8' }}>Status</label>
+                      <label className="filter-multi-label jsx-style-26123368f0" >Status</label>
                       <button
                         type="button"
                         onClick={() => setOrdersExportStatusFilterOpen((prev) => !prev)}
@@ -10243,7 +9918,7 @@ const createProject = async () => {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Von Datum</label>
+                      <label className="jsx-style-fba9fd3e71" >Von Datum</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -10252,13 +9927,13 @@ const createProject = async () => {
                         value={normalizeDateValue(ordersExportDateFrom)}
                         onChange={(e) => setOrdersExportDateFrom(e.target.value)}
                         onBlur={(e) => setOrdersExportDateFrom(normalizeDateValue(e.target.value))}
-                        className="mast-input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
+                        className="mast-input-base jsx-style-f104274ab5"
+
                       />
                     </div>
 
                     <div>
-                      <label style={{ fontSize: '11px', color: '#94a3b8' }}>Bis Datum</label>
+                      <label className="jsx-style-fba9fd3e71" >Bis Datum</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -10267,41 +9942,41 @@ const createProject = async () => {
                         value={normalizeDateValue(ordersExportDateTo)}
                         onChange={(e) => setOrdersExportDateTo(e.target.value)}
                         onBlur={(e) => setOrdersExportDateTo(normalizeDateValue(e.target.value))}
-                        className="mast-input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
+                        className="mast-input-base jsx-style-f104274ab5"
+
                       />
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <strong style={{ color: '#cbd5e1' }}>Felder auswählen</strong>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                  <div className="jsx-style-3d3fd74086" >
+                    <strong className="jsx-style-c38c2c413d" >Felder auswählen</strong>
+                    <div className="jsx-style-fe667bdf0f" >
                       <button
                         onClick={selectAllOrdersExportFields}
-                        style={{ background: '#0369a1', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}
+                        className="jsx-style-23ec73fea8"
                       >
                         Alle wählen
                       </button>
                       <button
                         onClick={clearOrdersExportFields}
-                        style={{ background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer' }}
+                        className="jsx-style-00fe7effda"
                       >
                         Alle abwählen
                       </button>
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '8px', border: '1px solid #1f2a44', borderRadius: '8px', padding: '10px', background: '#0f172a' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '6px 10px' }}>
+                  <div className="jsx-style-62f1300f66" >
+                    <div className="jsx-style-5ab436d8dd" >
                       {ORDER_EXPORT_FIELD_OPTIONS.map((field) => {
                         const isChecked = ordersExportSelectedFields.includes(field.key);
                         return (
-                          <label key={field.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e2e8f0' }}>
+                          <label key={field.key} className="jsx-style-24240b655d" >
                             <input
                               type="checkbox"
                               checked={isChecked}
                               onChange={() => toggleOrdersExportField(field.key)}
-                              style={{ width: '16px', height: '16px', margin: 0 }}
+                              className="jsx-style-1011606137"
                             />
                             <span>{field.label}</span>
                           </label>
@@ -10310,11 +9985,11 @@ const createProject = async () => {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '12px', color: '#93c5fd' }}>
+                  <div className="jsx-style-3d3fd74086" >
+                    <span className="jsx-style-0a90b13905" >
                       Treffer: {ordersExportRows.length} | Ausgewählte Felder: {ordersExportSelectedFields.length}
                     </span>
-                    <button onClick={exportOrdersToExcel} style={{ backgroundColor: '#0f766e', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 600 }}>
+                    <button onClick={exportOrdersToExcel} className="jsx-style-84b41be2cc" >
                       Jetzt Aufträge exportieren
                     </button>
                   </div>
@@ -10327,7 +10002,7 @@ const createProject = async () => {
       </>
     )}
     {fileViewer && (
-      <Suspense fallback={<div role="status" style={{ position: "fixed", inset: 0, zIndex: 3000, display: "grid", placeItems: "center", background: "rgba(15, 23, 42, 0.6)", color: "white" }}>Dateivorschau wird geladen…</div>}>
+      <Suspense fallback={<div role="status" className="jsx-style-9be8d82c8c" >Dateivorschau wird geladen…</div>}>
         <FileViewer
           fileName={fileViewer.fileName}
           fileNames={fileViewer.fileNames}
