@@ -83,6 +83,26 @@ schreiben dürfen und `sudo -n systemctl restart pocketbase.service` ohne
 Passwortabfrage ausführen dürfen. Der Workflow prüft anschließend, ob der
 Dienst wieder aktiv ist.
 
+## Electron-Releases
+
+Bei einem Push auf `master` erhöht GitHub Actions die Patch-Version in
+`package.json` und `package-lock.json`, commitet die Änderung und erstellt den
+zugehörigen Tag (z. B. `v1.5.2`). Anschließend baut und veröffentlicht der
+bestehende Electron-Workflow das Release. Manuell gepushte `v*`-Tags lösen
+den Release-Workflow weiterhin aus.
+
+Major und Minor werden in `package.json` vorgegeben: Aus `1.5.0` wird beim
+nächsten Push beispielsweise `1.5.1`. Die Versionsnummer muss dem Format
+`major.minor.patch` entsprechen und der nächste Tag darf noch nicht existieren.
+Entwicklungsbranches sollten regelmäßig mit `master` abgeglichen werden, damit
+Versionsänderungen nicht verloren gehen oder Merge-Konflikte verursachen.
+
+GitHub Actions benötigt Schreibrechte für Repository-Inhalte und muss auf
+`master` pushen dürfen. Branch-Schutzregeln können den Versions-Commit
+verhindern; in diesem Fall schlägt der Workflow sichtbar fehl. Der automatisch
+erzeugte Commit und Tag verwenden `GITHUB_TOKEN` und starten daher keine
+weiteren Push-Workflows. Der Release-Workflow wird stattdessen direkt aufgerufen.
+
 ## NPM-Skripte
 
 - `npm run dev`: Vite Entwicklungsserver
