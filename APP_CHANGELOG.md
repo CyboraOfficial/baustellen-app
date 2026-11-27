@@ -2,6 +2,8 @@
 
 ## Unveröffentlicht
 
+## 1.5.3
+
 - Der Changelog kann jederzeit in den Einstellungen geöffnet werden.
 - Neue Benutzer werden über einen kompakten Dialog mit Rollenwahl angelegt.
 - Im Changelog ist zunächst nur die neueste Version aufgeklappt.
