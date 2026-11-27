@@ -2009,8 +2009,13 @@ const [user, setUser] = useState(pb.authStore.model);
 const [loginEmail, setLoginEmail] = useState("");
 const [loginPass, setLoginPass] = useState("");
 const [registerMode, setRegisterMode] = useState(false);
+const [passwordResetMode, setPasswordResetMode] = useState(false);
 const [loginPass2, setLoginPass2] = useState("");
 const [loginNotice, setLoginNotice] = useState(null);
+const [currentPassword, setCurrentPassword] = useState("");
+const [newPassword, setNewPassword] = useState("");
+const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+const [passwordChangeNotice, setPasswordChangeNotice] = useState(null);
 const [rolePerms, setRolePerms] = useState({});
 const [darkMode, setDarkMode] = useState(() => localStorage.getItem("baustellen_dark_mode") === "1");
 
@@ -2906,6 +2911,49 @@ const handleRegister = async (e) => {
       ? Object.values(err.response.data).map((v) => v?.message).filter(Boolean).join(" ")
       : "";
     setLoginNotice({ type: "error", text: "Registrierung fehlgeschlagen. " + (detail || err.message) });
+  }
+};
+
+const handlePasswordResetRequest = async (e) => {
+  e.preventDefault();
+  try {
+    await pb.collection('users').requestPasswordReset(loginEmail);
+    setLoginNotice({
+      type: "success",
+      text: "Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde eine E-Mail zum Zurücksetzen des Passworts versendet."
+    });
+  } catch (err) {
+    setLoginNotice({ type: "error", text: "Die Anfrage zum Zurücksetzen des Passworts ist fehlgeschlagen: " + err.message });
+  }
+};
+
+const handlePasswordChange = async (e) => {
+  e.preventDefault();
+  setPasswordChangeNotice(null);
+  if (newPassword !== newPasswordConfirm) {
+    setPasswordChangeNotice({ type: "error", text: "Die neuen Passwörter stimmen nicht überein." });
+    return;
+  }
+  if (newPassword.length < 8) {
+    setPasswordChangeNotice({ type: "error", text: "Das neue Passwort muss mindestens 8 Zeichen lang sein." });
+    return;
+  }
+
+  try {
+    await pb.collection('users').update(user.id, {
+      oldPassword: currentPassword,
+      password: newPassword,
+      passwordConfirm: newPasswordConfirm
+    });
+    setCurrentPassword("");
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    setPasswordChangeNotice({ type: "success", text: "Dein Passwort wurde geändert." });
+  } catch (err) {
+    const detail = err?.response?.data
+      ? Object.values(err.response.data).map((value) => value?.message).filter(Boolean).join(" ")
+      : "";
+    setPasswordChangeNotice({ type: "error", text: "Das Passwort konnte nicht geändert werden: " + (detail || err.message) });
   }
 };
 
@@ -5955,6 +6003,10 @@ const createProject = async () => {
       handleRegister(e);
       return;
     }
+    if (passwordResetMode) {
+      handlePasswordResetRequest(e);
+      return;
+    }
     // Speichern der E-Mail, wenn Checkbox aktiv ist
     if (rememberMe) {
       localStorage.setItem("baustellen_remembered_email", loginEmail);
@@ -5966,7 +6018,9 @@ const createProject = async () => {
     backgroundColor: 'white', padding: '30px', borderRadius: '8px', 
     display: 'flex', flexDirection: 'column', width: '300px', gap: '15px'
   }}>
-    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>{registerMode ? "Registrieren" : "Baustellen Login"}</h2>
+    <h2 style={{ color: '#2c3e50', margin: '0 0 10px 0', textAlign: 'center' }}>
+      {registerMode ? "Registrieren" : passwordResetMode ? "Passwort zurücksetzen" : "Baustellen Login"}
+    </h2>
 
     {loginNotice && (
       <div role="alert" style={{
@@ -5985,12 +6039,14 @@ const createProject = async () => {
       required 
     />
     
-    <input 
-      type="password" placeholder="Passwort" value={loginPass} 
-      onChange={(e) => setLoginPass(e.target.value)}
-      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
-      required 
-    />
+    {!passwordResetMode && (
+      <input
+        type="password" placeholder="Passwort" value={loginPass}
+        onChange={(e) => setLoginPass(e.target.value)}
+        style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd', color: '#333' }}
+        required
+      />
+    )}
 
     {registerMode && (
       <input
@@ -6003,7 +6059,7 @@ const createProject = async () => {
     )}
 
     {/* --- NEU: "Merken" Checkbox --- */}
-    {!registerMode && (
+    {!registerMode && !passwordResetMode && (
     <label style={{ 
       display: 'flex', 
       alignItems: 'center', 
@@ -6028,12 +6084,28 @@ const createProject = async () => {
       border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold',
       marginTop: '5px'
     }}>
-      {registerMode ? "Registrieren" : "Anmelden"}
+      {registerMode ? "Registrieren" : passwordResetMode ? "Reset-E-Mail anfordern" : "Anmelden"}
     </button>
-    <button type="button" onClick={() => { setRegisterMode(!registerMode); setLoginPass2(""); setLoginNotice(null); }} style={{
+    {!registerMode && !passwordResetMode && (
+      <button type="button" onClick={() => { setPasswordResetMode(true); setLoginPass(""); setLoginNotice(null); }} style={{
+        background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', textDecoration: 'underline'
+      }}>
+        Passwort vergessen?
+      </button>
+    )}
+    <button type="button" onClick={() => {
+      if (passwordResetMode) {
+        setPasswordResetMode(false);
+      } else {
+        setRegisterMode(!registerMode);
+      }
+      setLoginPass("");
+      setLoginPass2("");
+      setLoginNotice(null);
+    }} style={{
       background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', textDecoration: 'underline'
     }}>
-      {registerMode ? "Zurück zum Login" : "Noch kein Konto? Registrieren"}
+      {registerMode || passwordResetMode ? "Zurück zum Login" : "Noch kein Konto? Registrieren"}
     </button>
   </form>
 </div>
@@ -9197,6 +9269,43 @@ const createProject = async () => {
                       {row.control}
                     </div>
                   ))}
+                  {passwordChangeNotice && (
+                    <div role="alert" style={{
+                      margin: '0 12px 10px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      color: passwordChangeNotice.type === "success" ? '#166534' : '#991b1b',
+                      background: passwordChangeNotice.type === "success" ? '#dcfce7' : '#fee2e2'
+                    }}>
+                      {passwordChangeNotice.text}
+                    </div>
+                  )}
+                  <form onSubmit={handlePasswordChange} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px', alignItems: 'end', padding: '10px 12px', borderTop: '1px solid #334155' }}>
+                    {[
+                      { label: 'Aktuelles Passwort', value: currentPassword, setValue: setCurrentPassword, autoComplete: 'current-password', minLength: undefined },
+                      { label: 'Neues Passwort', value: newPassword, setValue: setNewPassword, autoComplete: 'new-password', minLength: 8 },
+                      { label: 'Neues Passwort wiederholen', value: newPasswordConfirm, setValue: setNewPasswordConfirm, autoComplete: 'new-password', minLength: 8 }
+                    ].map((field) => (
+                      <label key={field.label} style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                        <span style={{ fontSize: '13px' }}>{field.label}</span>
+                        <input
+                          type="password"
+                          autoComplete={field.autoComplete}
+                          aria-label={field.label}
+                          value={field.value}
+                          onChange={(event) => field.setValue(event.target.value)}
+                          className="mast-input-base"
+                          style={{ width: '100%', minWidth: 0, margin: 0 }}
+                          minLength={field.minLength}
+                          required
+                        />
+                      </label>
+                    ))}
+                    <button type="submit" style={{ backgroundColor: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', height: '33px', margin: 0, padding: '0 12px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                      Passwort ändern
+                    </button>
+                  </form>
                 </div>
             <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
