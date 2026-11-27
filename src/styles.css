@@ -73,19 +73,43 @@ body,
   max-height: calc(100dvh - 40px);
 }
 
-.release-notes-dialog h2,
-.release-notes-dialog h3 {
+.release-notes-dialog h2 {
   margin: 0;
-}
-
-.release-notes-dialog h3 {
-  font-size: var(--ui-font-size-base);
 }
 
 .release-notes-list {
   overflow-y: auto;
   width: 100%;
   min-height: 0;
+}
+
+.release-notes-list details {
+  border-bottom: 1px solid var(--ui-color-gray-200);
+}
+
+.release-notes-list summary {
+  padding: 9px 4px;
+  border-radius: 6px;
+  font-size: var(--ui-font-size-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.release-notes-list summary:hover {
+  background: var(--ui-color-gray-100);
+}
+
+.release-notes-list summary:focus-visible {
+  outline: 2px solid var(--ui-color-sky-600);
+  outline-offset: -2px;
+}
+
+.dark-mode .release-notes-list details {
+  border-color: var(--ui-color-444444);
+}
+
+.dark-mode .release-notes-list summary:hover {
+  background: var(--ui-color-2e2e2e);
 }
 
 .release-notes-list ul {

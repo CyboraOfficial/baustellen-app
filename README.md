@@ -104,7 +104,8 @@ Nach einem Update zeigt die App die seit dem bestätigten Stand verpassten
 und zwischen Web und Desktop synchronisiert. Beim ersten Öffnen wird zunächst
 ein Ausgangsstand ohne Popup gespeichert. Dafür müssen die neue Migration und
 der neue PocketBase-Hook auf dem Server installiert sein. „Später“ schließt den
-Hinweis, ohne die Änderungen als gelesen zu markieren.
+Hinweis, ohne die Änderungen als gelesen zu markieren. In den Einstellungen
+lässt sich der Changelog jederzeit erneut anzeigen.
 
 Major und Minor werden in `package.json` vorgegeben: Aus `1.5.0` wird beim
 nächsten Push beispielsweise `1.5.1`. Die Versionsnummer muss dem Format

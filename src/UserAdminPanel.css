@@ -28,7 +28,6 @@
 }
 
 .admin-pending-row,
-.admin-create-user,
 .admin-create-role,
 .admin-role-list {
   display: flex;
@@ -46,8 +45,47 @@
   min-width: 180px;
 }
 
+.user-admin-panel .admin-create-trigger {
+  margin: 0 0 14px;
+}
+
+.admin-security-overlay.admin-create-overlay {
+  z-index: 2147483500;
+}
+
+.admin-security-dialog.admin-create-dialog {
+  width: min(460px, 100%);
+}
+
 .admin-create-user {
-  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.admin-create-user .admin-input {
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.admin-create-user .admin-crew-picker {
+  width: 100%;
+}
+
+.admin-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.admin-create-actions .admin-button {
+  margin: 0;
+}
+
+.admin-button-secondary {
+  background: var(--ui-color-slate-700);
 }
 
 .admin-create-role {
@@ -258,15 +296,34 @@
 }
 
 .admin-security-close {
+  display: inline-grid;
   flex: 0 0 auto;
+  place-items: center;
   width: 32px;
   height: 32px;
+  margin: 0;
+  padding: 0;
   color: var(--ui-color-slate-300);
   background: transparent;
   border: 0;
   border-radius: 6px;
   font-size: var(--ui-font-size-2xl);
+  line-height: 1;
   cursor: pointer;
+}
+
+.admin-security-close:hover:not(:disabled) {
+  background: var(--ui-color-slate-700);
+}
+
+.admin-security-close:focus-visible {
+  outline: 2px solid var(--ui-color-sky-400);
+  outline-offset: 2px;
+}
+
+.admin-security-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .admin-security-order {
@@ -577,10 +634,6 @@
 }
 
 @media (max-width: 700px) {
-  .admin-create-user > .admin-input {
-    flex: 1 1 100%;
-  }
-
   .admin-pending-row > div {
     flex: 1 1 100%;
   }

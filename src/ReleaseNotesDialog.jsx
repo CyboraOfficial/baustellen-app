@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import changelog from "../APP_CHANGELOG.md?raw";
 import { pb } from "./pocketbase";
-import { compareVersions, parseReleaseNotes, unreadReleaseNotes } from "./releaseNotes.mjs";
+import { compareVersions, parseReleaseNotes, releaseHistory, unreadReleaseNotes } from "./releaseNotes.mjs";
 
 const currentVersion = __APP_VERSION__;
 const sections = parseReleaseNotes(changelog);
 
-export default function ReleaseNotesDialog({ userId }) {
+export default function ReleaseNotesDialog({ userId, historyOpen = false, onCloseHistory }) {
   const [snapshot, setSnapshot] = useState(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -111,7 +111,9 @@ export default function ReleaseNotesDialog({ userId }) {
     }
   };
 
-  if (!userId || dismissedFor === userId || (!error && (!needsUpdate || notes.length === 0))) return null;
+  if (!userId || (!historyOpen && (dismissedFor === userId || (!error && (!needsUpdate || notes.length === 0))))) return null;
+
+  const displayedNotes = historyOpen ? releaseHistory(sections, currentVersion) : notes;
 
   return createPortal(
     <div className="app-dialog-backdrop release-notes-backdrop">
@@ -119,41 +121,53 @@ export default function ReleaseNotesDialog({ userId }) {
         aria-labelledby="release-notes-title"
         onKeyDown={(event) => {
           if (event.key === "Escape" && !saving) {
-            setDismissedFor(userId);
+            event.stopPropagation();
+            if (historyOpen) onCloseHistory();
+            else setDismissedFor(userId);
           } else if (event.key === "Tab") {
-            const buttons = Array.from(event.currentTarget.querySelectorAll("button:not(:disabled)"));
-            const index = buttons.indexOf(document.activeElement);
+            const controls = Array.from(event.currentTarget.querySelectorAll("button:not(:disabled), summary, [tabindex='0']"));
+            const index = controls.indexOf(document.activeElement);
             event.preventDefault();
-            buttons[(index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length]?.focus();
+            controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus();
           }
         }}>
-        <h2 id="release-notes-title">{notes.length ? "Was ist neu?" : "Versionshinweise"}</h2>
-        {notes.length > 0 && (
-          <div className="release-notes-list">
-            {notes.map(({ version, entries }) => (
-              <div key={version}>
-                <h3>Version {version}</h3>
-                <ul>{entries.map((entry, index) => <li key={`${version}-${index}`}>{entry}</li>)}</ul>
-              </div>
+        <h2 id="release-notes-title">{historyOpen ? "Changelog" : notes.length ? "Was ist neu?" : "Versionshinweise"}</h2>
+        {displayedNotes.length > 0 ? (
+          <div className="release-notes-list" tabIndex={0} aria-label="Versionsübersicht">
+            {displayedNotes.map(({ version, entries }, index) => (
+              <details key={version} open={index === 0}>
+                <summary>Version {version}</summary>
+                {entries.length > 0
+                  ? <ul>{entries.map((entry, index) => <li key={`${version}-${index}`}>{entry}</li>)}</ul>
+                  : <p>Keine Änderungen dokumentiert.</p>}
+              </details>
             ))}
           </div>
-        )}
-        {error && <p role="alert" className="release-notes-error">{error}</p>}
+        ) : historyOpen && <p>Keine veröffentlichten Änderungen vorhanden.</p>}
+        {!historyOpen && error && <p role="alert" className="release-notes-error">{error}</p>}
         <div className="app-dialog-actions">
-          <button type="button" className="app-dialog-button app-dialog-button-secondary"
-            onClick={() => setDismissedFor(userId)} disabled={saving}>
-            Später
-          </button>
-          {notes.length > 0 ? (
-            <button type="button" autoFocus className="app-dialog-button app-dialog-button-primary"
-              onClick={acknowledge} disabled={saving}>
-              {saving ? "Speichern…" : "Verstanden"}
+          {historyOpen ? (
+            <button type="button" autoFocus className="app-dialog-button app-dialog-button-primary" onClick={onCloseHistory}>
+              Schließen
             </button>
           ) : (
-            <button type="button" autoFocus className="app-dialog-button app-dialog-button-primary"
-              onClick={() => setRetry((value) => value + 1)}>
-              Erneut versuchen
-            </button>
+            <>
+              <button type="button" className="app-dialog-button app-dialog-button-secondary"
+                onClick={() => setDismissedFor(userId)} disabled={saving}>
+                Später
+              </button>
+              {notes.length > 0 ? (
+                <button type="button" autoFocus className="app-dialog-button app-dialog-button-primary"
+                  onClick={acknowledge} disabled={saving}>
+                  {saving ? "Speichern…" : "Verstanden"}
+                </button>
+              ) : (
+                <button type="button" autoFocus className="app-dialog-button app-dialog-button-primary"
+                  onClick={() => setRetry((value) => value + 1)}>
+                  Erneut versuchen
+                </button>
+              )}
+            </>
           )}
         </div>
       </section>
